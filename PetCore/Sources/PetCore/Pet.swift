@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LifeStage: String, Codable, Equatable, CaseIterable {
+public enum LifeStage: String, Codable, Equatable, CaseIterable, Sendable {
     case egg
     case baby
     case child
@@ -28,7 +28,7 @@ public enum LifeStage: String, Codable, Equatable, CaseIterable {
     }
 }
 
-public enum DeathReason: String, Codable, Equatable {
+public enum DeathReason: String, Codable, Equatable, Sendable {
     case hunger
     case loneliness
 
@@ -42,7 +42,7 @@ public enum DeathReason: String, Codable, Equatable {
     }
 }
 
-public struct Pet: Codable, Equatable, Identifiable {
+public struct Pet: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var name: String
     public var stage: LifeStage
@@ -123,7 +123,7 @@ public struct Pet: Codable, Equatable, Identifiable {
     }
 }
 
-public struct PetRecord: Codable, Equatable {
+public struct PetRecord: Codable, Equatable, Sendable {
     public static let currentSchema = 1
 
     public var schemaVersion: Int

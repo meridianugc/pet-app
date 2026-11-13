@@ -1,13 +1,13 @@
 import Foundation
 
-public enum CareAction: String, Codable, Equatable {
+public enum CareAction: String, Codable, Equatable, Sendable {
     case feed
     case play
     case beginSleep
     case wake
 }
 
-public struct CareOutcome: Equatable {
+public struct CareOutcome: Equatable, Sendable {
     public var pet: Pet
     public var applied: Bool
     public var note: String
@@ -20,7 +20,7 @@ public struct CareOutcome: Equatable {
 }
 
 /// Pure simulation. Pass dates from a `Clock`; nothing here reads the wall clock.
-public struct PetEngine {
+public struct PetEngine: Sendable {
     public var rules: PetRules
 
     public init(rules: PetRules = PetRules()) {

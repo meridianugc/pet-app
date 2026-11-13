@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PetMood: String, Codable, Equatable {
+public enum PetMood: String, Codable, Equatable, Sendable {
     case egging
     case joyful
     case content

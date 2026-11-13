@@ -1,6 +1,6 @@
 import Foundation
 
-public enum PetStoreError: Error, Equatable {
+public enum PetStoreError: Error, Equatable, Sendable {
     case unreadable
     case unsupportedSchema(Int)
 }

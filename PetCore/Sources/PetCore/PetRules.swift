@@ -2,7 +2,7 @@ import Foundation
 
 /// Tunable numbers for decay, growth, care, and warnings.
 /// `PetRules()` is what the app ships with. Tests build their own copy.
-public struct PetRules: Equatable {
+public struct PetRules: Equatable, Sendable {
     public var eggDuration: TimeInterval
     public var babyDuration: TimeInterval
     public var childDuration: TimeInterval

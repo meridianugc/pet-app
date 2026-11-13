@@ -1,6 +1,6 @@
 import Foundation
 
-public struct PlannedNotification: Equatable, Identifiable {
+public struct PlannedNotification: Equatable, Identifiable, Sendable {
     public var id: String
     public var fireAt: Date
     public var title: String
@@ -25,7 +25,7 @@ public struct PlannedNotification: Equatable, Identifiable {
 
 /// Turns the stat curves into the next local notifications.
 /// Dates come from `PetEngine`, so the warnings match what the pet will actually do.
-public struct NotificationPlanner {
+public struct NotificationPlanner: Sendable {
     public var engine: PetEngine
     public var resolution: TimeInterval
 
