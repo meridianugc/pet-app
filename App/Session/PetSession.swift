@@ -28,11 +28,12 @@ final class PetSession: ObservableObject {
     init(
         store: PetFileStore,
         usesAppGroup: Bool,
-        scheduler: PetNotificationScheduler = PetNotificationScheduler()
+        scheduler: PetNotificationScheduler? = nil
     ) {
         self.store = store
         self.usesAppGroup = usesAppGroup
-        self.scheduler = scheduler
+        // Default arguments are nonisolated, so the main-actor scheduler is created here.
+        self.scheduler = scheduler ?? PetNotificationScheduler()
         self.engine = PetEngine()
         loadFromDisk()
         Task { await refreshReminderAccess() }
