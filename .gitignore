@@ -1,0 +1,12 @@
+.DS_Store
+build/
+DerivedData/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.moved-aside
+.swift-version
+PetCore/.build/
+.packages/
+*.swp
