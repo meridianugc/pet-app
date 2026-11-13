@@ -12,7 +12,9 @@ struct ReminderCard: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
-                Task { await session.allowReminders() }
+                Task { @MainActor in
+                    await session.allowReminders()
+                }
             } label: {
                 Text("Allow reminders")
                     .frame(maxWidth: .infinity, minHeight: 44)

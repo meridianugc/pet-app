@@ -149,7 +149,7 @@ struct HomeView: View {
         systemImage: String,
         hint: String,
         disabled: Bool,
-        action: @escaping () -> Void
+        action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
@@ -196,7 +196,9 @@ struct HomeView: View {
         if session.reminderAccess == .notAsked {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Reminders") {
-                    Task { await session.allowReminders() }
+                    Task { @MainActor in
+                        await session.allowReminders()
+                    }
                 }
                 .accessibilityHint("Asks to send reminders when the pet needs you.")
             }

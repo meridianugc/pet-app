@@ -38,7 +38,9 @@ struct DebugMenuView: View {
 
             Section("Reminders") {
                 Button("Send a test reminder") {
-                    Task { await session.sendTestReminder() }
+                    Task { @MainActor in
+                        await session.sendTestReminder()
+                    }
                 }
                 Text("Allow reminders first. The test arrives in about 5 seconds, even while this app is open.")
                     .font(.footnote)
