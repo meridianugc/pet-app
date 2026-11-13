@@ -6,7 +6,7 @@ public enum PetStoreError: Error, Equatable, Sendable {
 }
 
 /// One JSON file. The app points this at the App Group folder; tests use a temp folder.
-public struct PetFileStore {
+public struct PetFileStore: Sendable {
     public let directory: URL
     public let fileURL: URL
 
@@ -25,7 +25,7 @@ public struct PetFileStore {
         }
         let record: PetRecord
         do {
-            record = try Self.decoder.decode(PetRecord.self, from: data)
+            record = try Self.makeDecoder().decode(PetRecord.self, from: data)
         } catch {
             throw PetStoreError.unreadable
         }
@@ -38,7 +38,7 @@ public struct PetFileStore {
     public func save(_ record: PetRecord) throws {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let data = try Self.encoder.encode(record)
+            let data = try Self.makeEncoder().encode(record)
             try data.write(to: fileURL, options: [.atomic])
         } catch let error as PetStoreError {
             throw error
@@ -47,16 +47,16 @@ public struct PetFileStore {
         }
     }
 
-    public static let encoder: JSONEncoder = {
+    private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .secondsSince1970
         return encoder
-    }()
+    }
 
-    public static let decoder: JSONDecoder = {
+    private static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         return decoder
-    }()
+    }
 }
