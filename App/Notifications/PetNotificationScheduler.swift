@@ -49,7 +49,8 @@ final class PetNotificationScheduler: NSObject, UNUserNotificationCenterDelegate
         }
     }
 
-    func userNotificationCenter(
+    /// The system calls this off the main actor. It does not touch scheduler state.
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
