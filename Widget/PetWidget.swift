@@ -5,12 +5,12 @@ import WidgetKit
 // Timeline: triggered by the app after each save, plus a fallback refresh.
 // Each entry is the pet caught up to that wall-clock time, including any debug offset.
 
-struct PetWidgetEntry: TimelineEntry {
+struct PetWidgetEntry: TimelineEntry, Sendable {
     var date: Date
     var simulatedNow: Date
     var pet: Pet?
 
-    static var preview: PetWidgetEntry {
+    nonisolated static var preview: PetWidgetEntry {
         let now = Date()
         let egg = Pet.freshEgg(name: "Mochi", at: now.addingTimeInterval(-3 * 60 * 60))
         let pet = PetEngine().advance(egg, to: now)
@@ -19,15 +19,15 @@ struct PetWidgetEntry: TimelineEntry {
 }
 
 struct PetProvider: TimelineProvider {
-    func placeholder(in context: Context) -> PetWidgetEntry {
+    nonisolated func placeholder(in context: Context) -> PetWidgetEntry {
         .preview
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (PetWidgetEntry) -> Void) {
+    nonisolated func getSnapshot(in context: Context, completion: @escaping (PetWidgetEntry) -> Void) {
         completion(context.isPreview ? .preview : makeEntry(at: Date()))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<PetWidgetEntry>) -> Void) {
+    nonisolated func getTimeline(in context: Context, completion: @escaping (Timeline<PetWidgetEntry>) -> Void) {
         let now = Date()
         var stamps = [now.timeIntervalSince1970]
         let first = makeEntry(at: now)
@@ -49,7 +49,7 @@ struct PetProvider: TimelineProvider {
         completion(Timeline(entries: entries, policy: .after(refresh)))
     }
 
-    private func makeEntry(at wall: Date) -> PetWidgetEntry {
+    nonisolated private func makeEntry(at wall: Date) -> PetWidgetEntry {
         guard let record = loadRecord() else {
             return PetWidgetEntry(date: wall, simulatedNow: wall, pet: nil)
         }
@@ -58,7 +58,7 @@ struct PetProvider: TimelineProvider {
         return PetWidgetEntry(date: wall, simulatedNow: simulated, pet: pet)
     }
 
-    private func loadRecord() -> PetRecord? {
+    nonisolated private func loadRecord() -> PetRecord? {
         guard let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: PetIdentity.appGroupID
         ) else {
