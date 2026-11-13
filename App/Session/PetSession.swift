@@ -36,7 +36,9 @@ final class PetSession: ObservableObject {
         self.scheduler = scheduler ?? PetNotificationScheduler()
         self.engine = PetEngine()
         loadFromDisk()
-        Task { await refreshReminderAccess() }
+        Task { @MainActor in
+            await refreshReminderAccess()
+        }
     }
 
     var currentDate: Date {
@@ -52,7 +54,9 @@ final class PetSession: ObservableObject {
     }
 
     func refresh(includeAlreadyLow: Bool) {
-        Task { await refreshReminderAccess() }
+        Task { @MainActor in
+            await refreshReminderAccess()
+        }
         guard let record else { return }
         persist(record, includeAlreadyLow: includeAlreadyLow)
     }
@@ -199,7 +203,7 @@ final class PetSession: ObservableObject {
         self.record = record
         WidgetCenter.shared.reloadAllTimelines()
         let pet = record.pet
-        Task {
+        Task { @MainActor in
             await scheduler.reschedule(pet: pet, now: now, includeAlreadyLow: includeAlreadyLow)
         }
     }
