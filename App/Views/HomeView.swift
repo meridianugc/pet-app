@@ -746,62 +746,93 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
     var onEnd: ((Int) -> Void)?
     private var score = 0
     private var ended = false
-    private var player = SKShapeNode(circleOfRadius: 16)
+    private var started = false
+    private var player = SKShapeNode(circleOfRadius: 18)
     private var pads: [SKNode] = []
-    private let padBodies = 2
+    private var origins: [ObjectIdentifier: CGFloat] = [:]
     private var steer: CGFloat = 0
+    private var lastBounce: TimeInterval = 0
+    private var wantsStart = false
+
+    func begin() {
+        wantsStart = true
+        launchIfReady()
+    }
+
+    private func launchIfReady() {
+        guard wantsStart, !started, !ended, player.parent != nil else { return }
+        started = true
+        isPaused = false
+        player.physicsBody?.isDynamic = true
+        player.physicsBody?.velocity = CGVector(dx: 0, dy: 820)
+    }
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.10, green: 0.12, blue: 0.28, alpha: 1)
-        physicsWorld.gravity = CGVector(dx: 0, dy: -7)
+        backgroundColor = SKColor(red: 0.20, green: 0.12, blue: 0.38, alpha: 1)
+        physicsWorld.gravity = CGVector(dx: 0, dy: -14)
         physicsWorld.contactDelegate = self
-        let camera = SKCameraNode()
-        camera.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        self.camera = camera
-        addChild(camera)
-        let course = HopperCourse.pads(seed: UInt64.random(in: 1...9_000), count: 80, spacing: 110)
+        let cameraNode = SKCameraNode()
+        camera = cameraNode
+        addChild(cameraNode)
+        let course = HopperCourse.pads(seed: UInt64.random(in: 1...90_000), count: 90, spacing: 96)
         for pad in course {
-            let node = SKShapeNode(rectOf: CGSize(width: 92, height: 16), cornerRadius: 8)
-            node.position = CGPoint(x: CGFloat(pad.x) * size.width, y: 80 + CGFloat(pad.y))
+            let width = max(86, CGFloat(pad.span) * size.width * 0.78)
+            let node = SKShapeNode(rectOf: CGSize(width: width, height: 20), cornerRadius: 10)
+            node.position = CGPoint(x: CGFloat(pad.x) * size.width, y: 140 + CGFloat(pad.y))
             node.name = pad.kind.rawValue
             switch pad.kind {
-            case .steady: node.fillColor = SKColor(red: 0.72, green: 0.64, blue: 0.98, alpha: 1)
+            case .steady: node.fillColor = SKColor(red: 0.78, green: 0.70, blue: 1, alpha: 1)
             case .moving: node.fillColor = SKColor(red: 0.55, green: 0.78, blue: 1, alpha: 1)
-            case .crumbly: node.fillColor = SKColor(red: 0.95, green: 0.72, blue: 0.55, alpha: 1)
-            case .spring: node.fillColor = SKColor(red: 0.55, green: 0.9, blue: 0.7, alpha: 1)
+            case .crumbly: node.fillColor = SKColor(red: 0.98, green: 0.72, blue: 0.55, alpha: 1)
+            case .spring: node.fillColor = SKColor(red: 0.55, green: 0.90, blue: 0.72, alpha: 1)
             }
-            node.strokeColor = .white
-            let body = SKPhysicsBody(rectangleOf: CGSize(width: 92, height: 16))
+            node.strokeColor = SKColor(white: 1, alpha: 0.85)
+            node.lineWidth = 3
+            let body = SKPhysicsBody(rectangleOf: CGSize(width: width, height: 20))
             body.isDynamic = false
-            body.categoryBitMask = UInt32(padBodies)
+            body.categoryBitMask = 2
+            body.collisionBitMask = 0
             body.contactTestBitMask = 1
             node.physicsBody = body
             addChild(node)
             pads.append(node)
-            if Int(pad.y) % 220 == 0 {
-                let gem = SKShapeNode(circleOfRadius: 8)
-                gem.fillColor = SKColor(red: 1, green: 0.86, blue: 0.4, alpha: 1)
+            origins[ObjectIdentifier(node)] = node.position.x
+            if pad.kind == .spring {
+                let coil = SKShapeNode(rectOf: CGSize(width: 16, height: 18), cornerRadius: 4)
+                coil.fillColor = SKColor(red: 0.55, green: 0.35, blue: 0.85, alpha: 1)
+                coil.strokeColor = .white
+                coil.position = CGPoint(x: 0, y: 16)
+                node.addChild(coil)
+            }
+            if Int(pad.y) % 288 == 0, pad.y > 0 {
+                let gem = SKShapeNode(circleOfRadius: 9)
+                gem.fillColor = SKColor(red: 1, green: 0.86, blue: 0.45, alpha: 1)
                 gem.strokeColor = .white
-                gem.position = CGPoint(x: node.position.x, y: node.position.y + 28)
+                gem.lineWidth = 2
+                gem.position = CGPoint(x: node.position.x, y: node.position.y + 34)
                 gem.name = "gem"
-                gem.physicsBody = SKPhysicsBody(circleOfRadius: 8)
-                gem.physicsBody?.isDynamic = false
-                gem.physicsBody?.categoryBitMask = 4
-                gem.physicsBody?.contactTestBitMask = 1
                 addChild(gem)
             }
         }
-        player.fillColor = SKColor(red: 0.86, green: 0.8, blue: 1, alpha: 1)
+        player.fillColor = SKColor(red: 0.86, green: 0.78, blue: 1, alpha: 1)
         player.strokeColor = .white
         player.lineWidth = 3
-        player.position = CGPoint(x: size.width / 2, y: 130)
-        player.physicsBody = SKPhysicsBody(circleOfRadius: 16)
-        player.physicsBody?.allowsRotation = false
-        player.physicsBody?.restitution = 0
-        player.physicsBody?.categoryBitMask = 1
-        player.physicsBody?.collisionBitMask = UInt32(padBodies)
-        player.physicsBody?.contactTestBitMask = UInt32(padBodies) | 4
+        let launch = pads.first
+        player.position = CGPoint(x: launch?.position.x ?? size.width / 2, y: (launch?.position.y ?? 140) + 32)
+        let body = SKPhysicsBody(circleOfRadius: 18)
+        body.allowsRotation = false
+        body.restitution = 0
+        body.friction = 0
+        body.linearDamping = 0
+        body.categoryBitMask = 1
+        body.collisionBitMask = 0
+        body.contactTestBitMask = 2
+        body.isDynamic = false
+        player.physicsBody = body
         addChild(player)
+        cameraNode.position = CGPoint(x: size.width / 2, y: player.position.y + size.height * 0.18)
+        isPaused = true
+        launchIfReady()
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -813,51 +844,78 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func aim(_ touches: Set<UITouch>) {
-        guard let x = touches.first?.location(in: self).x else { return }
-        steer = x < size.width / 2 ? -1 : 1
+        guard let point = touches.first?.location(in: self), let camera else { return }
+        let viewX = point.x - camera.position.x + size.width / 2
+        steer = viewX < size.width / 2 ? -1 : 1
     }
 
     override func update(_ currentTime: TimeInterval) {
-        guard !ended, let body = player.physicsBody, let camera else { return }
-        body.velocity.dx = steer * 220
-        if player.position.x < 0 { player.position.x = size.width }
-        if player.position.x > size.width { player.position.x = 0 }
-        let focus = max(size.height / 2, player.position.y)
-        camera.position = CGPoint(x: size.width / 2, y: focus)
-        for pad in pads where pad.name == HopperPad.Kind.moving.rawValue {
-            pad.position.x += sin(currentTime * 2 + pad.position.y) * 1.4
+        guard started, !ended, let body = player.physicsBody, let camera else { return }
+        body.velocity.dx = steer * 280
+        if player.position.x < -16 { player.position.x = size.width + 8 }
+        if player.position.x > size.width + 16 { player.position.x = -8 }
+        let targetY = player.position.y + size.height * 0.18
+        if targetY > camera.position.y {
+            camera.position.y = targetY
         }
-        if player.position.y < camera.position.y - size.height * 0.55 {
+        for pad in pads where pad.name == HopperPad.Kind.moving.rawValue {
+            let origin = origins[ObjectIdentifier(pad)] ?? pad.position.x
+            pad.position.x = origin + sin(currentTime * 1.5 + pad.position.y) * 34
+        }
+        let stretch = 1 + min(0.22, abs(body.velocity.dy) / 5000)
+        if body.velocity.dy > 40 {
+            player.yScale = stretch
+            player.xScale = 1 / stretch
+        } else {
+            player.yScale = 1 / stretch
+            player.xScale = stretch
+        }
+        if body.velocity.dy < 0 {
+            landIfNeeded(at: currentTime)
+        }
+        let climbed = Int(max(0, player.position.y - 140) / 28)
+        if climbed > score {
+            score = climbed
+            onScore?(score)
+        }
+        if player.position.y < camera.position.y - size.height * 0.62 {
             ended = true
             onEnd?(score)
         }
     }
 
-    func didBegin(_ contact: SKPhysicsContact) {
-        let pair = [contact.bodyA.node, contact.bodyB.node]
-        guard let jumper = pair.first(where: { $0 === player }),
-              let other = pair.first(where: { $0 !== player }),
-              let body = player.physicsBody else { return }
-        _ = jumper
-        if other?.name == "gem" {
-            score += 8
-            onScore?(score)
-            other?.removeFromParent()
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            return
-        }
-        guard body.velocity.dy <= 0, player.position.y > (other?.position.y ?? 0) else { return }
-        let boost: CGFloat = other?.name == HopperPad.Kind.spring.rawValue ? 980 : 720
-        body.velocity.dy = boost
-        score += 1
-        onScore?(score)
-        if other?.name == HopperPad.Kind.crumbly.rawValue {
-            other?.run(.sequence([.fadeOut(withDuration: 0.15), .removeFromParent()]))
-        }
-        if other?.name == HopperPad.Kind.spring.rawValue {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    private func landIfNeeded(at time: TimeInterval) {
+        guard time - lastBounce > 0.12, let body = player.physicsBody else { return }
+        for pad in pads where pad.parent != nil {
+            let half = pad.frame.width / 2
+            let dx = abs(player.position.x - pad.position.x)
+            let dy = player.position.y - pad.position.y
+            if dx < half - 4, dy > 8, dy < 40 {
+                bounce(on: pad, body: body, at: time)
+                return
+            }
         }
     }
+
+    private func bounce(on pad: SKNode, body: SKPhysicsBody, at time: TimeInterval) {
+        lastBounce = time
+        let boost: CGFloat = pad.name == HopperPad.Kind.spring.rawValue ? 1080 : 790
+        body.velocity = CGVector(dx: body.velocity.dx, dy: boost)
+        player.position.y = pad.position.y + 34
+        if pad.name == HopperPad.Kind.crumbly.rawValue {
+            pad.run(.sequence([.fadeOut(withDuration: 0.12), .removeFromParent()]))
+        }
+        UIImpactFeedbackGenerator(style: pad.name == HopperPad.Kind.spring.rawValue ? .medium : .light).impactOccurred()
+        for gem in children where gem.name == "gem" {
+            if hypot(gem.position.x - player.position.x, gem.position.y - player.position.y) < 46 {
+                score += 6
+                onScore?(score)
+                gem.removeFromParent()
+            }
+        }
+    }
+
+    func didBegin(_ contact: SKPhysicsContact) {}
 }
 
 struct StarHopperGame: View {
@@ -870,15 +928,53 @@ struct StarHopperGame: View {
     }()
     @State private var score = 0
     @State private var closed = false
+    @State private var countdown = 3
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starHopper")
+
+    private let goal = 40
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .top) {
             SpriteView(scene: scene).ignoresSafeArea()
-            Text("\(score)")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(24)
-                .accessibilityLabel("Score \(score)")
+            VStack(spacing: 8) {
+                HStack {
+                    Button("?") { showHowTo = true }
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.85)))
+                        .accessibilityLabel("How to play Star Hopper")
+                    Spacer()
+                    Text("\(score)")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .accessibilityLabel("Score \(score)")
+                }
+                GoalMeter(title: "Star \(min(score, goal))/\(goal)", fraction: min(1, Double(score) / Double(goal)))
+            }
+            .padding(16)
+            if countdown > 0, !showHowTo {
+                Text(countdown == 1 ? "Hop!" : "\(countdown)")
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(radius: 8)
+                    .frame(maxHeight: .infinity)
+                    .onTapGesture { skipCountdown() }
+            }
+            if showHowTo {
+                HowToOverlay(
+                    title: "Star Hopper",
+                    pages: [
+                        "Tap the left or right side to steer. You bounce on your own.",
+                        "Green pads spring higher. Orange pads break after one landing.",
+                        "Grab star gems on the way up. Falling off the screen ends the run."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.starHopper")
+                        showHowTo = false
+                        startCountdown()
+                    }
+                )
+            }
         }
         .onAppear {
             scene.onScore = { value in Task { @MainActor in score = value } }
@@ -890,7 +986,91 @@ struct StarHopperGame: View {
                     dismiss()
                 }
             }
+            if !showHowTo { startCountdown() }
         }
+    }
+
+    private func startCountdown() {
+        countdown = 3
+        Task { @MainActor in
+            for tick in stride(from: 3, through: 1, by: -1) {
+                countdown = tick
+                try? await Task.sleep(nanoseconds: 700_000_000)
+            }
+            countdown = 0
+            scene.begin()
+        }
+    }
+
+    private func skipCountdown() {
+        countdown = 0
+        scene.begin()
+    }
+}
+
+struct GoalMeter: View {
+    var title: String
+    var fraction: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                .foregroundStyle(.white)
+            Capsule()
+                .fill(Color.white.opacity(0.25))
+                .overlay(alignment: .leading) {
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(Color(red: 1, green: 0.84, blue: 0.4))
+                            .frame(width: geo.size.width * min(1, max(0, fraction)))
+                    }
+                }
+                .frame(height: 12)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct HowToOverlay: View {
+    var title: String
+    var pages: [String]
+    var onDone: () -> Void
+    @State private var page = 0
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text(title)
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                Text(pages[page])
+                    .font(.system(.title3, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .frame(minHeight: 90)
+                HStack(spacing: 8) {
+                    ForEach(pages.indices, id: \.self) { index in
+                        Circle()
+                            .fill(index == page ? Color(red: 0.55, green: 0.4, blue: 0.9) : Color.gray.opacity(0.35))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                Button(page + 1 == pages.count ? "Let's play" : "Next") {
+                    if page + 1 == pages.count {
+                        onDone()
+                    } else {
+                        page += 1
+                    }
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.55, green: 0.42, blue: 0.86))
+            }
+            .padding(24)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
+            .padding(28)
+        }
+        .accessibilityAddTraits(.isModal)
     }
 }
 
