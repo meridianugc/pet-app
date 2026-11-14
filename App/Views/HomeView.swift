@@ -636,6 +636,43 @@ struct GamePicker: View {
     }
 }
 
+enum PlanetArt {
+    static func texture(index: Int, radius: CGFloat) -> SKTexture {
+        let side = radius * 2 + 16
+        let colors: [UIColor] = [
+            UIColor(red: 1, green: 0.78, blue: 0.55, alpha: 1),
+            UIColor(red: 1, green: 0.55, blue: 0.7, alpha: 1),
+            UIColor(red: 0.7, green: 0.58, blue: 1, alpha: 1),
+            UIColor(red: 0.5, green: 0.75, blue: 1, alpha: 1),
+            UIColor(red: 0.55, green: 0.88, blue: 0.72, alpha: 1),
+            UIColor(red: 0.98, green: 0.86, blue: 0.4, alpha: 1),
+            UIColor(red: 0.55, green: 0.42, blue: 0.85, alpha: 1)
+        ]
+        let fill = colors[index % colors.count]
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
+            let cg = context.cgContext
+            let rect = CGRect(x: 8, y: 8, width: radius * 2, height: radius * 2)
+            cg.setFillColor(fill.cgColor)
+            cg.fillEllipse(in: rect)
+            cg.setFillColor(UIColor.white.withAlphaComponent(0.55).cgColor)
+            cg.fillEllipse(in: CGRect(x: rect.minX + radius * 0.35, y: rect.minY + radius * 0.25, width: radius * 0.7, height: radius * 0.45))
+            cg.setFillColor(fill.withAlphaComponent(0.45).cgColor)
+            cg.fillEllipse(in: CGRect(x: rect.midX, y: rect.midY, width: radius * 0.35, height: radius * 0.28))
+            if index % 2 == 0 {
+                cg.setStrokeColor(UIColor.white.withAlphaComponent(0.8).cgColor)
+                cg.setLineWidth(3)
+                cg.strokeEllipse(in: rect.insetBy(dx: -4, dy: radius * 0.35))
+            }
+            if index >= 2 {
+                cg.setFillColor(UIColor(white: 0.15, alpha: 0.8).cgColor)
+                cg.fillEllipse(in: CGRect(x: rect.midX - radius * 0.28, y: rect.midY - radius * 0.05, width: radius * 0.16, height: radius * 0.2))
+                cg.fillEllipse(in: CGRect(x: rect.midX + radius * 0.1, y: rect.midY - radius * 0.05, width: radius * 0.16, height: radius * 0.2))
+            }
+        }
+        return SKTexture(image: image)
+    }
+}
+
 final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
     var onScore: ((Int) -> Void)?
     var onEnd: ((Int) -> Void)?
@@ -693,14 +730,29 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
         run(.sequence([.wait(forDuration: 0.4), .run { [weak self] in self?.ready = true }]))
     }
 
-    private func planet(sizeIndex: Int) -> SKShapeNode {
+    func blastOne() -> Bool {
+        let planets = children.filter { $0.name == "planet" }
+        guard let target = planets.min(by: { sizeOf($0) ?? 0 < sizeOf($1) ?? 0 }) else { return false }
+        burst(at: target.position)
+        target.removeFromParent()
+        score += 8
+        onScore?(score)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        return true
+    }
+
+    private func planet(sizeIndex: Int) -> SKSpriteNode {
         let radius = CGFloat(PlanetMerge.radius(for: sizeIndex))
-        let node = SKShapeNode(circleOfRadius: radius)
-        node.fillColor = palette[sizeIndex % palette.count]
-        node.strokeColor = SKColor(white: 1, alpha: 0.7)
-        node.lineWidth = 3
+        let node = SKSpriteNode(texture: PlanetArt.texture(index: sizeIndex, radius: radius))
+        node.size = CGSize(width: radius * 2.2, height: radius * 2.2)
         node.name = "planet"
         node.userData = ["size": sizeIndex]
+        let glow = SKSpriteNode(texture: node.texture)
+        glow.size = CGSize(width: radius * 2.8, height: radius * 2.8)
+        glow.alpha = 0.35
+        glow.blendMode = .add
+        glow.zPosition = -1
+        node.addChild(glow)
         let body = SKPhysicsBody(circleOfRadius: radius)
         body.restitution = 0.05
         body.friction = 0.4
@@ -799,21 +851,38 @@ struct PlanetMergeGame: View {
     @State private var closed = false
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.planetMerge")
 
+    private let goal = 80
+
     var body: some View {
         ZStack(alignment: .top) {
             SpriteView(scene: scene)
                 .ignoresSafeArea()
-            HStack {
-                Button("?") { showHowTo = true }
-                    .font(.system(.headline, design: .rounded).weight(.bold))
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.white.opacity(0.85)))
-                    .accessibilityLabel("How to play Planet Merge")
-                Spacer()
-                Text("\(score)")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .accessibilityLabel("Score \(score)")
+            VStack(spacing: 8) {
+                HStack {
+                    Button("?") { showHowTo = true }
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.85)))
+                        .accessibilityLabel("How to play Planet Merge")
+                    Spacer()
+                    Button("Blast \(session.powerCount(.blast))") {
+                        guard session.spendPower(.blast) else {
+                            session.buyPower(.blast)
+                            return
+                        }
+                        _ = scene.blastOne()
+                    }
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.white.opacity(0.85)))
+                    .accessibilityLabel("Blast, \(session.powerCount(.blast)) charges")
+                    Text("\(score)")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .accessibilityLabel("Score \(score)")
+                }
+                GoalMeter(title: "\(min(score, goal))/\(goal)", fraction: Double(min(score, goal)) / Double(goal))
             }
             .padding(16)
             if showHowTo {
@@ -860,6 +929,13 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
     private var steer: CGFloat = 0
     private var lastBounce: TimeInterval = 0
     private var wantsStart = false
+    private let starfield = SKNode()
+
+    func boost() {
+        guard started, !ended else { return }
+        player.physicsBody?.velocity.dy = 1100
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
 
     func begin() {
         wantsStart = true
@@ -938,6 +1014,16 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
         player.physicsBody = body
         addChild(player)
         cameraNode.position = CGPoint(x: size.width / 2, y: player.position.y + size.height * 0.18)
+        for index in 0..<24 {
+            let star = SKShapeNode(circleOfRadius: index % 4 == 0 ? 2.4 : 1.3)
+            star.fillColor = .white
+            star.strokeColor = .clear
+            star.alpha = 0.8
+            star.position = CGPoint(x: CGFloat((index * 53) % Int(size.width)), y: CGFloat(index * 140))
+            starfield.addChild(star)
+        }
+        starfield.zPosition = -5
+        addChild(starfield)
         isPaused = true
         launchIfReady()
     }
@@ -965,6 +1051,7 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
         if targetY > camera.position.y {
             camera.position.y = targetY
         }
+        starfield.position.y = camera.position.y * 0.4
         for pad in pads where pad.name == HopperPad.Kind.moving.rawValue {
             let origin = origins[ObjectIdentifier(pad)] ?? pad.position.x
             pad.position.x = origin + sin(currentTime * 1.5 + pad.position.y) * 34
@@ -1057,6 +1144,21 @@ struct StarHopperGame: View {
                         .accessibilityLabel("Score \(score)")
                 }
                 GoalMeter(title: "Star \(min(score, goal))/\(goal)", fraction: min(1, Double(score) / Double(goal)))
+                HStack {
+                    Button("Jet \(session.powerCount(.jet))") {
+                        guard session.spendPower(.jet) else {
+                            session.buyPower(.jet)
+                            return
+                        }
+                        scene.boost()
+                    }
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.white.opacity(0.85)))
+                    .accessibilityLabel("Jet, \(session.powerCount(.jet)) charges")
+                    Spacer()
+                }
             }
             .padding(16)
             if countdown > 0, !showHowTo {
