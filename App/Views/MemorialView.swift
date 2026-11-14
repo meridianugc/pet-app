@@ -174,6 +174,8 @@ struct DressingRoomView: View {
                 .frame(width: 46, height: 46)
                 .overlay(Circle().stroke(worn ? Color.white : Color.clear, lineWidth: 3))
                 .opacity(owned ? 1 : 0.45)
+            Text("Lv \(option.level)")
+                .font(.system(size: 10, design: .rounded).weight(.bold))
             if owned {
                 Button(worn ? "On" : "Wear") { session.wearLook(option.id) }
                     .disabled(!fits || worn)

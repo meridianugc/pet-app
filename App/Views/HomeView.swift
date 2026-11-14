@@ -430,6 +430,11 @@ struct CollectionBookView: View {
             Text(found ? entry.title : "???")
                 .font(.system(.caption, design: .rounded).weight(.bold))
                 .lineLimit(1)
+            Text("Lv \(entry.unlockLevel)")
+                .font(.system(size: 10, design: .rounded).weight(.bold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color(red: 1, green: 0.84, blue: 0.45)))
             if !found {
                 Text(entry.hint)
                     .font(.system(size: 10, design: .rounded))
