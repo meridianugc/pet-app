@@ -83,7 +83,11 @@ struct PetCreatureView: View {
                     .blur(radius: side * 0.04)
             }
             if let sprite = GameArt.image(spriteName) {
-                sprite.resizable().scaledToFit().frame(width: side * 0.8, height: side * 0.8)
+                sprite
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: side * 0.92, height: side * 0.92)
+                PaintedOutfit(outfit: outfit, side: side)
             } else if stage == .egg {
                 StarEgg(side: side, palette: palette, shell: shell)
             } else {
@@ -108,6 +112,37 @@ struct PetCreatureView: View {
         let cycle = time.truncatingRemainder(dividingBy: 4.2)
         guard cycle > 3.45, cycle < 3.8 else { return 0 }
         return CGFloat(sin((cycle - 3.45) / 0.35 * .pi))
+    }
+}
+
+private struct PaintedOutfit: View {
+    var outfit: String?
+    var side: CGFloat
+
+    var body: some View {
+        switch outfit {
+        case "outfit.scarf":
+            Capsule()
+                .fill(Color(red: 0.95, green: 0.45, blue: 0.55))
+                .frame(width: side * 0.34, height: side * 0.09)
+                .offset(y: side * 0.16)
+        case "outfit.bow":
+            HStack(spacing: 0) {
+                Circle().frame(width: side * 0.1, height: side * 0.1)
+                Circle().frame(width: side * 0.05, height: side * 0.05)
+                Circle().frame(width: side * 0.1, height: side * 0.1)
+            }
+            .foregroundStyle(Color(red: 1, green: 0.55, blue: 0.72))
+            .offset(y: side * 0.02)
+        case "outfit.helmet":
+            Capsule()
+                .stroke(Color(red: 0.75, green: 0.82, blue: 0.95), lineWidth: max(1, side * 0.015))
+                .background(Capsule().fill(Color.white.opacity(0.28)))
+                .frame(width: side * 0.4, height: side * 0.18)
+                .offset(y: -side * 0.08)
+        default:
+            EmptyView()
+        }
     }
 }
 

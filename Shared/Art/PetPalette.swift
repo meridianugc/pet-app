@@ -127,13 +127,29 @@ struct PocketBackground: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        ZStack {
-            if let image = GameArt.image(backgroundName) {
-                image.resizable().scaledToFill()
+        GeometryReader { geo in
+            ZStack {
+                if let image = GameArt.image(backgroundName) {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.28), Color.black.opacity(0.12), Color.black.opacity(0.34)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                } else {
+                    LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+                }
+                starfield
             }
-            LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
-                .opacity(GameArt.image(backgroundName) == nil ? 1 : 0.28)
-            TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+        }
+    }
+
+    private var starfield: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
                 Canvas { context, size in
                     let time = timeline.date.timeIntervalSinceReferenceDate
                     for index in 0..<16 {
@@ -147,7 +163,6 @@ struct PocketBackground: View {
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-        }
     }
 
     private var backgroundName: String {

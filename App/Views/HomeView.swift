@@ -171,7 +171,8 @@ struct HomeView: View {
             marking: session.record?.progress.wardrobe.marking ?? "marking.none",
             accessibilityLabel: PetCopy.summary(pet, now: session.currentDate)
         )
-        .frame(maxWidth: 280)
+            .frame(maxWidth: 260)
+            .frame(height: 260)
         .frame(maxWidth: .infinity)
     }
 
