@@ -5,6 +5,7 @@ import UIKit
 struct HomeView: View {
     @EnvironmentObject private var session: PetSession
     @State private var showCollection = false
+    @State private var showGames = false
 #if DEBUG
     @State private var showDebug = false
 #endif
@@ -64,6 +65,11 @@ struct HomeView: View {
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .sheet(isPresented: $showGames) {
+                NavigationStack {
+                    GamesMenu()
+                }
+            }
             .sheet(isPresented: $showCollection) {
                 NavigationStack {
                     CollectionBookView()
@@ -100,6 +106,9 @@ struct HomeView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Text("Level \(session.level) · \(session.record?.progress.coins ?? 0) coins")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -133,7 +142,7 @@ struct HomeView: View {
                 hint: playHint(pet),
                 disabled: !canPlay(pet)
             ) {
-                session.play()
+                showGames = true
             }
             careButton(
                 title: pet.isSleeping ? "Wake" : "Sleep",
@@ -309,5 +318,137 @@ struct CollectionBookView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+extension MiniGame: Identifiable {
+    public var id: String { rawValue }
+}
+
+struct GamesMenu: View {
+    var body: some View {
+        List {
+            NavigationLink("Star Catch") {
+                StarCatchGame()
+            }
+            .accessibilityHint("Drag to catch stars and snacks. Avoid rocks. About 40 seconds.")
+        }
+        .navigationTitle("Games")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct FallingBit: Identifiable {
+    let id = UUID()
+    var x: CGFloat
+    var y: CGFloat
+    var kind: Kind
+
+    enum Kind {
+        case star, snack, rock
+    }
+}
+
+struct StarCatchGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var player: CGFloat = 0.5
+    @State private var bits: [FallingBit] = []
+    @State private var stars = 0
+    @State private var snacks = 0
+    @State private var rocks = 0
+    @State private var secondsLeft = 40
+    @State private var finished = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("\(secondsLeft)s · \(GameRewards.starCatchPoints(stars: stars, snacks: snacks, rocks: rocks)) points")
+                .font(.headline)
+                .accessibilityLabel("\(secondsLeft) seconds left")
+            GeometryReader { geo in
+                let width = geo.size.width
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.25))
+                    ForEach(bits) { bit in
+                        bitView(bit.kind)
+                            .position(x: bit.x * width, y: bit.y * geo.size.height)
+                    }
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(red: 0.62, green: 0.50, blue: 0.95))
+                        .frame(width: 64, height: 18)
+                        .position(x: player * width, y: geo.size.height - 24)
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            player = min(0.92, max(0.08, value.location.x / max(width, 1)))
+                        }
+                )
+                .accessibilityLabel("Catch field. Drag to move the basket.")
+            }
+            .frame(height: 320)
+        }
+        .padding()
+        .background(PocketBackground().ignoresSafeArea())
+        .navigationTitle("Star Catch")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await run() }
+    }
+
+    private func bitView(_ kind: FallingBit.Kind) -> some View {
+        switch kind {
+        case .star:
+            return AnyView(Circle().fill(Color(red: 1, green: 0.86, blue: 0.45)).frame(width: 22, height: 22))
+        case .snack:
+            return AnyView(Circle().fill(Color(red: 1, green: 0.62, blue: 0.74)).frame(width: 20, height: 20))
+        case .rock:
+            return AnyView(Circle().fill(Color(red: 0.45, green: 0.40, blue: 0.55)).frame(width: 24, height: 24))
+        }
+    }
+
+    private func run() async {
+        var ticks = 0
+        while ticks < 40 * 8, !finished {
+            try? await Task.sleep(nanoseconds: 125_000_000)
+            ticks += 1
+            if ticks.isMultiple(of: 8) {
+                secondsLeft = max(0, 40 - ticks / 8)
+                spawn()
+            }
+            advanceBits()
+        }
+        finish()
+    }
+
+    private func spawn() {
+        let roll = Int.random(in: 0..<10)
+        let kind: FallingBit.Kind = roll < 4 ? .star : (roll < 8 ? .snack : .rock)
+        bits.append(FallingBit(x: CGFloat.random(in: 0.1...0.9), y: 0, kind: kind))
+    }
+
+    private func advanceBits() {
+        var next: [FallingBit] = []
+        for var bit in bits {
+            bit.y += bit.kind == .rock ? 0.045 : 0.035
+            if bit.y > 0.86, abs(bit.x - player) < 0.12 {
+                switch bit.kind {
+                case .star: stars += 1
+                case .snack: snacks += 1
+                case .rock: rocks += 1
+                }
+            } else if bit.y < 1.05 {
+                next.append(bit)
+            }
+        }
+        bits = next
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        let points = GameRewards.starCatchPoints(stars: stars, snacks: snacks, rocks: rocks)
+        session.finishGame(points: points)
+        dismiss()
     }
 }
