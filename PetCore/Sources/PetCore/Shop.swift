@@ -149,6 +149,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
     public var gemBonusUntil: Date?
     public var wardrobe: Wardrobe
     public var claimedDexSets: [String]
+    public var powers: PowerPouch
 
     public init(
         coins: Int = 0,
@@ -166,7 +167,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         gemBonusPercent: Int = 0,
         gemBonusUntil: Date? = nil,
         wardrobe: Wardrobe = .plain,
-        claimedDexSets: [String] = []
+        claimedDexSets: [String] = [],
+        powers: PowerPouch = PowerPouch()
     ) {
         self.coins = coins
         self.xp = xp
@@ -184,6 +186,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         self.gemBonusUntil = gemBonusUntil
         self.wardrobe = wardrobe
         self.claimedDexSets = claimedDexSets
+        self.powers = powers
     }
 
     public init(from decoder: Decoder) throws {
@@ -204,6 +207,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         gemBonusUntil = try c.decodeIfPresent(Date.self, forKey: .gemBonusUntil)
         wardrobe = try c.decodeIfPresent(Wardrobe.self, forKey: .wardrobe) ?? .plain
         claimedDexSets = try c.decodeIfPresent([String].self, forKey: .claimedDexSets) ?? []
+        powers = try c.decodeIfPresent(PowerPouch.self, forKey: .powers) ?? PowerPouch()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -224,12 +228,13 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         try c.encodeIfPresent(gemBonusUntil, forKey: .gemBonusUntil)
         try c.encode(wardrobe, forKey: .wardrobe)
         try c.encode(claimedDexSets, forKey: .claimedDexSets)
+        try c.encode(powers, forKey: .powers)
     }
 
     private enum CodingKeys: String, CodingKey {
         case coins, xp, ownedIDs, stock, outfitID, backgroundID
         case daily, streak, achievements, mealsFed, gamesFinished, bestScores
-        case gemBonusPercent, gemBonusUntil, wardrobe, claimedDexSets
+        case gemBonusPercent, gemBonusUntil, wardrobe, claimedDexSets, powers
     }
 
     /// Extra gems from a lucky charm. Expired charms pay the base amount.
