@@ -6,6 +6,7 @@ struct HomeView: View {
     @EnvironmentObject private var session: PetSession
     @State private var showCollection = false
     @State private var showGames = false
+    @State private var showShop = false
 #if DEBUG
     @State private var showDebug = false
 #endif
@@ -65,6 +66,11 @@ struct HomeView: View {
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .sheet(isPresented: $showShop) {
+                NavigationStack {
+                    ShopView()
+                }
+            }
             .sheet(isPresented: $showGames) {
                 NavigationStack {
                     GamesMenu()
@@ -151,6 +157,14 @@ struct HomeView: View {
                 disabled: pet.stage == .egg
             ) {
                 session.toggleSleep()
+            }
+            careButton(
+                title: "Shop",
+                systemImage: "bag",
+                hint: "Spend coins on food, toys, outfits, and skies.",
+                disabled: false
+            ) {
+                showShop = true
             }
             if pet.stage != .egg, !pet.isSleeping, pet.energy < 15 {
                 Text("Too tired to play. A nap will help.")

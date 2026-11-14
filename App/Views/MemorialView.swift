@@ -113,3 +113,93 @@ struct DepartureArtwork: View {
         }
     }
 }
+
+struct ShopView: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let progress = session.record?.progress ?? PlayerProgress()
+        List {
+            Section {
+                Text("\(progress.coins) coins · level \(session.level)")
+                    .font(.headline)
+            }
+            Section("Food and toys") {
+                ForEach(Shop.catalog.filter { !$0.isDurable }) { item in
+                    row(item, progress: progress, durable: false)
+                }
+            }
+            Section("Outfits") {
+                ForEach(Shop.catalog.filter { if case .outfit = $0.kind { return true }; return false }) { item in
+                    row(item, progress: progress, durable: true)
+                }
+                if progress.outfitID != nil {
+                    Button("Take the outfit off") { session.equipOutfit(nil) }
+                }
+            }
+            Section("Skies") {
+                ForEach(Shop.catalog.filter { if case .background = $0.kind { return true }; return false }) { item in
+                    row(item, progress: progress, durable: true)
+                }
+                if progress.backgroundID != nil {
+                    Button("Use the usual sky") { session.equipBackground(nil) }
+                }
+            }
+        }
+        .navigationTitle("Shop")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    private func row(_ item: Goods, progress: PlayerProgress, durable: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(item.name)
+                .font(.body)
+            Text(detail(item, progress: progress))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Buy · \(item.price)") { session.buy(item.id) }
+                    .disabled(session.level < item.unlockLevel)
+                if !durable, (progress.stock[item.id] ?? 0) > 0 {
+                    Button("Use") { session.useItem(item.id) }
+                }
+                if durable, progress.ownedIDs.contains(item.id) {
+                    Button(progress.outfitID == item.id || progress.backgroundID == item.id ? "Using" : "Use") {
+                        if case .outfit = item.kind {
+                            session.equipOutfit(item.id)
+                        } else {
+                            session.equipBackground(item.id)
+                        }
+                    }
+                }
+            }
+            .font(.subheadline)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func detail(_ item: Goods, progress: PlayerProgress) -> String {
+        if session.level < item.unlockLevel {
+            return "Unlocks at level \(item.unlockLevel)"
+        }
+        if item.isDurable, progress.ownedIDs.contains(item.id) {
+            return "Owned"
+        }
+        let stock = progress.stock[item.id] ?? 0
+        if stock > 0 { return "In the bag: \(stock)" }
+        switch item.kind {
+        case .food(_, _, true, _): return "A treat. Too many can spoil a baby."
+        case .food: return "A healthy meal."
+        case .toy: return "A burst of play."
+        case .outfit: return "Wear it on the alien."
+        case .background: return "A new sky for the room."
+        }
+    }
+}
