@@ -1342,193 +1342,252 @@ struct HowToOverlay: View {
     }
 }
 
-struct SnackMatchGame: View {
-    @EnvironmentObject private var session: PetSession
-    @Environment(\.dismiss) private var dismiss
-    @State private var cells: [Int] = (0..<64).map { _ in Int.random(in: 0..<SnackMatch.kinds) }
-    @State private var score = 0
-    @State private var moves = 28
-    @State private var finished = false
-    @State private var banner = ""
-    @State private var hintPair: (Int, Int)?
-    @State private var armed: PowerUpKind?
-    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.snackMatch")
-    @State private var idle = Date()
+final class SnackBoardScene: SKScene {
+    var onSwap: ((Int, Int) -> Void)?
+    var onTap: ((Int) -> Void)?
+    private let columns = 8
+    private let rows = 8
+    private var gems: [SKNode] = []
+    private(set) var busy = false
+    private var touchStart: Int?
 
+    func load(_ cells: [Int]) {
+        removeAllChildren()
+        gems = cells.indices.map { makeGem(cells[$0], at: $0) }
+        gems.forEach { addChild($0) }
+        backgroundColor = .clear
+    }
+
+    func glow(_ indexes: [Int]) {
+        for (index, node) in gems.enumerated() {
+            node.run(.fadeAlpha(to: indexes.contains(index) ? 1 : 0.55, duration: 0.2))
+        }
+    }
+
+    func animate(from start: Int, to end: Int, accepted: Bool, steps: [SnackMatch.SnackStep], final: [Int], done: @escaping () -> Void) {
+        guard gems.indices.contains(start), gems.indices.contains(end) else { done(); return }
+        busy = true
+        let first = gems[start]
+        let second = gems[end]
+        let origin = first.position
+        let destination = second.position
+        let slide = SKAction.move(to: destination, duration: 0.2)
+        slide.timingMode = .easeOut
+        let back = SKAction.move(to: origin, duration: 0.18)
+        back.timingMode = .easeOut
+        first.zPosition = 2
+        second.run(.move(to: origin, duration: 0.2))
+        first.run(slide) { [weak self] in
+            guard let self else { return }
+            if !accepted {
+                first.run(back)
+                second.run(.move(to: destination, duration: 0.18)) { [weak self] in
+                    self?.busy = false
+                    done()
+                }
+                return
+            }
+            self.gems.swapAt(start, end)
+            self.play(steps: steps, final: final, done: done)
+        }
+    }
+
+    private func play(steps: [SnackMatch.SnackStep], final: [Int], done: @escaping () -> Void) {
+        var sequence: [SKAction] = []
+        for step in steps {
+            sequence.append(.run { [weak self] in self?.pop(step.cleared) })
+            sequence.append(.wait(forDuration: 0.22))
+            sequence.append(.run { [weak self] in self?.drop(into: step.cells) })
+            sequence.append(.wait(forDuration: 0.28))
+        }
+        sequence.append(.run { [weak self] in
+            self?.load(final)
+            self?.busy = false
+            done()
+        })
+        run(.sequence(sequence))
+    }
+
+    private func pop(_ indexes: [Int]) {
+        for index in indexes where gems.indices.contains(index) {
+            let node = gems[index]
+            let spark = SKShapeNode(circleOfRadius: 4)
+            spark.fillColor = .white
+            spark.position = node.position
+            addChild(spark)
+            spark.run(.sequence([.group([.scale(to: 2.4, duration: 0.2), .fadeOut(withDuration: 0.2), .moveBy(x: 0, y: 70, duration: 0.2)]), .removeFromParent()]))
+            node.run(.sequence([
+                .group([
+                    .scale(to: 1.35, duration: 0.12),
+                    .moveBy(x: 0, y: 90, duration: 0.2),
+                    .fadeOut(withDuration: 0.2)
+                ]),
+                .removeFromParent()
+            ]))
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func drop(into cells: [Int]) {
+        removeChildren(in: gems)
+        gems = []
+        for index in cells.indices {
+            let gem = makeGem(cells[index], at: index)
+            let landing = gem.position
+            gem.position.y = landing.y + cellSize * CGFloat(rows - index / columns)
+            gem.setScale(0.8)
+            addChild(gem)
+            let fall = SKAction.move(to: landing, duration: 0.22 + Double(index / columns) * 0.02)
+            fall.timingMode = .easeOut
+            gem.run(.sequence([fall, .scale(to: 1.08, duration: 0.06), .scale(to: 1, duration: 0.06)]))
+            gems.append(gem)
+        }
+    }
+
+    private var cellSize: CGFloat {
+        min(size.width, size.height) / CGFloat(columns)
+    }
+
+    private func point(for index: Int) -> CGPoint {
+        let side = cellSize
+        let col = index % columns
+        let row = index / columns
+        return CGPoint(
+            x: side * (CGFloat(col) + 0.5),
+            y: size.height - side * (CGFloat(row) + 0.5)
+        )
+    }
+
+    private func makeGem(_ tile: Int, at index: Int) -> SKNode {
+        let hue = SnackMatch.hue(of: tile)
+        let names = ["gem_star", "gem_moon", "gem_planet", "gem_comet", "gem_donut"]
+        let special = SnackMatch.isBomb(tile) ? "gem_starbomb" : (SnackMatch.isStripe(tile) ? "gem_lineblast" : names[hue % names.count])
+        let node: SKNode
+        if let image = GameArt.uiImage(special) {
+            let sprite = SKSpriteNode(texture: SKTexture(image: image))
+            sprite.size = CGSize(width: cellSize * 0.86, height: cellSize * 0.86)
+            node = sprite
+        } else {
+            let shape = SKShapeNode(circleOfRadius: cellSize * 0.38)
+            let colors: [SKColor] = [
+                SKColor(red: 1, green: 0.55, blue: 0.7, alpha: 1),
+                SKColor(red: 1, green: 0.82, blue: 0.35, alpha: 1),
+                SKColor(red: 0.55, green: 0.75, blue: 1, alpha: 1),
+                SKColor(red: 0.72, green: 0.55, blue: 0.98, alpha: 1),
+                SKColor(red: 0.55, green: 0.9, blue: 0.75, alpha: 1)
+            ]
+            shape.fillColor = colors[hue % colors.count]
+            shape.strokeColor = .white
+            shape.lineWidth = 2
+            node = shape
+        }
+        node.position = point(for: index)
+        node.name = "\(index)"
+        return node
+    }
+
+    private func index(at point: CGPoint) -> Int? {
+        let side = cellSize
+        let col = Int(point.x / side)
+        let row = Int((size.height - point.y) / side)
+        guard col >= 0, col < columns, row >= 0, row < rows else { return nil }
+        return row * columns + col
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard !busy, let point = touches.first?.location(in: self) else { return }
+        touchStart = index(at: point)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard !busy, let start = touchStart, let point = touches.first?.location(in: self), let end = index(at: point) else { return }
+        touchStart = nil
+        if start == end {
+            onTap?(start)
+        } else if SnackMatch.areNeighbors(start, end, width: columns) {
+            onSwap?(start, end)
+        }
+    }
+}
+
+@MainActor
+final class SnackTable: ObservableObject {
+    @Published var cells: [Int]
+    @Published var score = 0
+    @Published var moves = 28
+    @Published var banner = ""
+    @Published var finished = false
+    @Published var armed: PowerUpKind?
+    let board = SnackBoardScene(size: CGSize(width: 360, height: 360))
     private let columns = 8
     private let rows = 8
     private let goal = 500
-    private let paints: [Color] = [
-        Color(red: 1, green: 0.55, blue: 0.7),
-        Color(red: 1, green: 0.82, blue: 0.35),
-        Color(red: 0.55, green: 0.75, blue: 1),
-        Color(red: 0.72, green: 0.55, blue: 0.98),
-        Color(red: 0.55, green: 0.9, blue: 0.75)
-    ]
+    private var idle = Date()
+    private var hint: (Int, Int)?
 
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Button("?") { showHowTo = true }
-                    .font(.system(.headline, design: .rounded).weight(.bold))
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.white.opacity(0.8)))
-                    .accessibilityLabel("How to play Snack Match")
-                Spacer()
-                Text("\(moves)")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .accessibilityLabel("\(moves) moves left")
-            }
-            GoalMeter(title: "\(min(score, goal))/\(goal)", fraction: Double(score) / Double(goal), ink: .primary)
-            if !banner.isEmpty {
-                Text(banner)
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .foregroundStyle(Color(red: 0.45, green: 0.3, blue: 0.75))
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: columns), spacing: 5) {
-                ForEach(cells.indices, id: \.self) { index in
-                    gem(index)
-                }
-            }
-            HStack(spacing: 8) {
-                tool(.hammer, title: "Hammer")
-                tool(.shuffle, title: "Shuffle")
-                tool(.colorBomb, title: "Color")
-                tool(.extraMoves, title: "+5")
-            }
-            Button("Close") { finish() }
-                .font(.system(.body, design: .rounded).weight(.bold))
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PocketBackground().ignoresSafeArea())
-        .onAppear {
+    init() {
+        cells = (0..<64).map { _ in Int.random(in: 0..<SnackMatch.kinds) }
+        board.scaleMode = .resizeFill
+        board.onSwap = { [weak self] a, b in self?.trySwap(a, b) }
+        board.onTap = { [weak self] index in self?.tap(index) }
+    }
+
+    func start() {
+        cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
+        board.load(cells)
+        idle = Date()
+    }
+
+    func nudgeHint() {
+        guard !finished, !board.busy, Date().timeIntervalSince(idle) > 5 else { return }
+        hint = SnackMatch.hint(in: cells, width: columns, height: rows)
+        board.glow(hint.map { [$0.0, $0.1] } ?? [])
+        if hint == nil {
             cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
+            board.load(cells)
+            banner = "Reshuffle"
             idle = Date()
         }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !finished, !showHowTo else { continue }
-                if Date().timeIntervalSince(idle) > 5 {
-                    hintPair = SnackMatch.hint(in: cells, width: columns, height: rows)
-                    if hintPair == nil {
-                        cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
-                        banner = "Reshuffle"
-                        idle = Date()
-                    }
-                }
-            }
-        }
-        .overlay {
-            if showHowTo {
-                HowToOverlay(
-                    title: "Snack Match",
-                    pages: [
-                        "Drag a gem into a neighbor. A swap that matches nothing slides back.",
-                        "Three in a line pop. Four makes a line blast. Five makes a star bomb.",
-                        "Fill the star meter before your moves run out. Tools refill over time."
-                    ],
-                    onDone: {
-                        UserDefaults.standard.set(true, forKey: "howto.snackMatch")
-                        showHowTo = false
-                    }
-                )
-            }
-        }
     }
 
-    private func gem(_ index: Int) -> some View {
-        let tile = cells[index]
-        let hue = SnackMatch.hue(of: tile)
-        let hinted = hintPair?.0 == index || hintPair?.1 == index
-        return ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(colors: [Color.white, paints[hue % paints.count]], center: .topLeading, startRadius: 2, endRadius: 28)
-                )
-                .overlay {
-                    if SnackMatch.isStripe(tile) {
-                        Capsule().fill(Color.white.opacity(0.85)).frame(height: 5)
-                    } else if SnackMatch.isBomb(tile) {
-                        Circle().fill(Color.white).frame(width: 10, height: 10)
-                    }
-                }
-                .overlay(Circle().stroke(hinted || armed != nil ? Color.white : Color.white.opacity(0.4), lineWidth: hinted ? 3 : 1))
-                .shadow(color: paints[hue % paints.count].opacity(0.7), radius: hinted ? 8 : 3, y: 2)
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .gesture(
-            DragGesture(minimumDistance: 14).onEnded { value in
-                let neighbor = neighborIndex(from: index, translation: value.translation)
-                trySwap(index, neighbor)
-            }
-        )
-        .onTapGesture { tap(index) }
-        .accessibilityLabel("Gem \(hue + 1)")
-    }
-
-    private func tool(_ kind: PowerUpKind, title: String) -> some View {
-        Button {
-            useTool(kind)
-        } label: {
-            VStack(spacing: 2) {
-                Text(title)
-                Text("\(session.powerCount(kind))")
-            }
-            .font(.system(.caption, design: .rounded).weight(.bold))
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(armed == kind ? Color(red: 1, green: 0.84, blue: 0.4) : Color.white.opacity(0.7))
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(title), \(session.powerCount(kind)) charges")
-    }
-
-    private func neighborIndex(from index: Int, translation: CGSize) -> Int {
-        if abs(translation.width) > abs(translation.height) {
-            return translation.width > 0 ? index + 1 : index - 1
-        }
-        return translation.height > 0 ? index + columns : index - columns
-    }
-
-    private func trySwap(_ a: Int, _ b: Int) {
-        guard !finished, cells.indices.contains(a), cells.indices.contains(b) else { return }
+    func trySwap(_ a: Int, _ b: Int) {
+        guard !finished, !board.busy, cells.indices.contains(a), cells.indices.contains(b) else { return }
         idle = Date()
-        hintPair = nil
-        guard let outcome = SnackMatch.swapAndResolve(cells: cells, width: columns, height: rows, a: a, b: b, refill: { Int.random(in: 0..<SnackMatch.kinds) }) else {
+        hint = nil
+        if let outcome = SnackMatch.swapAndResolve(cells: cells, width: columns, height: rows, a: a, b: b, refill: { Int.random(in: 0..<SnackMatch.kinds) }) {
+            board.animate(from: a, to: b, accepted: true, steps: outcome.steps, final: outcome.cells) { [weak self] in
+                Task { @MainActor in self?.apply(outcome) }
+            }
+        } else {
+            board.animate(from: a, to: b, accepted: false, steps: [], final: cells) {}
             UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-            return
         }
-        apply(outcome)
-        moves -= 1
-        if moves <= 0 { finish() }
     }
 
-    private func tap(_ index: Int) {
-        guard !finished else { return }
+    func tap(_ index: Int) {
+        guard !finished, cells.indices.contains(index) else { return }
         if armed == .hammer {
-            guard session.spendPower(.hammer),
-                  let outcome = SnackMatch.smash(cells: cells, width: columns, height: rows, index: index, refill: { Int.random(in: 0..<SnackMatch.kinds) }) else { return }
+            guard let outcome = SnackMatch.smash(cells: cells, width: columns, height: rows, index: index, refill: { Int.random(in: 0..<SnackMatch.kinds) }) else { return }
             armed = nil
-            apply(outcome)
+            board.animate(from: index, to: index, accepted: true, steps: outcome.steps, final: outcome.cells) { [weak self] in
+                self?.apply(outcome, spentMove: false)
+            }
         } else if armed == .colorBomb {
-            guard session.spendPower(.colorBomb),
-                  let outcome = SnackMatch.clearColor(cells: cells, width: columns, height: rows, hue: SnackMatch.hue(of: cells[index]), refill: { Int.random(in: 0..<SnackMatch.kinds) }) else { return }
+            guard let outcome = SnackMatch.clearColor(cells: cells, width: columns, height: rows, hue: SnackMatch.hue(of: cells[index]), refill: { Int.random(in: 0..<SnackMatch.kinds) }) else { return }
             armed = nil
-            apply(outcome)
+            apply(outcome, spentMove: false)
+            board.load(cells)
         }
     }
 
-    private func useTool(_ kind: PowerUpKind) {
+    func useTool(_ kind: PowerUpKind, session: PetSession) {
         switch kind {
         case .hammer, .colorBomb:
             if session.powerCount(kind) == 0 {
                 session.buyPower(kind)
                 return
             }
+            guard session.spendPower(kind) else { return }
             armed = armed == kind ? nil : kind
         case .shuffle:
             guard session.spendPower(.shuffle) else {
@@ -1536,6 +1595,7 @@ struct SnackMatchGame: View {
                 return
             }
             cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
+            board.load(cells)
             banner = "Shuffled"
         case .extraMoves:
             guard session.spendPower(.extraMoves) else {
@@ -1550,29 +1610,119 @@ struct SnackMatchGame: View {
         idle = Date()
     }
 
-    private func apply(_ outcome: SnackMatch.Outcome) {
-        withAnimation(.spring(duration: 0.28)) {
-            cells = outcome.cells
-        }
+    private func apply(_ outcome: SnackMatch.Outcome, spentMove: Bool = true) {
+        cells = outcome.cells
         score += outcome.points
+        if spentMove { moves -= 1 }
         if outcome.madeBomb {
             banner = "Star bomb"
         } else if outcome.madeStripe {
             banner = "Line blast"
         } else if outcome.cascades > 1 {
             banner = "Combo \(outcome.cascades)"
-        } else {
-            banner = ""
         }
         UIImpactFeedbackGenerator(style: outcome.cascades > 1 ? .medium : .light).impactOccurred()
         idle = Date()
-        if score >= goal { finish() }
+        if score >= goal || moves <= 0 { finished = true }
+    }
+}
+
+struct SnackMatchGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var table = SnackTable()
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.snackMatch")
+    @State private var closed = false
+
+    private let goal = 500
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Button("?") { showHowTo = true }
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white.opacity(0.8)))
+                    .accessibilityLabel("How to play Snack Match")
+                Spacer()
+                Text("\(table.moves)")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .accessibilityLabel("\(table.moves) moves left")
+            }
+            GoalMeter(title: "\(min(table.score, goal))/\(goal)", fraction: Double(table.score) / Double(goal), ink: .primary)
+            if !table.banner.isEmpty {
+                Text(table.banner)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundStyle(Color(red: 0.45, green: 0.3, blue: 0.75))
+            }
+            SpriteView(scene: table.board, options: [.allowsTransparency])
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            HStack(spacing: 8) {
+                tool(.hammer, "Hammer")
+                tool(.shuffle, "Shuffle")
+                tool(.colorBomb, "Color")
+                tool(.extraMoves, "+5")
+            }
+            Button("Close") { close() }
+                .font(.system(.body, design: .rounded).weight(.bold))
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PocketBackground(theme: "bg_match").ignoresSafeArea())
+        .onAppear { table.start() }
+        .onChange(of: table.finished) { _, done in
+            if done { close() }
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !showHowTo else { continue }
+                table.nudgeHint()
+            }
+        }
+        .overlay {
+            if showHowTo {
+                HowToOverlay(
+                    title: "Snack Match",
+                    pages: [
+                        "Drag a gem into a neighbor. A bad swap slides back.",
+                        "Matches pop and fly up. The gems above fall in with a bounce.",
+                        "Fill the star meter before your moves run out."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.snackMatch")
+                        showHowTo = false
+                    }
+                )
+            }
+        }
     }
 
-    private func finish() {
-        guard !finished else { return }
-        finished = true
-        session.finishGame(points: score, gameID: MiniGame.snackMatch.rawValue, title: "Snack Match")
+    private func tool(_ kind: PowerUpKind, _ title: String) -> some View {
+        Button {
+            table.useTool(kind, session: session)
+        } label: {
+            VStack(spacing: 2) {
+                Text(title)
+                Text("\(session.powerCount(kind))")
+            }
+            .font(.system(.caption, design: .rounded).weight(.bold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(table.armed == kind ? Color(red: 1, green: 0.84, blue: 0.4) : Color.white.opacity(0.7))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(session.powerCount(kind)) charges")
+    }
+
+    private func close() {
+        guard !closed else { return }
+        closed = true
+        session.finishGame(points: table.score, gameID: MiniGame.snackMatch.rawValue, title: "Snack Match")
         dismiss()
     }
 }
