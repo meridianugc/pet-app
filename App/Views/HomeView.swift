@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var showCollection = false
     @State private var showGames = false
     @State private var showShop = false
+    @State private var showToday = false
 #if DEBUG
     @State private var showDebug = false
 #endif
@@ -66,6 +67,11 @@ struct HomeView: View {
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .sheet(isPresented: $showToday) {
+                NavigationStack {
+                    TodayView()
+                }
+            }
             .sheet(isPresented: $showShop) {
                 NavigationStack {
                     ShopView()
@@ -158,6 +164,14 @@ struct HomeView: View {
                 disabled: pet.stage == .egg
             ) {
                 session.toggleSleep()
+            }
+            careButton(
+                title: "Today",
+                systemImage: "sun.max",
+                hint: "Daily tasks, your streak, and achievements.",
+                disabled: false
+            ) {
+                showToday = true
             }
             careButton(
                 title: "Shop",

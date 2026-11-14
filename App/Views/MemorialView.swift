@@ -203,3 +203,69 @@ struct ShopView: View {
         }
     }
 }
+
+struct TodayView: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let progress = session.record?.progress ?? PlayerProgress()
+        let level = session.level
+        let into = progress.xp - LevelTable.xpToReach(level)
+        let span = max(1, LevelTable.xpToReach(level + 1) - LevelTable.xpToReach(level))
+        List {
+            Section("Level \(level)") {
+                Text("\(into) / \(span) XP toward the next level")
+                    .font(.body)
+                Text(progress.streak.count == 1 ? "1 day of good care" : "\(progress.streak.count) days of good care")
+                    .font(.body)
+            }
+            Section("Today") {
+                ForEach(DailyTask.allCases, id: \.self) { task in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(task.title)
+                            .font(.body)
+                        Text(taskLine(task, progress: progress))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if progress.daily.isComplete(task), !progress.daily.claimed.contains(task) {
+                            Button("Collect \(task.reward) coins") {
+                                session.claim(task)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            Section("Achievements") {
+                if progress.achievements.isEmpty {
+                    Text("Look after your alien and these will fill in.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(progress.achievements, id: \.self) { item in
+                        Text(item.title)
+                            .font(.body)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Today")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    private func taskLine(_ task: DailyTask, progress: PlayerProgress) -> String {
+        if progress.daily.claimed.contains(task) { return "Collected" }
+        switch task {
+        case .playGames: return "\(min(progress.daily.gamesPlayed, 2)) / 2"
+        case .healthyMeal: return progress.daily.healthyMeals > 0 ? "Done" : "Not yet"
+        case .tuckIn: return progress.daily.tuckedIn ? "Done" : "Not yet"
+        }
+    }
+}
