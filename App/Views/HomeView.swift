@@ -359,6 +359,7 @@ struct GamePicker: View {
     @State private var appeared = false
     @State private var planet = false
     @State private var hopper = false
+    @State private var snacks = false
 
     var body: some View {
         ZStack {
@@ -392,6 +393,16 @@ struct GamePicker: View {
                 }
                 .offset(y: appeared ? 0 : 70)
                 .opacity(appeared ? 1 : 0)
+                gameCard(
+                    title: "Snack Match",
+                    blurb: "Swap snacks. Lines of three pop and tumble.",
+                    score: best[MiniGame.snackMatch.rawValue] ?? 0,
+                    colors: [Color(red: 1, green: 0.64, blue: 0.74), Color(red: 0.98, green: 0.84, blue: 0.45)]
+                ) {
+                    snacks = true
+                }
+                .offset(y: appeared ? 0 : 100)
+                .opacity(appeared ? 1 : 0)
             }
             .padding(20)
         }
@@ -405,6 +416,9 @@ struct GamePicker: View {
         }
         .fullScreenCover(isPresented: $hopper) {
             StarHopperGame()
+        }
+        .fullScreenCover(isPresented: $snacks) {
+            SnackMatchGame()
         }
     }
 
@@ -1075,5 +1089,97 @@ struct StarHopperGame: View {
                 }
             }
         }
+    }
+}
+
+struct SnackMatchGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var cells: [Int] = (0..<42).map { _ in Int.random(in: 0..<SnackMatch.kinds) }
+    @State private var selected: Int?
+    @State private var score = 0
+    @State private var moves = 18
+    @State private var finished = false
+    @State private var pop = ""
+
+    private let columns = 6
+    private let rows = 7
+    private let paints: [Color] = [
+        Color(red: 1, green: 0.62, blue: 0.72),
+        Color(red: 1, green: 0.84, blue: 0.45),
+        Color(red: 0.62, green: 0.78, blue: 1),
+        Color(red: 0.72, green: 0.62, blue: 0.98),
+        Color(red: 0.55, green: 0.88, blue: 0.72)
+    ]
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text("Moves \(moves)")
+                Spacer()
+                Text("\(score)")
+            }
+            .font(.system(.title3, design: .rounded).weight(.bold))
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columns), spacing: 6) {
+                ForEach(cells.indices, id: \.self) { index in
+                    let tile = cells[index]
+                    let hue = SnackMatch.hue(of: tile)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(paints[hue % paints.count])
+                        .overlay {
+                            if SnackMatch.isStripe(tile) {
+                                Capsule().fill(Color.white.opacity(0.8)).frame(height: 6)
+                            }
+                        }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(selected == index ? Color.white : Color.clear, lineWidth: 3)
+                        )
+                        .frame(height: 46)
+                        .onTapGesture { tap(index) }
+                        .accessibilityLabel("Snack \(hue + 1)")
+                }
+            }
+            if !pop.isEmpty {
+                Text(pop)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+            }
+            Button("Close") { finish() }
+                .font(.system(.body, design: .rounded).weight(.bold))
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PocketBackground().ignoresSafeArea())
+    }
+
+    private func tap(_ index: Int) {
+        guard !finished else { return }
+        guard let selected else {
+            self.selected = index
+            return
+        }
+        guard SnackMatch.areNeighbors(selected, index, width: columns) else {
+            self.selected = index
+            return
+        }
+        let first = selected
+        self.selected = nil
+        if let outcome = SnackMatch.swapAndResolve(cells: cells, width: columns, height: rows, a: first, b: index, refill: { Int.random(in: 0..<SnackMatch.kinds) }) {
+            cells = outcome.cells
+            score += outcome.points
+            moves -= 1
+            pop = outcome.madeStripe ? "Stripe!" : (outcome.cascades > 1 ? "Cascade \(outcome.cascades)" : "")
+            UIImpactFeedbackGenerator(style: outcome.cascades > 1 ? .medium : .light).impactOccurred()
+            if moves <= 0 { finish() }
+        } else {
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        }
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        session.finishGame(points: score, gameID: MiniGame.snackMatch.rawValue, title: "Snack Match")
+        dismiss()
     }
 }
