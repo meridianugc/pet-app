@@ -1,4 +1,5 @@
 import PetCore
+import SpriteKit
 import SwiftUI
 import UIKit
 
@@ -77,10 +78,8 @@ struct HomeView: View {
                     ShopView()
                 }
             }
-            .sheet(isPresented: $showGames) {
-                NavigationStack {
-                    GamesMenu()
-                }
+            .fullScreenCover(isPresented: $showGames) {
+                GamePicker(best: session.record?.progress.bestScores ?? [:])
             }
             .sheet(isPresented: $showCollection) {
                 NavigationStack {
@@ -354,24 +353,263 @@ extension MiniGame: Identifiable {
     public var id: String { rawValue }
 }
 
-struct GamesMenu: View {
+struct GamePicker: View {
+    var best: [String: Int]
+    @Environment(\.dismiss) private var dismiss
+    @State private var appeared = false
+    @State private var planet = false
+
     var body: some View {
-        List {
-            NavigationLink("Star Catch") {
-                StarCatchGame()
+        ZStack {
+            PocketBackground().ignoresSafeArea()
+            VStack(spacing: 18) {
+                HStack {
+                    Text("Play")
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    Spacer()
+                    Button("Close") { dismiss() }
+                        .font(.system(.body, design: .rounded).weight(.bold))
+                        .accessibilityLabel("Close games")
+                }
+                gameCard(
+                    title: "Planet Merge",
+                    blurb: "Drop planets. Twins become one bigger world.",
+                    score: best[MiniGame.planetMerge.rawValue] ?? 0,
+                    colors: [Color(red: 0.98, green: 0.75, blue: 0.55), Color(red: 0.62, green: 0.55, blue: 0.95)]
+                ) {
+                    planet = true
+                }
+                .offset(y: appeared ? 0 : 40)
+                .opacity(appeared ? 1 : 0)
             }
-            .accessibilityHint("Drag to catch stars and snacks. Avoid rocks. About 40 seconds.")
-            NavigationLink("Memory Match") {
-                MemoryMatchGame()
-            }
-            .accessibilityHint("Flip cards and find the pairs.")
-            NavigationLink("Hide and Seek") {
-                HideAndSeekGame()
-            }
-            .accessibilityHint("Find the alien hiding behind a planet. Three rounds.")
+            .padding(20)
         }
-        .navigationTitle("Games")
-        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                appeared = true
+            }
+        }
+        .fullScreenCover(isPresented: $planet) {
+            PlanetMergeGame()
+        }
+    }
+
+    private func gameCard(title: String, blurb: String, score: Int, colors: [Color], play: @escaping () -> Void) -> some View {
+        Button(action: play) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(colors[0]).frame(width: 54, height: 54)
+                    Circle().fill(colors[1]).frame(width: 34, height: 34).offset(x: 16, y: 10)
+                }
+                .frame(width: 84, height: 72)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                    Text(blurb)
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Text(score > 0 ? "Best \(score)" : "No score yet")
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                }
+                Spacer()
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.white.opacity(0.55))
+                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white, lineWidth: 2))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title). \(score > 0 ? "Best score \(score)" : "No score yet")")
+    }
+}
+
+final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
+    var onScore: ((Int) -> Void)?
+    var onEnd: ((Int) -> Void)?
+    private var score = 0
+    private var combo = 0
+    private var lastMerge: TimeInterval = 0
+    private var current = 0
+    private var upcoming = 1
+    private var ready = true
+    private var ended = false
+    private var danger: TimeInterval = 0
+    private let palette: [SKColor] = [
+        SKColor(red: 1, green: 0.78, blue: 0.55, alpha: 1),
+        SKColor(red: 1, green: 0.62, blue: 0.72, alpha: 1),
+        SKColor(red: 0.72, green: 0.62, blue: 0.98, alpha: 1),
+        SKColor(red: 0.55, green: 0.78, blue: 1, alpha: 1),
+        SKColor(red: 0.62, green: 0.88, blue: 0.72, alpha: 1),
+        SKColor(red: 0.95, green: 0.85, blue: 0.45, alpha: 1),
+        SKColor(red: 0.55, green: 0.45, blue: 0.85, alpha: 1)
+    ]
+
+    override func didMove(to view: SKView) {
+        backgroundColor = SKColor(red: 0.14, green: 0.11, blue: 0.26, alpha: 1)
+        physicsWorld.gravity = CGVector(dx: 0, dy: -3.6)
+        physicsWorld.contactDelegate = self
+        let bin = CGRect(x: 16, y: 12, width: size.width - 32, height: 20)
+        physicsBody = SKPhysicsBody(edgeLoopFrom: CGRect(x: 16, y: 12, width: size.width - 32, height: size.height))
+        let floor = SKNode()
+        floor.physicsBody = SKPhysicsBody(edgeLoopFrom: bin)
+        addChild(floor)
+        let line = SKShapeNode(rectOf: CGSize(width: size.width - 40, height: 3))
+        line.position = CGPoint(x: size.width / 2, y: size.height * 0.78)
+        line.strokeColor = SKColor(white: 1, alpha: 0.45)
+        line.name = "line"
+        addChild(line)
+        current = Int.random(in: 0...2)
+        upcoming = Int.random(in: 0...2)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let x = touches.first?.location(in: self).x else { return }
+        drop(at: x)
+    }
+
+    private func drop(at x: CGFloat) {
+        guard ready, !ended else { return }
+        ready = false
+        let node = planet(sizeIndex: current)
+        let radius = node.frame.width / 2
+        let clamped = min(size.width - 24 - radius, max(24 + radius, x))
+        node.position = CGPoint(x: clamped, y: size.height - radius - 8)
+        addChild(node)
+        current = upcoming
+        upcoming = Int.random(in: 0...2)
+        run(.sequence([.wait(forDuration: 0.4), .run { [weak self] in self?.ready = true }]))
+    }
+
+    private func planet(sizeIndex: Int) -> SKShapeNode {
+        let radius = CGFloat(PlanetMerge.radius(for: sizeIndex))
+        let node = SKShapeNode(circleOfRadius: radius)
+        node.fillColor = palette[sizeIndex % palette.count]
+        node.strokeColor = SKColor(white: 1, alpha: 0.7)
+        node.lineWidth = 3
+        node.name = "planet"
+        node.userData = ["size": sizeIndex]
+        let body = SKPhysicsBody(circleOfRadius: radius)
+        body.restitution = 0.05
+        body.friction = 0.4
+        body.categoryBitMask = 1
+        body.collisionBitMask = 1
+        body.contactTestBitMask = 1
+        node.physicsBody = body
+        return node
+    }
+
+    func didBegin(_ contact: SKPhysicsContact) {
+        let nodes = [contact.bodyA.node, contact.bodyB.node].compactMap { $0 }
+        guard nodes.count == 2,
+              nodes.allSatisfy({ $0.name == "planet" && $0.parent != nil }),
+              let first = sizeOf(nodes[0]),
+              let second = sizeOf(nodes[1]),
+              first == second,
+              let next = PlanetMerge.nextSize(after: first) else { return }
+        nodes.forEach { $0.removeFromParent() }
+        let merged = planet(sizeIndex: next)
+        merged.position = CGPoint(
+            x: (nodes[0].position.x + nodes[1].position.x) / 2,
+            y: (nodes[0].position.y + nodes[1].position.y) / 2
+        )
+        addChild(merged)
+        let now = CACurrentMediaTime()
+        combo = now - lastMerge < 0.9 ? combo + 1 : 1
+        lastMerge = now
+        score += PlanetMerge.points(forMerging: first, combo: combo)
+        onScore?(score)
+        UIImpactFeedbackGenerator(style: combo > 1 ? .medium : .light).impactOccurred()
+        let pop = SKLabelNode(text: combo > 1 ? "Combo \(combo)" : "+\(PlanetMerge.points(forMerging: first, combo: 1))")
+        pop.fontName = "AvenirNext-Bold"
+        pop.fontSize = 18
+        pop.fontColor = .white
+        pop.position = merged.position
+        addChild(pop)
+        pop.run(.sequence([.moveBy(x: 0, y: 30, duration: 0.4), .fadeOut(withDuration: 0.2), .removeFromParent()]))
+        burst(at: merged.position)
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        guard !ended else { return }
+        let limit = size.height * 0.78
+        let crowded = children.contains { node in
+            guard node.name == "planet", let body = node.physicsBody else { return false }
+            return node.position.y > limit && hypot(body.velocity.dx, body.velocity.dy) < 12
+        }
+        if crowded {
+            danger += 1.0 / 60.0
+            if danger > 1.1 { end() }
+        } else {
+            danger = 0
+        }
+    }
+
+    private func end() {
+        ended = true
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        onEnd?(score)
+    }
+
+    private func sizeOf(_ node: SKNode) -> Int? {
+        (node.userData?["size"] as? NSNumber)?.intValue ?? node.userData?["size"] as? Int
+    }
+
+    private func burst(at point: CGPoint) {
+        let spark = SKEmitterNode()
+        let dot = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+            UIColor.white.setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        spark.particleTexture = SKTexture(image: dot)
+        spark.particleBirthRate = 80
+        spark.numParticlesToEmit = 16
+        spark.particleLifetime = 0.35
+        spark.particleSpeed = 90
+        spark.particleScale = 0.4
+        spark.particleColor = .white
+        spark.particleAlphaSpeed = -2
+        spark.position = point
+        addChild(spark)
+        spark.run(.sequence([.wait(forDuration: 0.4), .removeFromParent()]))
+    }
+}
+
+struct PlanetMergeGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var scene: PlanetMergeScene = {
+        let scene = PlanetMergeScene(size: CGSize(width: 390, height: 740))
+        scene.scaleMode = .resizeFill
+        return scene
+    }()
+    @State private var score = 0
+    @State private var closed = false
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            SpriteView(scene: scene)
+                .ignoresSafeArea()
+            Text("\(score)")
+                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.top, 24)
+                .accessibilityLabel("Score \(score)")
+        }
+        .onAppear {
+            scene.onScore = { value in
+                Task { @MainActor in score = value }
+            }
+            scene.onEnd = { final in
+                Task { @MainActor in
+                    guard !closed else { return }
+                    closed = true
+                    session.finishGame(points: final, gameID: MiniGame.planetMerge.rawValue, title: "Planet Merge")
+                    dismiss()
+                }
+            }
+        }
     }
 }
 
