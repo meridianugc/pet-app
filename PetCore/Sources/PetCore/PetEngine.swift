@@ -29,7 +29,7 @@ public struct PetEngine: Sendable {
         self.rules = rules
     }
 
-    public func advance(_ pet: Pet, to end: Date, decayScale: Double = 1) -> Pet {
+    public func advance(_ pet: Pet, to end: Date, decayScale: Double = 1, playerLevel: Int = 99) -> Pet {
         guard !pet.hasGoneHome else { return pet }
         guard end > pet.lastSimulatedAt else { return pet }
 
@@ -42,13 +42,13 @@ public struct PetEngine: Sendable {
             steps += 1
             if pet.hasGoneHome { break }
 
-            if applyDueTransitions(&pet, at: cursor) {
+            if applyDueTransitions(&pet, at: cursor, playerLevel: playerLevel) {
                 continue
             }
 
             let gap = timeUntilBoundary(pet, from: cursor, until: end, decayScale: decayScale)
             if gap <= epsilon {
-                if !applyDueTransitions(&pet, at: cursor) {
+                if !applyDueTransitions(&pet, at: cursor, playerLevel: playerLevel) {
                     break
                 }
                 continue
@@ -57,7 +57,7 @@ public struct PetEngine: Sendable {
             integrate(&pet, for: gap, decayScale: decayScale)
             cursor = cursor.addingTimeInterval(gap)
             pet.lastSimulatedAt = cursor
-            _ = applyDueTransitions(&pet, at: cursor)
+            _ = applyDueTransitions(&pet, at: cursor, playerLevel: playerLevel)
         }
 
         return pet
@@ -151,7 +151,7 @@ public struct PetEngine: Sendable {
 
     /// Applies every mode change that is already due at `cursor` without moving time.
     /// Returns true when the pet changed, so the caller looks for the next boundary.
-    private func applyDueTransitions(_ pet: inout Pet, at cursor: Date) -> Bool {
+    private func applyDueTransitions(_ pet: inout Pet, at cursor: Date, playerLevel: Int) -> Bool {
         guard !pet.hasGoneHome else { return false }
 
         if pet.stage == .egg {
@@ -178,7 +178,7 @@ public struct PetEngine: Sendable {
             let elapsed = cursor.timeIntervalSince(pet.stageStartedAt)
             if elapsed >= duration - 0.000_1, let next = pet.stage.next {
                 if pet.stage == .baby {
-                    pet.adultForm = Evolution.form(for: pet.care, rules: rules.evolution)
+                    pet.adultForm = Evolution.form(for: pet.care, level: playerLevel, rules: rules.evolution)
                 }
                 pet.stage = next
                 pet.stageStartedAt = cursor

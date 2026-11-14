@@ -4,9 +4,10 @@ import XCTest
 final class StarDexTests: XCTestCase {
     func testANewAlbumIsMostlySilhouettes() {
         let status = StarDex.status(collection: .empty, progress: PlayerProgress())
-        XCTAssertEqual(status.found, 0)
+        let starters = LookBook.options.filter { PlayerProgress().wardrobe.owned.contains($0.id) }
+        XCTAssertEqual(status.found, starters.count)
         XCTAssertEqual(status.total, StarDex.entries.count)
-        XCTAssertEqual(status.fraction, 0, accuracy: 0.001)
+        XCTAssertEqual(status.fraction, Double(starters.count) / Double(status.total), accuracy: 0.001)
         XCTAssertFalse(StarDex.isFound(id: "form.star", collection: .empty, progress: PlayerProgress()))
     }
 
@@ -16,8 +17,9 @@ final class StarDexTests: XCTestCase {
         collection.sawBaby = true
         collection.raisedForms = [.star, .cloud, .spiky]
         var progress = PlayerProgress(ownedIDs: ["outfit.scarf", "outfit.bow", "outfit.helmet"], gamesFinished: 1)
-        progress.wardrobe.owned.append("shell.stars")
-        progress.wardrobe.owned.append("antenna.heart")
+        for option in LookBook.options where !progress.wardrobe.owned.contains(option.id) {
+            progress.wardrobe.owned.append(option.id)
+        }
         var world = AwayWorld.fresh(at: Date(timeIntervalSince1970: 10))
         world.postcards = [Postcard(title: "A short hop", message: "Hi", at: Date(timeIntervalSince1970: 10), souvenir: "gems")]
         collection.letters = [HomeLetter(

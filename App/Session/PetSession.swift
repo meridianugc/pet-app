@@ -678,7 +678,12 @@ final class PetSession: ObservableObject {
     private func settle(_ record: inout PetRecord, now: Date) {
         let before = record.pet
         let traveling = record.world.traveling(at: now)
-        record.pet = engine.advance(record.pet, to: now, decayScale: traveling ? 0.4 : 1)
+        record.pet = engine.advance(
+            record.pet,
+            to: now,
+            decayScale: traveling ? 0.4 : 1,
+            playerLevel: LevelTable.level(for: record.progress.xp)
+        )
         let caught = AwayLife.catchUp(record.world, at: now)
         record.world = caught.0
         if caught.1.gift > 0 {

@@ -39,4 +39,14 @@ final class EvolutionTests: XCTestCase {
         let care = CareHistory(overfeeds: 5, plays: 6, hungerEmptySeconds: 3 * 60 * 60)
         XCTAssertEqual(Evolution.form(for: care), .spiky)
     }
+
+    func testALowLevelCannotGrowIntoALaterForm() {
+        let cared = CareHistory(properFeeds: 4, plays: 2)
+        XCTAssertEqual(Evolution.form(for: cared), .star)
+        XCTAssertEqual(Evolution.form(for: cared, level: 6), .star)
+        XCTAssertEqual(Evolution.form(for: cared, level: 3), .spiky)
+        XCTAssertEqual(Evolution.form(for: cared, level: 1), .star)
+        XCTAssertEqual(AdultForm.cloud.unlockLevel, 4)
+        XCTAssertTrue(StarDex.entries.allSatisfy { $0.unlockLevel >= 1 })
+    }
 }

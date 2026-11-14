@@ -43,6 +43,15 @@ public enum AdultForm: String, Codable, Equatable, Sendable, CaseIterable {
         case .spiky: return "Spiky"
         }
     }
+
+    /// The pet level at which this adult form can be the one they grow into.
+    public var unlockLevel: Int {
+        switch self {
+        case .spiky: return 2
+        case .cloud: return 4
+        case .star: return 6
+        }
+    }
 }
 
 public struct EvolutionRules: Equatable, Sendable {
@@ -79,5 +88,13 @@ public enum Evolution {
             return .cloud
         }
         return .star
+    }
+
+    /// Same care rules, but a form above the pet's level becomes the highest form they have reached.
+    public static func form(for care: CareHistory, level: Int, rules: EvolutionRules = .standard) -> AdultForm {
+        let wanted = form(for: care, rules: rules)
+        if level >= wanted.unlockLevel { return wanted }
+        let allowed = AdultForm.allCases.filter { level >= $0.unlockLevel }
+        return allowed.max { $0.unlockLevel < $1.unlockLevel } ?? wanted
     }
 }
