@@ -230,9 +230,11 @@ struct ShopView: View {
         let dealTaken = progress.dealStamp == stamp && progress.dealBought
         let seconds = Int(DailyDeal.secondsLeft(now: session.currentDate))
         ZStack {
-            PocketBackground().ignoresSafeArea()
+            PocketBackground(theme: "bg_shop").ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
+                    Color.clear.frame(height: 78)
+                    shelfDecor
                     HStack {
                         PetCreatureView(
                             stage: .adult,
@@ -351,6 +353,22 @@ struct ShopView: View {
                 }
             }
         }
+    }
+
+    private var shelfDecor: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 14) {
+                ForEach(Array([GameArt.gemStar, GameArt.gemMoon, GameArt.gemHeart, GameArt.gemDonut, GameArt.planet(4)].enumerated()), id: \.offset) { index, name in
+                    CatalogImage(name: name) { Color.clear.frame(width: 48, height: 48) }
+                        .frame(width: 52, height: 52)
+                        .offset(y: sin(time * 1.5 + Double(index)) * 5)
+                        .shadow(color: .white.opacity(0.35), radius: 6)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .accessibilityHidden(true)
     }
 
     private var shelf: [Goods] {
