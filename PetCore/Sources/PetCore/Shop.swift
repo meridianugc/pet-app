@@ -60,6 +60,11 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
     public var stock: [String: Int]
     public var outfitID: String?
     public var backgroundID: String?
+    public var daily: DailyState
+    public var streak: CareStreak
+    public var achievements: [Achievement]
+    public var mealsFed: Int
+    public var gamesFinished: Int
 
     public init(
         coins: Int = 0,
@@ -67,7 +72,12 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         ownedIDs: [String] = [],
         stock: [String: Int] = [:],
         outfitID: String? = nil,
-        backgroundID: String? = nil
+        backgroundID: String? = nil,
+        daily: DailyState = DailyState(),
+        streak: CareStreak = CareStreak(),
+        achievements: [Achievement] = [],
+        mealsFed: Int = 0,
+        gamesFinished: Int = 0
     ) {
         self.coins = coins
         self.xp = xp
@@ -75,6 +85,11 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         self.stock = stock
         self.outfitID = outfitID
         self.backgroundID = backgroundID
+        self.daily = daily
+        self.streak = streak
+        self.achievements = achievements
+        self.mealsFed = mealsFed
+        self.gamesFinished = gamesFinished
     }
 }
 
