@@ -467,45 +467,63 @@ struct TodayView: View {
         let level = session.level
         let into = progress.xp - LevelTable.xpToReach(level)
         let span = max(1, LevelTable.xpToReach(level + 1) - LevelTable.xpToReach(level))
-        List {
-            Section("Level \(level)") {
-                Text("\(into) / \(span) XP toward the next level")
-                    .font(.body)
-                Text(progress.streak.count == 1 ? "1 day of good care" : "\(progress.streak.count) days of good care")
-                    .font(.body)
-            }
-            Section("Today") {
-                ForEach(DailyTask.allCases, id: \.self) { task in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(task.title)
-                            .font(.body)
-                        Text(taskLine(task, progress: progress))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if progress.daily.isComplete(task), !progress.daily.claimed.contains(task) {
-                            Button("Collect \(task.reward) star gems") {
-                                session.claim(task)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                panel {
+                    Text("Level \(level)")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                    GoalMeter(title: "\(into) / \(span)", fraction: Double(into) / Double(span), ink: .primary)
+                    Text(progress.streak.count == 1 ? "1 day of good care" : "\(progress.streak.count) days of good care")
+                        .font(.system(.body, design: .rounded))
+                }
+                panel {
+                    Text("Today")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                    ForEach(DailyTask.allCases, id: \.self) { task in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(task.title)
+                                .font(.system(.headline, design: .rounded))
+                            Text(taskLine(task, progress: progress))
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundStyle(.secondary)
+                            if progress.daily.isComplete(task), !progress.daily.claimed.contains(task) {
+                                Button {
+                                    session.claim(task)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        CareGlyph(stat: .gems, side: 14)
+                                        Text("\(task.reward)")
+                                    }
+                                }
+                                .font(.system(.caption, design: .rounded).weight(.bold))
                             }
                         }
-                    }
-                    .padding(.vertical, 4)
-                    .accessibilityElement(children: .combine)
-                }
-            }
-            Section("Achievements") {
-                if progress.achievements.isEmpty {
-                    Text("Look after your alien and these will fill in.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(progress.achievements, id: \.self) { item in
-                        Text(item.title)
-                            .font(.body)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.55)))
+                        .accessibilityElement(children: .combine)
                     }
                 }
+                panel {
+                    Text("Achievements")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                    if progress.achievements.isEmpty {
+                        Text("Look after your alien and these will fill in.")
+                            .font(.system(.body, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(progress.achievements, id: \.self) { item in
+                            Text(item.title)
+                                .font(.system(.body, design: .rounded).weight(.semibold))
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Capsule().fill(Color.white.opacity(0.55)))
+                        }
+                    }
+                }
             }
+            .padding(16)
         }
-        .scrollContentBackground(.hidden)
         .background(PocketBackground())
         .navigationTitle("Today")
         .navigationBarTitleDisplayMode(.inline)
@@ -514,6 +532,17 @@ struct TodayView: View {
                 Button("Done") { dismiss() }
             }
         }
+    }
+
+    private func panel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10, content: content)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.white.opacity(0.38))
+                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white, lineWidth: 2))
+            )
     }
 
     private func taskLine(_ task: DailyTask, progress: PlayerProgress) -> String {
