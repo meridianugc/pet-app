@@ -797,16 +797,39 @@ struct PlanetMergeGame: View {
     }()
     @State private var score = 0
     @State private var closed = false
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.planetMerge")
 
     var body: some View {
         ZStack(alignment: .top) {
             SpriteView(scene: scene)
                 .ignoresSafeArea()
-            Text("\(score)")
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.top, 24)
-                .accessibilityLabel("Score \(score)")
+            HStack {
+                Button("?") { showHowTo = true }
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white.opacity(0.85)))
+                    .accessibilityLabel("How to play Planet Merge")
+                Spacer()
+                Text("\(score)")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .accessibilityLabel("Score \(score)")
+            }
+            .padding(16)
+            if showHowTo {
+                HowToOverlay(
+                    title: "Planet Merge",
+                    pages: [
+                        "Tap to drop the planet in your hand.",
+                        "Two of the same size melt into the next planet.",
+                        "If the stack rests above the line, the round ends."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.planetMerge")
+                        showHowTo = false
+                    }
+                )
+            }
         }
         .onAppear {
             scene.onScore = { value in
@@ -1197,6 +1220,7 @@ struct SnackMatchGame: View {
     @State private var moves = 18
     @State private var finished = false
     @State private var pop = ""
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.snackMatch")
 
     private let columns = 6
     private let rows = 7
@@ -1211,6 +1235,9 @@ struct SnackMatchGame: View {
     var body: some View {
         VStack(spacing: 14) {
             HStack {
+                Button("?") { showHowTo = true }
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .accessibilityLabel("How to play Snack Match")
                 Text("Moves \(moves)")
                 Spacer()
                 Text("\(score)")
@@ -1246,6 +1273,22 @@ struct SnackMatchGame: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PocketBackground().ignoresSafeArea())
+        .overlay {
+            if showHowTo {
+                HowToOverlay(
+                    title: "Snack Match",
+                    pages: [
+                        "Tap a snack, then tap a neighbor to swap.",
+                        "A line of three or more pops. Longer lines pay more.",
+                        "You have 18 moves. Cascades keep the combo going."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.snackMatch")
+                        showHowTo = false
+                    }
+                )
+            }
+        }
     }
 
     private func tap(_ index: Int) {
