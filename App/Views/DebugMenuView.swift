@@ -54,6 +54,8 @@ struct DebugMenuView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(PocketBackground())
         .navigationTitle("Debug")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

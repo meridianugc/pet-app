@@ -1,6 +1,6 @@
 # Pocket Pet
 
-Pocket Pet is a small alien that lives on your iPhone. It starts as a speckled star egg, hatches into a round baby, and grows into a star, a cloud, or a spiky form depending on how you look after it. Hunger, happiness, and energy change even while the app is closed. You can feed it, play short games for coins, and put it to sleep. The shop spends coins on food, toys, outfits, and skies. If it is left empty or lonely for too long, it flies home to its planet, leaves a letter, and a new star egg arrives with a little gift from the one who left.
+Pocket Pet is a small alien that lives on your iPhone. It starts as a speckled star egg, hatches into a round baby, and grows into a star, a cloud, or a spiky form depending on how you look after it. Hunger, happiness, and energy change even while the app is closed. You can feed it, play Planet Merge, Star Hopper, and Snack Match for star gems, and put it to sleep. The shop spends coins on food, toys, outfits, and skies. If it is left empty or lonely for too long, it flies home to its planet, leaves a letter, and a new star egg arrives with a little gift from the one who left.
 
 There is no account and no server. The pet is saved on the phone. A home screen widget can show the same pet.
 

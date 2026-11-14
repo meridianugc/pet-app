@@ -18,7 +18,7 @@ struct NamingView: View {
                     .frame(maxWidth: .infinity)
 
                     Text("A little alien is waiting in this star egg. Give them a name, then look after them as they grow.")
-                        .font(.body)
+                        .font(.system(.body, design: .rounded))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)

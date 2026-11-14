@@ -147,6 +147,8 @@ struct ShopView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(PocketBackground())
         .navigationTitle("Shop")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -251,6 +253,8 @@ struct TodayView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(PocketBackground())
         .navigationTitle("Today")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
