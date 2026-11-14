@@ -3,6 +3,12 @@ import Foundation
 import PetCore
 import WidgetKit
 
+struct MeterPop: Equatable, Identifiable {
+    var id = UUID()
+    var stat: CareStat
+    var amount: Int
+}
+
 struct PlayReward: Equatable {
     var title: String
     var score: Int
@@ -28,6 +34,7 @@ final class PetSession: ObservableObject {
     @Published var note: String?
     @Published private(set) var reminderAccess: ReminderAccess = .unknown
     @Published var playReward: PlayReward?
+    @Published var meterPops: [MeterPop] = []
 
     let usesAppGroup: Bool
 
@@ -109,12 +116,13 @@ final class PetSession: ObservableObject {
             return
         }
         let reward = GameRewards.reward(points: points)
+        let gems = record.progress.gemPayout(base: reward.coins, now: now)
         pet.happiness = min(engine.rules.statMax, pet.happiness + reward.happiness)
         pet.energy = max(engine.rules.statMin, pet.energy - reward.energyCost)
         pet.lastSimulatedAt = now
         if pet.stage == .baby { pet.care.plays += 1 }
         record.pet = pet
-        record.progress.coins += reward.coins
+        record.progress.coins += gems
         record.progress.xp += reward.xp
         record.progress.gamesFinished += 1
         var isBest = false
@@ -133,7 +141,7 @@ final class PetSession: ObservableObject {
             playReward = PlayReward(
                 title: title,
                 score: points,
-                gems: reward.coins,
+                gems: gems,
                 xp: reward.xp,
                 isBest: isBest,
                 gamesPlayed: record.progress.daily.gamesPlayed
@@ -169,6 +177,11 @@ final class PetSession: ObservableObject {
             pet = PetCare.apply(effect, to: pet, rules: engine.rules)
             pet.lastSimulatedAt = currentDate
             record.pet = pet
+            if effect.gemBonusHours > 0 {
+                record.progress.gemBonusPercent = effect.gemBonusPercent
+                record.progress.gemBonusUntil = currentDate.addingTimeInterval(effect.gemBonusHours * 3600)
+            }
+            flash(effect.chips)
             if effect.hunger > 0 {
                 record.progress.mealsFed += 1
             }
@@ -331,6 +344,11 @@ final class PetSession: ObservableObject {
             let calendar = Calendar.current
             switch action {
             case .feed:
+                let happy = outcome.wasTreat ? -Int(engine.rules.overfeedHappinessPenalty) : Int(engine.rules.feedHappiness)
+                flash([
+                    CareChip(stat: .fed, amount: Int(engine.rules.feedHunger)),
+                    CareChip(stat: .happy, amount: happy)
+                ])
                 record.progress.mealsFed += 1
                 record.progress.xp += outcome.wasTreat ? 3 : 8
                 if !outcome.wasTreat {
@@ -346,6 +364,14 @@ final class PetSession: ObservableObject {
             }
         }
         persist(record, includeAlreadyLow: false)
+    }
+
+    private func flash(_ chips: [CareChip]) {
+        meterPops = chips.filter { $0.amount != 0 }.map { MeterPop(stat: $0.stat, amount: $0.amount) }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            meterPops = []
+        }
     }
 
     private func praiseCare(_ progress: inout PlayerProgress, at date: Date) {

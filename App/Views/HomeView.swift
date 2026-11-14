@@ -32,10 +32,11 @@ struct HomeView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             VStack(spacing: 12) {
-                                StatMeterView(title: "Fed", value: pet.hunger, tint: StatTint.fed)
-                                StatMeterView(title: "Happy", value: pet.happiness, tint: StatTint.happy)
-                                StatMeterView(title: "Energy", value: pet.energy, tint: StatTint.energy)
+                                StatMeterView(stat: .fed, value: pet.hunger, tint: StatTint.fed, pop: pop(for: .fed))
+                                StatMeterView(stat: .happy, value: pet.happiness, tint: StatTint.happy, pop: pop(for: .happy))
+                                StatMeterView(stat: .energy, value: pet.energy, tint: StatTint.energy, pop: pop(for: .energy))
                             }
+                            .animation(.spring(duration: 0.35), value: session.meterPops.count)
                         }
 
                         if let note = session.note {
@@ -213,6 +214,10 @@ struct HomeView: View {
         .tint(PocketButton.tint)
         .disabled(disabled)
         .accessibilityHint(hint)
+    }
+
+    private func pop(for stat: CareStat) -> Int? {
+        session.meterPops.first { $0.stat == stat }?.amount
     }
 
     private func canCare(_ pet: Pet) -> Bool {
@@ -409,8 +414,7 @@ struct RewardPopup: View {
                         .padding(.vertical, 6)
                         .background(Capsule().fill(Color(red: 1, green: 0.84, blue: 0.4)))
                 }
-                Text("+\(reward.gems) star gems")
-                    .font(.system(.title3, design: .rounded).weight(.bold))
+                ChipFace(chip: CareChip(stat: .gems, amount: reward.gems), side: 26)
                 Text("+\(reward.xp) XP")
                     .font(.system(.body, design: .rounded))
                 if reward.gamesPlayed > 0 {

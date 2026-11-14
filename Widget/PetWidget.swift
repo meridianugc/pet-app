@@ -152,9 +152,9 @@ struct PetWidgetEntryView: View {
                 .minimumScaleFactor(0.8)
         } else {
             VStack(spacing: 4) {
-                StatMeterView(title: "Fed", value: pet.hunger, tint: StatTint.fed, compact: true)
-                StatMeterView(title: "Happy", value: pet.happiness, tint: StatTint.happy, compact: true)
-                StatMeterView(title: "Energy", value: pet.energy, tint: StatTint.energy, compact: true)
+                StatMeterView(stat: .fed, value: pet.hunger, tint: StatTint.fed, compact: true)
+                StatMeterView(stat: .happy, value: pet.happiness, tint: StatTint.happy, compact: true)
+                StatMeterView(stat: .energy, value: pet.energy, tint: StatTint.energy, compact: true)
             }
         }
     }

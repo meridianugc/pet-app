@@ -117,6 +117,7 @@ struct DepartureArtwork: View {
 struct ShopView: View {
     @EnvironmentObject private var session: PetSession
     @Environment(\.dismiss) private var dismiss
+    @State private var pending: Goods?
 
     var body: some View {
         let progress = session.record?.progress ?? PlayerProgress()
@@ -156,17 +157,31 @@ struct ShopView: View {
                 Button("Done") { dismiss() }
             }
         }
+        .overlay {
+            if let pending {
+                BuyConfirm(item: pending) {
+                    session.buy(pending.id)
+                    self.pending = nil
+                } onClose: {
+                    self.pending = nil
+                }
+            }
+        }
     }
 
     private func row(_ item: Goods, progress: PlayerProgress, durable: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(item.name)
                 .font(.body)
-            Text(detail(item, progress: progress))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            ChipStrip(chips: item.chips)
+            HStack(spacing: 6) {
+                CareGlyph(stat: .gems, side: 16)
+                Text("\(item.price)")
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+            }
+            .accessibilityLabel("\(item.price) star gems")
             HStack {
-                Button("Buy · \(item.price)") { session.buy(item.id) }
+                Button("Buy") { pending = item }
                     .disabled(session.level < item.unlockLevel)
                 if !durable, (progress.stock[item.id] ?? 0) > 0 {
                     Button("Use") { session.useItem(item.id) }
@@ -205,6 +220,51 @@ struct ShopView: View {
         case .outfit: return "Wear it on the alien."
         case .background: return "A new sky for the room."
         }
+    }
+}
+
+struct ChipStrip: View {
+    var chips: [CareChip]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+                ChipFace(chip: chip)
+            }
+        }
+    }
+}
+
+struct BuyConfirm: View {
+    var item: Goods
+    var onBuy: () -> Void
+    var onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 14) {
+                Text(item.name)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                ChipStrip(chips: item.chips)
+                HStack(spacing: 6) {
+                    CareGlyph(stat: .gems, side: 22)
+                    Text("\(item.price)")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                }
+                HStack(spacing: 12) {
+                    Button("Not now", action: onClose)
+                    Button("Buy", action: onBuy)
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.55, green: 0.42, blue: 0.86))
+            }
+            .padding(24)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
+            .padding(28)
+        }
+        .accessibilityAddTraits(.isModal)
     }
 }
 
