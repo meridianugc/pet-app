@@ -4,6 +4,7 @@ import UIKit
 
 struct HomeView: View {
     @EnvironmentObject private var session: PetSession
+    @State private var showCollection = false
 #if DEBUG
     @State private var showDebug = false
 #endif
@@ -63,6 +64,11 @@ struct HomeView: View {
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            .sheet(isPresented: $showCollection) {
+                NavigationStack {
+                    CollectionBookView()
+                }
+            }
 #if DEBUG
             .sheet(isPresented: $showDebug) {
                 NavigationStack {
@@ -195,6 +201,15 @@ struct HomeView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showCollection = true
+            } label: {
+                Image(systemName: "sparkles")
+            }
+            .accessibilityLabel("Collection")
+            .accessibilityHint("Shows the forms you have raised and the letters left behind.")
+        }
         if session.reminderAccess == .notAsked {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Reminders") {
@@ -225,5 +240,74 @@ struct HomeView: View {
             .accessibilityHint("Moves the pet's clock for testing.")
         }
 #endif
+    }
+}
+
+struct CollectionBookView: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let collection = session.record?.collection ?? .empty
+        List {
+            Section("Forms") {
+                formRow(title: "Star egg", found: collection.sawEgg, stage: .egg, form: nil)
+                formRow(title: "Baby", found: collection.sawBaby, stage: .baby, form: nil)
+                formRow(title: "Star", found: collection.raisedForms.contains(.star), stage: .adult, form: .star)
+                formRow(title: "Cloud", found: collection.raisedForms.contains(.cloud), stage: .adult, form: .cloud)
+                formRow(title: "Spiky", found: collection.raisedForms.contains(.spiky), stage: .adult, form: .spiky)
+            }
+            Section("Letters") {
+                if collection.letters.isEmpty {
+                    Text("When an alien flies home, their letter will stay here.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(collection.letters) { letter in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(letter.name)
+                                .font(.headline)
+                            Text(letter.form?.displayName ?? "Hatchling")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(letter.message)
+                                .font(.body)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Star book")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    private func formRow(title: String, found: Bool, stage: LifeStage, form: AdultForm?) -> some View {
+        HStack(spacing: 12) {
+            PetCreatureView(
+                stage: stage,
+                mood: found ? .joyful : .sleepy,
+                form: form,
+                animates: false,
+                accessibilityLabel: found ? title : "\(title), not yet"
+            )
+            .frame(width: 56, height: 56)
+            .opacity(found ? 1 : 0.35)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body)
+                Text(found ? "Raised" : "Not yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
