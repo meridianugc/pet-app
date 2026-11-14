@@ -45,10 +45,16 @@ public enum GameRewards {
 
     /// Points already include combos. A finished game always cheers them up a little and tires them.
     public static func reward(points: Int) -> GameReward {
+        reward(points: points, solo: false)
+    }
+
+    /// A solo game while the pet sleeps still pays gems and XP, and leaves the nap alone.
+    public static func reward(points: Int, solo: Bool) -> GameReward {
         let gems = gems(forPoints: points)
-        let happiness = min(30, 8 + Double(gems))
+        let happiness = solo ? 0 : min(30, 8 + Double(gems))
+        let energy = solo ? 0 : 12.0
         let xp = 8 + gems * 2
-        return GameReward(happiness: happiness, energyCost: 12, coins: gems, xp: xp)
+        return GameReward(happiness: happiness, energyCost: energy, coins: gems, xp: xp)
     }
 
     public static func starCatchPoints(stars: Int, snacks: Int, rocks: Int) -> Int {

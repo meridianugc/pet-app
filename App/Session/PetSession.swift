@@ -18,6 +18,11 @@ struct PlayReward: Equatable {
     var gamesPlayed: Int
 }
 
+enum CareAsk: Equatable {
+    case feed
+    case item(String)
+}
+
 enum ReminderAccess: Equatable {
     case unknown
     case notAsked
@@ -35,6 +40,7 @@ final class PetSession: ObservableObject {
     @Published private(set) var reminderAccess: ReminderAccess = .unknown
     @Published var playReward: PlayReward?
     @Published var meterPops: [MeterPop] = []
+    @Published var careAsk: CareAsk?
 
     let usesAppGroup: Bool
 
@@ -97,7 +103,31 @@ final class PetSession: ObservableObject {
         )
     }
 
-    func feed() { perform(.feed) }
+    func feed() {
+        if record?.pet.isSleeping == true {
+            careAsk = .feed
+            return
+        }
+        perform(.feed)
+    }
+
+    func confirmCare() {
+        let ask = careAsk
+        careAsk = nil
+        perform(.wake)
+        switch ask {
+        case .feed:
+            perform(.feed)
+        case let .item(id):
+            useItem(id)
+        case nil:
+            break
+        }
+    }
+
+    func dismissCare() {
+        careAsk = nil
+    }
 
     var level: Int { LevelTable.level(for: record?.progress.xp ?? 0) }
 
@@ -109,18 +139,21 @@ final class PetSession: ObservableObject {
         guard var record else { return }
         let now = currentDate
         var pet = engine.advance(record.pet, to: now)
-        guard pet.stage != .egg, !pet.hasGoneHome, !pet.isSleeping, pet.energy >= engine.rules.minimumEnergyToPlay else {
+        let solo = pet.isSleeping
+        guard pet.stage != .egg, !pet.hasGoneHome, solo || pet.energy >= engine.rules.minimumEnergyToPlay else {
             note = pet.energy < engine.rules.minimumEnergyToPlay ? "Too tired to play." : "Not a good moment to play."
             record.pet = pet
             persist(record, includeAlreadyLow: false)
             return
         }
-        let reward = GameRewards.reward(points: points)
+        let reward = GameRewards.reward(points: points, solo: solo)
         let gems = record.progress.gemPayout(base: reward.coins, now: now)
-        pet.happiness = min(engine.rules.statMax, pet.happiness + reward.happiness)
-        pet.energy = max(engine.rules.statMin, pet.energy - reward.energyCost)
+        if !solo {
+            pet.happiness = min(engine.rules.statMax, pet.happiness + reward.happiness)
+            pet.energy = max(engine.rules.statMin, pet.energy - reward.energyCost)
+            if pet.stage == .baby { pet.care.plays += 1 }
+        }
         pet.lastSimulatedAt = now
-        if pet.stage == .baby { pet.care.plays += 1 }
         record.pet = pet
         record.progress.coins += gems
         record.progress.xp += reward.xp
@@ -164,6 +197,10 @@ final class PetSession: ObservableObject {
 
     func useItem(_ id: String) {
         guard var record else { return }
+        if record.pet.isSleeping, let item = Shop.item(id), item.needsThePetAwake {
+            careAsk = .item(id)
+            return
+        }
         switch Shop.consume(id: id, progress: record.progress) {
         case let .success((progress, effect)):
             record.progress = progress

@@ -53,6 +53,14 @@ public struct Goods: Equatable, Sendable, Identifiable {
         self.kind = kind
     }
 
+    /// Food, drink, and toys are for the pet. A charm can be used while they nap.
+    public var needsThePetAwake: Bool {
+        switch kind {
+        case .food, .toy, .tonic: return true
+        case .charm, .outfit, .background: return false
+        }
+    }
+
     public var isDurable: Bool {
         switch kind {
         case .outfit, .background: return true

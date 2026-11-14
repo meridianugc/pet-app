@@ -74,6 +74,11 @@ struct HomeView: View {
                     } onClose: {
                         session.dismissReward()
                     }
+                } else if session.careAsk != nil {
+                    WakeConfirm(
+                        onWake: { session.confirmCare() },
+                        onLeave: { session.dismissCare() }
+                    )
                 }
             }
             .navigationTitle("Pocket Pet")
@@ -189,8 +194,13 @@ struct HomeView: View {
             ) {
                 showShop = true
             }
-            if pet.stage != .egg, !pet.isSleeping, pet.energy < 15 {
-                Text("Too tired to play. A nap will help.")
+            if pet.stage != .egg, pet.isSleeping {
+                Text("They're napping. You can still play, shop, and look around.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if pet.stage != .egg, pet.energy < 15 {
+                Text("Too tired to play together. A nap will help, or play solo after they sleep.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -225,11 +235,14 @@ struct HomeView: View {
     }
 
     private func canPlay(_ pet: Pet) -> Bool {
-        canCare(pet) && pet.energy >= 15
+        pet.stage != .egg && !pet.hasGoneHome && (pet.isSleeping || pet.energy >= 15)
     }
 
     private func playHint(_ pet: Pet) -> String {
-        if pet.energy < 15, pet.stage != .egg, !pet.isSleeping {
+        if pet.isSleeping {
+            return "Play on your own. They keep sleeping, and you still earn gems."
+        }
+        if pet.energy < 15, pet.stage != .egg {
             return "Unavailable until they have more energy."
         }
         return "Cheers them up and uses some energy."
@@ -1009,6 +1022,35 @@ struct StarHopperGame: View {
     private func skipCountdown() {
         countdown = 0
         scene.begin()
+    }
+}
+
+struct WakeConfirm: View {
+    var onWake: () -> Void
+    var onLeave: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 14) {
+                CareGlyph(stat: .sleep, side: 48)
+                Text("They're asleep")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                Text("Wake them gently for this?")
+                    .font(.system(.body, design: .rounded))
+                HStack(spacing: 12) {
+                    Button("Let them sleep", action: onLeave)
+                    Button("Wake", action: onWake)
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.55, green: 0.42, blue: 0.86))
+            }
+            .padding(24)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
+            .padding(28)
+        }
+        .accessibilityAddTraits(.isModal)
     }
 }
 

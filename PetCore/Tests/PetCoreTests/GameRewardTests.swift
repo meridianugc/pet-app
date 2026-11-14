@@ -28,6 +28,14 @@ final class GameRewardTests: XCTestCase {
         XCTAssertEqual(reward.happiness, 30, accuracy: 0.001)
     }
 
+    func testASoloGameWhileAsleepDoesNotTireThem() {
+        let reward = GameRewards.reward(points: 6, solo: true)
+        XCTAssertEqual(reward.coins, 3)
+        XCTAssertEqual(reward.happiness, 0, accuracy: 0.001)
+        XCTAssertEqual(reward.energyCost, 0, accuracy: 0.001)
+        XCTAssertEqual(reward.xp, 14)
+    }
+
     func testAScoreOfZeroStillGivesALittleJoy() {
         let reward = GameRewards.reward(points: 0)
         XCTAssertEqual(reward.coins, 0)
