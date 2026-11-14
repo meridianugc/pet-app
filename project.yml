@@ -1,0 +1,118 @@
+name: PocketPet
+options:
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+  defaultConfig: Debug
+  minimumXcodeGenVersion: "2.38.0"
+  projectFormat: xcode15_0
+  xcodeVersion: "15.0"
+  deploymentTarget:
+    iOS: "17.0"
+configs:
+  Debug: debug
+  Release: release
+  FreeDevice: debug
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_PREVIEWS: YES
+packages:
+  PetCore:
+    path: PetCore
+fileGroups:
+  - README.md
+  - project.yml
+targets:
+  PocketPet:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+      - path: Shared
+    dependencies:
+      - package: PetCore
+      - target: PocketPetWidget
+        embed: true
+        link: false
+        codeSign: true
+        copy:
+          destination: plugins
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.petapp
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: App/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Pocket Pet
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MACCATALYST: NO
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: App/PocketPet.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: App/PocketPet.entitlements
+        FreeDevice:
+          CODE_SIGN_ENTITLEMENTS: App/PocketPetFree.entitlements
+    scheme:
+      testTargets:
+        - package: PetCore/PetCoreTests
+      management:
+        shared: true
+        orderHint: 0
+  PocketPetWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widget
+        excludes:
+          - Info.plist
+          - "*.entitlements"
+      - path: Shared
+    dependencies:
+      - package: PetCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.petapp.widget
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Widget/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Pocket Pet
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/Frameworks @executable_path/../../Frameworks
+        SUPPORTS_MACCATALYST: NO
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: Widget/PocketPetWidget.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Widget/PocketPetWidget.entitlements
+        FreeDevice:
+          CODE_SIGN_ENTITLEMENTS: Widget/PocketPetWidgetFree.entitlements
+    scheme:
+      management:
+        isShown: false
+        shared: true
+schemes:
+  PocketPet Free Device:
+    build:
+      targets:
+        PocketPet: all
+        PocketPetWidget: all
+    run:
+      config: FreeDevice
+      executable: PocketPet
+    archive:
+      config: Release
+    management:
+      shared: true
+      orderHint: 1
