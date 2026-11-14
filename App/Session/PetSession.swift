@@ -208,6 +208,30 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: false)
     }
 
+    func buyDeal() {
+        guard var record else { return }
+        let day = DayStamp.capture(currentDate, calendar: .current)
+        let stamp = "\(day.year)-\(day.month)-\(day.day)"
+        if record.progress.dealStamp != stamp {
+            record.progress.dealStamp = stamp
+            record.progress.dealBought = false
+        }
+        guard !record.progress.dealBought, let (goods, price) = DailyDeal.offer(on: day) else {
+            note = "That deal has already been taken."
+            return
+        }
+        switch Shop.purchase(id: goods.id, price: price, progress: record.progress, level: level) {
+        case let .success(progress):
+            record.progress = progress
+            record.progress.dealStamp = stamp
+            record.progress.dealBought = true
+            note = nil
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = shopNote(error)
+        }
+    }
+
     func buy(_ id: String) {
         guard var record else { return }
         switch Shop.purchase(id: id, progress: record.progress, level: level) {

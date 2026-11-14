@@ -213,38 +213,118 @@ struct ShopView: View {
     @EnvironmentObject private var session: PetSession
     @Environment(\.dismiss) private var dismiss
     @State private var pending: Goods?
+    @State private var pendingPrice: Int?
+    @State private var buyingDeal = false
+    @State private var tab = 0
+    @State private var sparkle = false
+
+    private let tabs = ["Snacks", "Toys", "Looks", "Skies"]
 
     var body: some View {
         let progress = session.record?.progress ?? PlayerProgress()
-        List {
-            Section {
-                Text("\(progress.coins) star gems · level \(session.level)")
-                    .font(.headline)
+        let day = DayStamp.capture(session.currentDate, calendar: .current)
+        let offer = DailyDeal.offer(on: day)
+        let stamp = "\(day.year)-\(day.month)-\(day.day)"
+        let dealTaken = progress.dealStamp == stamp && progress.dealBought
+        let seconds = Int(DailyDeal.secondsLeft(now: session.currentDate))
+        ZStack {
+            PocketBackground().ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 16) {
+                    HStack {
+                        PetCreatureView(
+                            stage: .adult,
+                            mood: .joyful,
+                            form: .star,
+                            animates: true,
+                            accessibilityLabel: "Shopkeeper"
+                        )
+                        .frame(width: 92, height: 92)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Station shop")
+                                .font(.system(.title2, design: .rounded).weight(.bold))
+                            HStack(spacing: 6) {
+                                CareGlyph(stat: .gems, side: 18)
+                                Text("\(progress.coins)")
+                                    .font(.system(.title3, design: .rounded).weight(.bold))
+                            }
+                        }
+                        Spacer()
+                    }
+                    if let offer {
+                        Button {
+                            pending = offer.0
+                            pendingPrice = offer.1
+                            buyingDeal = true
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Daily deal")
+                                    .font(.system(.headline, design: .rounded))
+                                Text(offer.0.name)
+                                    .font(.system(.title3, design: .rounded).weight(.bold))
+                                ChipStrip(chips: offer.0.chips)
+                                HStack {
+                                    CareGlyph(stat: .gems, side: 16)
+                                    Text("\(offer.1)")
+                                    Spacer()
+                                    Text(dealTaken ? "Taken" : String(format: "%d:%02d", seconds / 3600, (seconds % 3600) / 60))
+                                }
+                                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.55)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(dealTaken)
+                    }
+                    HStack(spacing: 8) {
+                        ForEach(tabs.indices, id: \.self) { index in
+                            Button(tabs[index]) { tab = index }
+                                .font(.system(.caption, design: .rounded).weight(.bold))
+                                .frame(width: 70, height: 70)
+                                .background(Circle().fill(tab == index ? Color(red: 1, green: 0.78, blue: 0.86) : Color.white.opacity(0.45)))
+                        }
+                    }
+                    TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+                        let time = timeline.date.timeIntervalSinceReferenceDate
+                        VStack(spacing: 12) {
+                            ForEach(Array(shelf.enumerated()), id: \.element.id) { index, item in
+                                shelfCard(item, progress: progress, bob: sin(time * 1.8 + Double(index)) * 5)
+                            }
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .fill(Color.white.opacity(0.22))
+                                .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(Color.white.opacity(0.7), lineWidth: 2))
+                        )
+                    }
+                    if progress.outfitID != nil {
+                        Button("Take the outfit off") { session.equipOutfit(nil) }
+                    }
+                    if progress.backgroundID != nil {
+                        Button("Use the usual sky") { session.equipBackground(nil) }
+                    }
+                }
+                .padding(16)
             }
-            Section("Food and toys") {
-                ForEach(Shop.catalog.filter { !$0.isDurable }) { item in
-                    row(item, progress: progress, durable: false)
+            if sparkle {
+                ForEach(0..<6, id: \.self) { index in
+                    CareGlyph(stat: .gems, side: 16)
+                        .offset(x: CGFloat(index - 3) * 18, y: sparkle ? -160 : 40)
+                        .opacity(sparkle ? 0 : 1)
                 }
-            }
-            Section("Outfits") {
-                ForEach(Shop.catalog.filter { if case .outfit = $0.kind { return true }; return false }) { item in
-                    row(item, progress: progress, durable: true)
-                }
-                if progress.outfitID != nil {
-                    Button("Take the outfit off") { session.equipOutfit(nil) }
-                }
-            }
-            Section("Skies") {
-                ForEach(Shop.catalog.filter { if case .background = $0.kind { return true }; return false }) { item in
-                    row(item, progress: progress, durable: true)
-                }
-                if progress.backgroundID != nil {
-                    Button("Use the usual sky") { session.equipBackground(nil) }
-                }
+                .allowsHitTesting(false)
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(PocketBackground())
+        .onChange(of: sparkle) { _, flying in
+            guard flying else { return }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                sparkle = false
+            }
+        }
         .navigationTitle("Shop")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -254,67 +334,81 @@ struct ShopView: View {
         }
         .overlay {
             if let pending {
-                BuyConfirm(item: pending) {
-                    session.buy(pending.id)
+                BuyConfirm(item: pending, price: pendingPrice) {
+                    if buyingDeal {
+                        session.buyDeal()
+                    } else {
+                        session.buy(pending.id)
+                    }
+                    withAnimation(.easeOut(duration: 0.8)) { sparkle = true }
                     self.pending = nil
+                    buyingDeal = false
                 } onClose: {
                     self.pending = nil
+                    buyingDeal = false
                 }
             }
         }
     }
 
-    private func row(_ item: Goods, progress: PlayerProgress, durable: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(item.name)
-                .font(.body)
-            ChipStrip(chips: item.chips)
-            HStack(spacing: 6) {
-                CareGlyph(stat: .gems, side: 16)
-                Text("\(item.price)")
-                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+    private var shelf: [Goods] {
+        Shop.catalog.filter { item in
+            switch tab {
+            case 1: if case .toy = item.kind { return true } else { return false }
+            case 2: if case .outfit = item.kind { return true } else { return false }
+            case 3: if case .background = item.kind { return true } else { return false }
+            default: return !item.isDurable && { if case .toy = item.kind { return false } else { return true } }()
             }
-            .accessibilityLabel("\(item.price) star gems")
-            HStack {
-                Button("Buy") { pending = item }
-                    .disabled(session.level < item.unlockLevel)
-                if !durable, (progress.stock[item.id] ?? 0) > 0 {
+        }
+    }
+
+    private func shelfCard(_ item: Goods, progress: PlayerProgress, bob: Double) -> some View {
+        let locked = session.level < item.unlockLevel
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.system(.headline, design: .rounded))
+                ChipStrip(chips: item.chips)
+                HStack(spacing: 4) {
+                    CareGlyph(stat: .gems, side: 14)
+                    Text("\(item.price)")
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                }
+            }
+            Spacer()
+            VStack(spacing: 6) {
+                Button("Buy") {
+                    pending = item
+                    pendingPrice = item.price
+                    buyingDeal = false
+                }
+                .disabled(locked)
+                if !item.isDurable, (progress.stock[item.id] ?? 0) > 0 {
                     Button("Use") { session.useItem(item.id) }
                 }
-                if durable, progress.ownedIDs.contains(item.id) {
-                    Button(progress.outfitID == item.id || progress.backgroundID == item.id ? "Using" : "Use") {
-                        if case .outfit = item.kind {
-                            session.equipOutfit(item.id)
-                        } else {
-                            session.equipBackground(item.id)
-                        }
+                if item.isDurable, progress.ownedIDs.contains(item.id) {
+                    Button(progress.outfitID == item.id || progress.backgroundID == item.id ? "On" : "Use") {
+                        if case .outfit = item.kind { session.equipOutfit(item.id) }
+                        else { session.equipBackground(item.id) }
                     }
                 }
             }
-            .font(.subheadline)
+            .font(.system(.caption, design: .rounded).weight(.bold))
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(locked ? 0.28 : 0.62))
+                .overlay {
+                    if locked {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.9), lineWidth: 2)
+                    }
+                }
+        )
+        .offset(y: bob)
+        .opacity(locked ? 0.55 : 1)
         .accessibilityElement(children: .combine)
-    }
-
-    private func detail(_ item: Goods, progress: PlayerProgress) -> String {
-        if session.level < item.unlockLevel {
-            return "Unlocks at level \(item.unlockLevel)"
-        }
-        if item.isDurable, progress.ownedIDs.contains(item.id) {
-            return "Owned"
-        }
-        let stock = progress.stock[item.id] ?? 0
-        if stock > 0 { return "In the bag: \(stock)" }
-        switch item.kind {
-        case .food(_, _, true, _): return "A treat. Too many can spoil a baby."
-        case .food: return "A healthy meal."
-        case .tonic: return "A sip that fills and wakes them up."
-        case .charm: return "Games pay extra gems for a while."
-        case .toy: return "A burst of play."
-        case .outfit: return "Wear it on the alien."
-        case .background: return "A new sky for the room."
-        }
     }
 }
 
@@ -332,6 +426,7 @@ struct ChipStrip: View {
 
 struct BuyConfirm: View {
     var item: Goods
+    var price: Int?
     var onBuy: () -> Void
     var onClose: () -> Void
 
@@ -344,7 +439,7 @@ struct BuyConfirm: View {
                 ChipStrip(chips: item.chips)
                 HStack(spacing: 6) {
                     CareGlyph(stat: .gems, side: 22)
-                    Text("\(item.price)")
+                    Text("\(price ?? item.price)")
                         .font(.system(.title3, design: .rounded).weight(.bold))
                 }
                 HStack(spacing: 12) {
