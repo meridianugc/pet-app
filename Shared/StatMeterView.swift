@@ -93,10 +93,10 @@ struct CareGlyph: View {
 
     private var iconName: String {
         switch stat {
-        case .fed: return "icon_fed"
-        case .happy, .look: return "icon_happy"
-        case .energy, .sleep: return "icon_energy"
-        case .gems, .sky: return "icon_gem"
+        case .fed: return GameArt.iconFed
+        case .happy, .look: return GameArt.iconHappy
+        case .energy, .sleep: return GameArt.iconEnergy
+        case .gems, .sky: return GameArt.iconGem
         }
     }
 

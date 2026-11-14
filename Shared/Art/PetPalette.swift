@@ -4,6 +4,39 @@ import UIKit
 
 /// Catalog images ship under these names. Missing art falls back to the drawn shapes.
 enum GameArt {
+    static let alienEgg = "alien_egg"
+    static let alienBabyHappy = "alien_baby_happy"
+    static let alienBabySad = "alien_baby_sad"
+    static let alienBabySleep = "alien_baby_sleep"
+    static let alienBabyEat = "alien_baby_eat"
+    static let alienStar = "alien_star"
+    static let alienCloud = "alien_cloud"
+    static let alienSpiky = "alien_spiky"
+    static let gemStar = "gem_star"
+    static let gemMoon = "gem_moon"
+    static let gemPlanet = "gem_planet"
+    static let gemComet = "gem_comet"
+    static let gemDonut = "gem_donut"
+    static let gemHeart = "gem_heart"
+    static let gemLineblast = "gem_lineblast"
+    static let gemStarbomb = "gem_starbomb"
+    static let platformCloud = "platform_cloud"
+    static let platformAsteroid = "platform_asteroid"
+    static let platformBreaking = "platform_breaking"
+    static let spring = "spring"
+    static let gemPickup = "gem_pickup"
+    static let iconFed = "icon_fed"
+    static let iconHappy = "icon_happy"
+    static let iconEnergy = "icon_energy"
+    static let iconGem = "icon_gem"
+    static let bgHome = "bg_home"
+    static let bgMatch = "bg_match"
+    static let bgHopper = "bg_hopper"
+    static let bgMerge = "bg_merge"
+    static let bgShop = "bg_shop"
+
+    static func planet(_ index: Int) -> String { "planet_\(min(8, max(1, index)))" }
+
     static func uiImage(_ name: String) -> UIImage? {
         UIImage(named: name)
     }
@@ -119,11 +152,11 @@ struct PocketBackground: View {
 
     private var backgroundName: String {
         switch theme {
-        case "bg_match", "match": return "bg_match"
-        case "bg_hopper", "hopper": return "bg_hopper"
-        case "bg_merge", "merge": return "bg_merge"
-        case "bg_shop", "shop": return "bg_shop"
-        default: return "bg_home"
+        case "bg_match", "match": return GameArt.bgMatch
+        case "bg_hopper", "hopper": return GameArt.bgHopper
+        case "bg_merge", "merge": return GameArt.bgMerge
+        case "bg_shop", "shop": return GameArt.bgShop
+        default: return GameArt.bgHome
         }
     }
 

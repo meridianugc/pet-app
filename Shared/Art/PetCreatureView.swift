@@ -47,17 +47,17 @@ struct PetCreatureView: View {
     }
 
     private var spriteName: String {
-        if stage == .egg { return "alien_egg" }
+        if stage == .egg { return GameArt.alienEgg }
         switch shownForm {
-        case .star: return "alien_star"
-        case .cloud: return "alien_cloud"
-        case .spiky: return "alien_spiky"
+        case .star: return GameArt.alienStar
+        case .cloud: return GameArt.alienCloud
+        case .spiky: return GameArt.alienSpiky
         case nil:
             switch mood {
-            case .sleepy, .gone: return "alien_baby_sleep"
-            case .sad, .critical, .tired: return "alien_baby_sad"
-            case .hungry: return "alien_baby_eat"
-            default: return "alien_baby_happy"
+            case .sleepy, .gone: return GameArt.alienBabySleep
+            case .sad, .critical, .tired: return GameArt.alienBabySad
+            case .hungry: return GameArt.alienBabyEat
+            default: return GameArt.alienBabyHappy
             }
         }
     }

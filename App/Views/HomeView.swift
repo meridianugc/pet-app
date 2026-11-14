@@ -677,7 +677,7 @@ enum PlanetArt {
             UIColor(red: 0.55, green: 0.42, blue: 0.85, alpha: 1)
         ]
         let fill = colors[index % colors.count]
-        if let packed = GameArt.uiImage("planet_\(min(8, index + 1))") {
+        if let packed = GameArt.uiImage(GameArt.planet(index + 1)) {
             return SKTexture(image: packed)
         }
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
@@ -1020,6 +1020,19 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
             }
             node.strokeColor = SKColor(white: 1, alpha: 0.85)
             node.lineWidth = 3
+            let artName: String
+            switch pad.kind {
+            case .steady: artName = GameArt.platformCloud
+            case .moving: artName = GameArt.platformAsteroid
+            case .crumbly: artName = GameArt.platformBreaking
+            case .spring: artName = GameArt.spring
+            }
+            if let image = GameArt.uiImage(artName) {
+                let sprite = SKSpriteNode(texture: SKTexture(image: image))
+                sprite.size = CGSize(width: width, height: 28)
+                node.addChild(sprite)
+                node.fillColor = .clear
+            }
             let body = SKPhysicsBody(rectangleOf: CGSize(width: width, height: 20))
             body.isDynamic = false
             body.categoryBitMask = 2
@@ -1043,6 +1056,12 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
                 gem.lineWidth = 2
                 gem.position = CGPoint(x: node.position.x, y: node.position.y + 34)
                 gem.name = "gem"
+                if let image = GameArt.uiImage(GameArt.gemPickup) {
+                    let sprite = SKSpriteNode(texture: SKTexture(image: image))
+                    sprite.size = CGSize(width: 18, height: 18)
+                    gem.addChild(sprite)
+                    gem.fillColor = .clear
+                }
                 addChild(gem)
             }
         }
@@ -1582,8 +1601,8 @@ final class SnackBoardScene: SKScene {
 
     private func makeGem(_ tile: Int, at index: Int) -> SKNode {
         let hue = SnackMatch.hue(of: tile)
-        let names = ["gem_star", "gem_moon", "gem_planet", "gem_comet", "gem_donut"]
-        let special = SnackMatch.isBomb(tile) ? "gem_starbomb" : (SnackMatch.isStripe(tile) ? "gem_lineblast" : names[hue % names.count])
+        let names = [GameArt.gemStar, GameArt.gemMoon, GameArt.gemPlanet, GameArt.gemComet, GameArt.gemDonut]
+        let special = SnackMatch.isBomb(tile) ? GameArt.gemStarbomb : (SnackMatch.isStripe(tile) ? GameArt.gemLineblast : names[hue % names.count])
         let node: SKNode
         if let image = GameArt.uiImage(special) {
             let sprite = SKSpriteNode(texture: SKTexture(image: image))
