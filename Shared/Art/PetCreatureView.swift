@@ -129,7 +129,7 @@ private struct BlobPicture: View {
         let size = bodySize
         ZStack {
             ears
-            if stage == .teen || stage == .adult {
+            if stage == .adult {
                 hair
             }
             if stage == .adult {
@@ -162,10 +162,6 @@ private struct BlobPicture: View {
         switch stage {
         case .egg, .baby:
             return CGSize(width: side * 0.62, height: side * 0.56)
-        case .child:
-            return CGSize(width: side * 0.66, height: side * 0.60)
-        case .teen:
-            return CGSize(width: side * 0.56, height: side * 0.70)
         case .adult:
             return CGSize(width: side * 0.64, height: side * 0.74)
         }
@@ -321,8 +317,8 @@ struct PetCreatureView_Previews: PreviewProvider {
             .previewDisplayName("Light")
 
             VStack {
-                PetCreatureView(stage: .teen, mood: .sad, animates: false, accessibilityLabel: "Teen")
-                PetCreatureView(stage: .child, mood: .hungry, animates: false, accessibilityLabel: "Child")
+                PetCreatureView(stage: .adult, mood: .sad, animates: false, accessibilityLabel: "Adult")
+                PetCreatureView(stage: .baby, mood: .hungry, animates: false, accessibilityLabel: "Baby")
             }
             .padding()
             .background(PocketBackground())

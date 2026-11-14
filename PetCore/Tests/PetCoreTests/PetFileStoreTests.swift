@@ -13,7 +13,8 @@ final class PetFileStoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: store.directory) }
         let now = Date(timeIntervalSince1970: 1_700_000_123.25)
         var pet = Pet.freshEgg(name: "Pip", at: now)
-        pet.stage = .child
+        pet.stage = .adult
+        pet.adultForm = .star
         pet.bornAt = now.addingTimeInterval(-500)
         pet.hunger = 42.5
         pet.happiness = 11
@@ -31,7 +32,8 @@ final class PetFileStoreTests: XCTestCase {
         XCTAssertTrue(loaded.notificationPromptDismissed)
         XCTAssertEqual(loaded.pet.id, pet.id)
         XCTAssertEqual(loaded.pet.name, "Pip")
-        XCTAssertEqual(loaded.pet.stage, .child)
+        XCTAssertEqual(loaded.pet.stage, .adult)
+        XCTAssertEqual(loaded.pet.adultForm, .star)
         XCTAssertEqual(loaded.pet.hunger, 42.5, accuracy: 0.001)
         XCTAssertEqual(loaded.pet.isSleeping, true)
         XCTAssertEqual(loaded.pet.passedOut, true)

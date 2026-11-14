@@ -29,10 +29,6 @@ struct PetPalette {
             )
         case .baby:
             return creature(Color(red: 1.0, green: 0.74, blue: 0.62), ink: ink, shine: shine)
-        case .child:
-            return creature(Color(red: 1.0, green: 0.67, blue: 0.55), ink: ink, shine: shine)
-        case .teen:
-            return creature(Color(red: 0.98, green: 0.58, blue: 0.52), ink: ink, shine: shine)
         case .adult:
             return creature(Color(red: 0.93, green: 0.48, blue: 0.50), ink: ink, shine: shine)
         }

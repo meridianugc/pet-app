@@ -87,6 +87,13 @@ public struct PetEngine: Sendable {
                 pet.happiness = clamp(pet.happiness + rules.feedHappiness)
             }
             refreshCriticalFlag(&pet, at: date)
+            if pet.stage == .baby {
+                if overfed {
+                    pet.care.overfeeds += 1
+                } else {
+                    pet.care.properFeeds += 1
+                }
+            }
             let note = overfed ? "That was too much food." : "Yum."
             return CareOutcome(pet: pet, applied: true, note: note)
 
@@ -101,6 +108,9 @@ public struct PetEngine: Sendable {
             pet.energy = clamp(pet.energy - rules.playEnergyCost)
             pet.hunger = clamp(pet.hunger - rules.playHungerCost)
             refreshCriticalFlag(&pet, at: date)
+            if pet.stage == .baby {
+                pet.care.plays += 1
+            }
             return CareOutcome(pet: pet, applied: true, note: "That was fun.")
 
         case .beginSleep:
@@ -165,6 +175,9 @@ public struct PetEngine: Sendable {
         if let duration = rules.duration(for: pet.stage) {
             let elapsed = cursor.timeIntervalSince(pet.stageStartedAt)
             if elapsed >= duration - 0.000_1, let next = pet.stage.next {
+                if pet.stage == .baby {
+                    pet.adultForm = Evolution.form(for: pet.care, rules: rules.evolution)
+                }
                 pet.stage = next
                 pet.stageStartedAt = cursor
                 return pet != before
@@ -233,10 +246,16 @@ public struct PetEngine: Sendable {
 
     private func integrate(_ pet: inout Pet, for dt: TimeInterval) {
         guard dt > 0, pet.stage != .egg, !pet.isDead else { return }
+        let hungerWasEmpty = pet.hunger <= rules.statMin + 0.000_1
+        let happinessWasEmpty = pet.happiness <= rules.statMin + 0.000_1
         let (hungerRate, happinessRate, energyRate) = ratesPerSecond(sleeping: pet.isSleeping)
         pet.hunger = clamp(pet.hunger + hungerRate * dt)
         pet.happiness = clamp(pet.happiness + happinessRate * dt)
         pet.energy = clamp(pet.energy + energyRate * dt)
+        if pet.stage == .baby {
+            if hungerWasEmpty { pet.care.hungerEmptySeconds += dt }
+            if happinessWasEmpty { pet.care.happinessEmptySeconds += dt }
+        }
     }
 
     private func ratesPerSecond(sleeping: Bool) -> (Double, Double, Double) {

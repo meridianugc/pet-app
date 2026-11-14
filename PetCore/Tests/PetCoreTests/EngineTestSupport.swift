@@ -7,8 +7,6 @@ enum EngineFixture {
     static func rules(
         egg: TimeInterval = 1_000,
         baby: TimeInterval = 2_000,
-        child: TimeInterval = 3_000,
-        teen: TimeInterval = 4_000,
         hunger: Double = 10,
         happiness: Double = 10,
         energy: Double = 10,
@@ -20,8 +18,6 @@ enum EngineFixture {
         var rules = PetRules()
         rules.eggDuration = egg
         rules.babyDuration = baby
-        rules.childDuration = child
-        rules.teenDuration = teen
         rules.hungerDecayPerHour = hunger
         rules.happinessDecayPerHour = happiness
         rules.energyDecayPerHour = energy

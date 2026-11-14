@@ -37,18 +37,31 @@ final class PetGrowthTests: XCTestCase {
         let engine = PetEngine(rules: rules)
         let egg = Pet.freshEgg(name: "Pip", at: EngineFixture.start)
         let babyAt = rules.eggDuration
-        let childAt = babyAt + rules.babyDuration
-        let teenAt = childAt + rules.childDuration
-        let adultAt = teenAt + rules.teenDuration
+        let adultAt = babyAt + rules.babyDuration
 
         XCTAssertEqual(engine.advance(egg, to: EngineFixture.start.addingTimeInterval(babyAt)).stage, .baby)
-        XCTAssertEqual(engine.advance(egg, to: EngineFixture.start.addingTimeInterval(childAt)).stage, .child)
-        XCTAssertEqual(engine.advance(egg, to: EngineFixture.start.addingTimeInterval(teenAt)).stage, .teen)
         let adult = engine.advance(egg, to: EngineFixture.start.addingTimeInterval(adultAt))
         XCTAssertEqual(adult.stage, .adult)
+        XCTAssertEqual(adult.adultForm, .spiky)
         XCTAssertEqual(adult.stageStartedAt, EngineFixture.start.addingTimeInterval(adultAt))
         let still = engine.advance(egg, to: EngineFixture.start.addingTimeInterval(adultAt + 50_000))
         XCTAssertEqual(still.stage, .adult)
         XCTAssertNil(engine.timeRemainingInStage(still, at: EngineFixture.start.addingTimeInterval(adultAt + 50_000)))
+    }
+
+    func testMealsAndPlayGrowAStar() {
+        let rules = EngineFixture.rules(egg: 10, baby: 100, hunger: 0, happiness: 0, energy: 0)
+        let engine = PetEngine(rules: rules)
+        var pet = engine.advance(Pet.freshEgg(name: "Pip", at: EngineFixture.start), to: EngineFixture.start.addingTimeInterval(10))
+        pet.hunger = 40
+        pet = engine.perform(.feed, on: pet, at: pet.lastSimulatedAt).pet
+        pet.hunger = 40
+        pet = engine.perform(.feed, on: pet, at: pet.lastSimulatedAt).pet
+        pet = engine.perform(.play, on: pet, at: pet.lastSimulatedAt).pet
+        let adult = engine.advance(pet, to: pet.lastSimulatedAt.addingTimeInterval(100))
+        XCTAssertEqual(adult.stage, .adult)
+        XCTAssertEqual(adult.adultForm, .star)
+        XCTAssertEqual(adult.care.properFeeds, 2)
+        XCTAssertEqual(adult.care.plays, 1)
     }
 }

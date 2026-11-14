@@ -5,8 +5,7 @@ import Foundation
 public struct PetRules: Equatable, Sendable {
     public var eggDuration: TimeInterval
     public var babyDuration: TimeInterval
-    public var childDuration: TimeInterval
-    public var teenDuration: TimeInterval
+    public var evolution: EvolutionRules
 
     /// Points lost per hour while awake. 100 means full, 0 means starving.
     public var hungerDecayPerHour: Double
@@ -48,8 +47,7 @@ public struct PetRules: Equatable, Sendable {
     public init() {
         eggDuration = 45 * 60
         babyDuration = 6 * 60 * 60
-        childDuration = 18 * 60 * 60
-        teenDuration = 36 * 60 * 60
+        evolution = .standard
 
         hungerDecayPerHour = 10
         happinessDecayPerHour = 7
@@ -90,8 +88,6 @@ public struct PetRules: Equatable, Sendable {
         switch stage {
         case .egg: return eggDuration
         case .baby: return babyDuration
-        case .child: return childDuration
-        case .teen: return teenDuration
         case .adult: return nil
         }
     }
