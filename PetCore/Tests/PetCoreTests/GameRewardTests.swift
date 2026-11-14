@@ -13,24 +13,25 @@ final class GameRewardTests: XCTestCase {
         XCTAssertEqual(GameRewards.hideAndSeekPoints(finds: 2), 8)
     }
 
-    func testRewardPaysCoinsHappinessAndEnergy() {
-        let reward = GameRewards.reward(points: 4)
-        XCTAssertEqual(reward.coins, 4)
-        XCTAssertEqual(reward.happiness, 16, accuracy: 0.001)
-        XCTAssertEqual(reward.energyCost, 14, accuracy: 0.001)
-        XCTAssertEqual(reward.xp, 10)
+    func testRewardPaysGemsHappinessAndEnergy() {
+        let reward = GameRewards.reward(points: 6)
+        XCTAssertEqual(GameRewards.gems(forPoints: 6), 3)
+        XCTAssertEqual(reward.coins, 3)
+        XCTAssertEqual(reward.happiness, 11, accuracy: 0.001)
+        XCTAssertEqual(reward.energyCost, 12, accuracy: 0.001)
+        XCTAssertEqual(reward.xp, 14)
     }
 
     func testRewardCapsAHugeScore() {
-        let reward = GameRewards.reward(points: 100)
-        XCTAssertEqual(reward.coins, 30)
-        XCTAssertEqual(reward.happiness, 28, accuracy: 0.001)
+        let reward = GameRewards.reward(points: 10_000)
+        XCTAssertEqual(reward.coins, 24)
+        XCTAssertEqual(reward.happiness, 30, accuracy: 0.001)
     }
 
     func testAScoreOfZeroStillGivesALittleJoy() {
         let reward = GameRewards.reward(points: 0)
         XCTAssertEqual(reward.coins, 0)
         XCTAssertEqual(reward.happiness, 8, accuracy: 0.001)
-        XCTAssertEqual(reward.xp, 6)
+        XCTAssertEqual(reward.xp, 8)
     }
 }

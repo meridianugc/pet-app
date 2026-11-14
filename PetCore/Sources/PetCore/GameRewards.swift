@@ -29,13 +29,20 @@ public struct GameReward: Equatable, Sendable {
 }
 
 public enum GameRewards {
-    /// Points already include penalties. A finished game always cheers them up a little and tires them.
-    public static func reward(points: Int) -> GameReward {
+    /// Star gems from a score. A long game can score high; the gem payout grows slowly and stops at 24.
+    public static func gems(forPoints points: Int) -> Int {
         let safe = max(0, points)
-        let coins = min(30, safe)
-        let happiness = min(28, 8 + Double(safe) * 2)
-        let xp = 6 + safe
-        return GameReward(happiness: happiness, energyCost: 14, coins: coins, xp: xp)
+        if safe == 0 { return 0 }
+        let scaled = (Double(safe) * 1.5).squareRoot().rounded()
+        return min(24, max(1, Int(scaled)))
+    }
+
+    /// Points already include combos. A finished game always cheers them up a little and tires them.
+    public static func reward(points: Int) -> GameReward {
+        let gems = gems(forPoints: points)
+        let happiness = min(30, 8 + Double(gems))
+        let xp = 8 + gems * 2
+        return GameReward(happiness: happiness, energyCost: 12, coins: gems, xp: xp)
     }
 
     public static func starCatchPoints(stars: Int, snacks: Int, rocks: Int) -> Int {
