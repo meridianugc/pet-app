@@ -150,6 +150,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
     public var wardrobe: Wardrobe
     public var claimedDexSets: [String]
     public var powers: PowerPouch
+    public var dealStamp: String
+    public var dealBought: Bool
 
     public init(
         coins: Int = 0,
@@ -168,7 +170,9 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         gemBonusUntil: Date? = nil,
         wardrobe: Wardrobe = .plain,
         claimedDexSets: [String] = [],
-        powers: PowerPouch = PowerPouch()
+        powers: PowerPouch = PowerPouch(),
+        dealStamp: String = "",
+        dealBought: Bool = false
     ) {
         self.coins = coins
         self.xp = xp
@@ -187,6 +191,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         self.wardrobe = wardrobe
         self.claimedDexSets = claimedDexSets
         self.powers = powers
+        self.dealStamp = dealStamp
+        self.dealBought = dealBought
     }
 
     public init(from decoder: Decoder) throws {
@@ -208,6 +214,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         wardrobe = try c.decodeIfPresent(Wardrobe.self, forKey: .wardrobe) ?? .plain
         claimedDexSets = try c.decodeIfPresent([String].self, forKey: .claimedDexSets) ?? []
         powers = try c.decodeIfPresent(PowerPouch.self, forKey: .powers) ?? PowerPouch()
+        dealStamp = try c.decodeIfPresent(String.self, forKey: .dealStamp) ?? ""
+        dealBought = try c.decodeIfPresent(Bool.self, forKey: .dealBought) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -229,12 +237,15 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         try c.encode(wardrobe, forKey: .wardrobe)
         try c.encode(claimedDexSets, forKey: .claimedDexSets)
         try c.encode(powers, forKey: .powers)
+        try c.encode(dealStamp, forKey: .dealStamp)
+        try c.encode(dealBought, forKey: .dealBought)
     }
 
     private enum CodingKeys: String, CodingKey {
         case coins, xp, ownedIDs, stock, outfitID, backgroundID
         case daily, streak, achievements, mealsFed, gamesFinished, bestScores
         case gemBonusPercent, gemBonusUntil, wardrobe, claimedDexSets, powers
+        case dealStamp, dealBought
     }
 
     /// Extra gems from a lucky charm. Expired charms pay the base amount.
@@ -249,6 +260,21 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         guard score > previous else { return false }
         bestScores[gameID] = score
         return true
+    }
+}
+
+public enum DailyDeal {
+    public static func offer(on day: DayStamp, catalog: [Goods] = Shop.catalog) -> (Goods, Int)? {
+        guard !catalog.isEmpty else { return nil }
+        let index = abs(day.year * 400 + day.month * 32 + day.day) % catalog.count
+        let goods = catalog[index]
+        return (goods, max(1, goods.price / 2))
+    }
+
+    public static func secondsLeft(now: Date, calendar: Calendar = .current) -> TimeInterval {
+        let start = calendar.startOfDay(for: now)
+        let next = calendar.date(byAdding: .day, value: 1, to: start) ?? now
+        return max(0, next.timeIntervalSince(now))
     }
 }
 
@@ -273,11 +299,16 @@ public enum Shop {
 
     public static func purchase(id: String, progress: PlayerProgress, level: Int) -> Result<PlayerProgress, ShopError> {
         guard let item = item(id) else { return .failure(.unknownItem) }
+        return purchase(id: id, price: item.price, progress: progress, level: level)
+    }
+
+    public static func purchase(id: String, price: Int, progress: PlayerProgress, level: Int) -> Result<PlayerProgress, ShopError> {
+        guard let item = item(id) else { return .failure(.unknownItem) }
         if level < item.unlockLevel { return .failure(.levelLocked(required: item.unlockLevel)) }
         if item.isDurable, progress.ownedIDs.contains(id) { return .failure(.alreadyOwned) }
-        if progress.coins < item.price { return .failure(.notEnoughCoins(have: progress.coins, need: item.price)) }
+        if progress.coins < price { return .failure(.notEnoughCoins(have: progress.coins, need: price)) }
         var progress = progress
-        progress.coins -= item.price
+        progress.coins -= price
         if item.isDurable {
             progress.ownedIDs.append(id)
         } else {

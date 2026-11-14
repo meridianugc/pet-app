@@ -94,6 +94,15 @@ final class ShopTests: XCTestCase {
         XCTAssertEqual(progress.gemPayout(base: 8, now: now), 8)
     }
 
+    func testTheDailyDealIsHalfPriceAndStableForADay() {
+        let day = DayStamp(year: 2026, month: 11, day: 14)
+        let first = DailyDeal.offer(on: day)
+        let second = DailyDeal.offer(on: day)
+        XCTAssertEqual(first?.0.id, second?.0.id)
+        XCTAssertEqual(first?.1, (first?.0.price ?? 0) / 2)
+        XCTAssertNotEqual(DailyDeal.offer(on: DayStamp(year: 2026, month: 11, day: 15))?.0.id, first?.0.id)
+    }
+
     func testStarBerryIsAHealthyMeal() {
         let progress = tryResult(Shop.purchase(id: "food.starBerry", progress: PlayerProgress(coins: 8), level: 1))
         guard case let .success((_, effect)) = Shop.consume(id: "food.starBerry", progress: progress) else {
