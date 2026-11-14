@@ -158,7 +158,7 @@ struct CareGlyph: View {
     }
 }
 
-private struct HeartMark: Shape {
+struct HeartMark: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let w = rect.width
