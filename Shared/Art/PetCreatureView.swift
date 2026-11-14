@@ -7,6 +7,7 @@ struct PetCreatureView: View {
     var mood: PetMood
     var form: AdultForm? = nil
     var tint: TraitTint? = nil
+    var outfit: String? = nil
     var animates: Bool = true
     var accessibilityLabel: String
 
@@ -70,7 +71,8 @@ struct PetCreatureView: View {
                     mood: mood,
                     blink: blink,
                     palette: palette,
-                    sparkle: moving ? 0.55 + 0.45 * abs(sin(time * 2.2)) : 0.8
+                    sparkle: moving ? 0.55 + 0.45 * abs(sin(time * 2.2)) : 0.8,
+                    outfit: outfit
                 )
             }
         }
@@ -126,6 +128,7 @@ private struct AlienBody: View {
     var blink: CGFloat
     var palette: PetPalette
     var sparkle: Double
+    var outfit: String? = nil
 
     var body: some View {
         ZStack {
@@ -141,6 +144,7 @@ private struct AlienBody: View {
             }
             AlienFace(side: side, mood: mood, blink: blink, grumpy: form == .spiky, palette: palette)
                 .offset(y: form == .cloud ? side * 0.02 : -side * 0.02)
+            accessory
             if mood == .sleepy {
                 SleepMarks(side: side, ink: palette.ink)
                     .offset(x: side * 0.28, y: -side * 0.32)
@@ -191,6 +195,33 @@ private struct AlienBody: View {
                 }
                 .offset(y: side * 0.24)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var accessory: some View {
+        switch outfit {
+        case "outfit.scarf":
+            Capsule()
+                .fill(Color(red: 0.95, green: 0.45, blue: 0.55))
+                .frame(width: side * 0.28, height: side * 0.08)
+                .offset(y: side * 0.12)
+        case "outfit.bow":
+            HStack(spacing: 0) {
+                Circle().frame(width: side * 0.08, height: side * 0.08)
+                Circle().frame(width: side * 0.045, height: side * 0.045)
+                Circle().frame(width: side * 0.08, height: side * 0.08)
+            }
+            .foregroundStyle(Color(red: 1, green: 0.55, blue: 0.72))
+            .offset(y: -side * 0.02)
+        case "outfit.helmet":
+            Capsule()
+                .stroke(Color(red: 0.75, green: 0.82, blue: 0.95), lineWidth: side * 0.015)
+                .background(Capsule().fill(Color.white.opacity(0.25)))
+                .frame(width: side * 0.34, height: side * 0.16)
+                .offset(y: -side * 0.08)
+        default:
+            EmptyView()
         }
     }
 

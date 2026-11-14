@@ -64,6 +64,7 @@ struct PetPalette {
 }
 
 struct PocketBackground: View {
+    var theme: String? = nil
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -71,6 +72,17 @@ struct PocketBackground: View {
     }
 
     private var colors: [Color] {
+        if theme == "room.starfield" {
+            return [
+                Color(red: 0.10, green: 0.10, blue: 0.28),
+                Color(red: 0.18, green: 0.16, blue: 0.40)
+            ]
+        }
+        if theme == "room.nebula" {
+            return scheme == .dark
+                ? [Color(red: 0.28, green: 0.14, blue: 0.32), Color(red: 0.45, green: 0.28, blue: 0.55)]
+                : [Color(red: 0.98, green: 0.86, blue: 0.95), Color(red: 0.78, green: 0.70, blue: 0.98)]
+        }
         if scheme == .dark {
             return [
                 Color(red: 0.12, green: 0.10, blue: 0.22),

@@ -62,7 +62,7 @@ struct HomeView: View {
                     .padding(20)
                 }
             }
-            .background(PocketBackground().ignoresSafeArea())
+            .background(PocketBackground(theme: session.record?.progress.backgroundID).ignoresSafeArea())
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -126,6 +126,7 @@ struct HomeView: View {
             mood: PetMood.resolve(pet),
             form: pet.displayForm,
             tint: pet.trait?.tint,
+            outfit: session.record?.progress.outfitID,
             accessibilityLabel: PetCopy.summary(pet, now: session.currentDate)
         )
         .frame(maxWidth: 280)

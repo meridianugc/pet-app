@@ -9,6 +9,7 @@ struct PetWidgetEntry: TimelineEntry, Sendable {
     var date: Date
     var simulatedNow: Date
     var pet: Pet?
+    var outfitID: String? = nil
 
     nonisolated static var preview: PetWidgetEntry {
         let now = Date()
@@ -55,7 +56,7 @@ struct PetProvider: TimelineProvider {
         }
         let simulated = wall.addingTimeInterval(record.debugTimeOffset)
         let pet = PetEngine().advance(record.pet, to: simulated)
-        return PetWidgetEntry(date: wall, simulatedNow: simulated, pet: pet)
+        return PetWidgetEntry(date: wall, simulatedNow: simulated, pet: pet, outfitID: record.progress.outfitID)
     }
 
     nonisolated private func loadRecord() -> PetRecord? {
@@ -164,6 +165,7 @@ struct PetWidgetEntryView: View {
             mood: PetMood.resolve(pet),
             form: pet.displayForm,
             tint: pet.trait?.tint,
+            outfit: entry.outfitID,
             animates: false,
             accessibilityLabel: PetCopy.summary(pet, now: entry.simulatedNow)
         )
