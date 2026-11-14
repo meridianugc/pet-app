@@ -31,7 +31,7 @@ final class PetDecayTests: XCTestCase {
 
         XCTAssertEqual(jumped.stage, stepped.stage)
         XCTAssertEqual(jumped.isSleeping, stepped.isSleeping)
-        XCTAssertEqual(jumped.isDead, stepped.isDead)
+        XCTAssertEqual(jumped.hasGoneHome, stepped.hasGoneHome)
         XCTAssertEqual(jumped.hunger, stepped.hunger, accuracy: 0.01)
         XCTAssertEqual(jumped.happiness, stepped.happiness, accuracy: 0.01)
         XCTAssertEqual(jumped.energy, stepped.energy, accuracy: 0.01)

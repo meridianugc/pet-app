@@ -226,7 +226,7 @@ final class PetSession: ObservableObject {
         crisisAge: TimeInterval? = nil
     ) {
         guard var record else { return }
-        guard record.pet.stage != .egg, !record.pet.isDead else {
+        guard record.pet.stage != .egg, !record.pet.hasGoneHome else {
             note = "That waits until the egg has hatched."
             return
         }

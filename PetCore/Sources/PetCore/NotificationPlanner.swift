@@ -36,7 +36,7 @@ public struct NotificationPlanner: Sendable {
 
     public func plan(pet: Pet, now: Date, includeAlreadyLow: Bool) -> [PlannedNotification] {
         let current = engine.advance(pet, to: now)
-        guard !current.isDead else { return [] }
+        guard !current.hasGoneHome else { return [] }
 
         if current.stage == .egg {
             return hatchPlan(current, now: now)
@@ -88,7 +88,7 @@ public struct NotificationPlanner: Sendable {
             items.append(item)
         }
 
-        if let item = deathPlan(current, now: now, includeAlreadyLow: includeAlreadyLow) {
+        if let item = homePlan(current, now: now, includeAlreadyLow: includeAlreadyLow) {
             items.append(item)
         }
 
@@ -134,26 +134,26 @@ public struct NotificationPlanner: Sendable {
         return PlannedNotification(id: id, fireAt: fireAt, title: title, body: body)
     }
 
-    private func deathPlan(_ pet: Pet, now: Date, includeAlreadyLow: Bool) -> PlannedNotification? {
-        guard let deathAt = firstCrossing(from: pet, now: now, where: { $0.isDead }) else {
+    private func homePlan(_ pet: Pet, now: Date, includeAlreadyLow: Bool) -> PlannedNotification? {
+        guard let homeAt = firstCrossing(from: pet, now: now, where: { $0.hasGoneHome }) else {
             return nil
         }
-        let warnAt = deathAt.addingTimeInterval(-engine.rules.deathWarningLead)
+        let warnAt = homeAt.addingTimeInterval(-engine.rules.homeWarningLead)
         let fireAt: Date
         if warnAt > now.addingTimeInterval(1) {
             fireAt = warnAt
         } else if includeAlreadyLow {
             fireAt = now.addingTimeInterval(engine.rules.alreadyLowReminderDelay)
-        } else if deathAt > now.addingTimeInterval(engine.rules.alreadyLowReminderDelay) {
-            fireAt = deathAt.addingTimeInterval(-60)
+        } else if homeAt > now.addingTimeInterval(engine.rules.alreadyLowReminderDelay) {
+            fireAt = homeAt.addingTimeInterval(-60)
         } else {
             return nil
         }
         return PlannedNotification(
             id: PlannedNotification.criticalID,
             fireAt: fireAt,
-            title: "\(pet.name) needs you soon",
-            body: "They aren't doing well. A visit would help."
+            title: "\(pet.name) might fly home",
+            body: "They've been needing you. A visit would help them stay."
         )
     }
 

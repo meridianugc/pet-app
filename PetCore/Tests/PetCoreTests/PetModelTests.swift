@@ -11,7 +11,7 @@ final class PetModelTests: XCTestCase {
         let long = Pet.freshEgg(name: String(repeating: "a", count: 40), at: now)
         XCTAssertEqual(long.name.count, 24)
         XCTAssertEqual(blank.stage, .egg)
-        XCTAssertFalse(blank.isDead)
+        XCTAssertFalse(blank.hasGoneHome)
     }
 
     func testStandardRulesMatchTheShippedPet() {
@@ -29,6 +29,6 @@ final class PetModelTests: XCTestCase {
         XCTAssertEqual(rules.neglectDuration, 4 * 60 * 60)
         XCTAssertEqual(rules.hatchHunger, 80)
         XCTAssertEqual(rules.hungerWarning, 30)
-        XCTAssertEqual(rules.deathWarningLead, 45 * 60)
+        XCTAssertEqual(rules.homeWarningLead, 45 * 60)
     }
 }

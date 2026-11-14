@@ -21,13 +21,13 @@ public enum PetMood: String, Codable, Equatable, Sendable {
         case .tired: return "Getting sleepy."
         case .sleepy: return "Sleeping."
         case .critical: return "Needs you now."
-        case .gone: return "At rest."
+        case .gone: return "Flying home."
         }
     }
 
     /// Higher is better on every stat. Mood uses the worst need first.
     public static func resolve(_ pet: Pet, rules: PetRules = PetRules()) -> PetMood {
-        if pet.isDead { return .gone }
+        if pet.hasGoneHome { return .gone }
         if pet.stage == .egg { return .egging }
         if pet.isSleeping { return .sleepy }
         let hungerEmpty = pet.hunger <= rules.statMin + 0.001

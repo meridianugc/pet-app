@@ -72,7 +72,7 @@ final class NotificationPlannerTests: XCTestCase {
         rules.happinessDecayPerHour = 0
         rules.energyDecayPerHour = 0
         rules.neglectDuration = 4 * 3600
-        rules.deathWarningLead = 45 * 60
+        rules.homeWarningLead = 45 * 60
         rules.planHorizon = 10 * 3600
         rules.hungerWarning = 0
         rules.happinessWarning = 0
@@ -83,7 +83,7 @@ final class NotificationPlannerTests: XCTestCase {
         let warning = plan.first { $0.id == PlannedNotification.criticalID }
         let expected = start.addingTimeInterval(4 * 3600 - 45 * 60)
         XCTAssertEqual(warning?.fireAt.timeIntervalSince(expected) ?? 999, 0, accuracy: 2)
-        XCTAssertTrue(warning?.body.contains("aren't doing well") == true)
+        XCTAssertTrue(warning?.body.contains("needing you") == true)
     }
 
     func testDeadPetAndFarAwayEggScheduleNothing() {
@@ -94,8 +94,8 @@ final class NotificationPlannerTests: XCTestCase {
         XCTAssertTrue(planner(rules: rules).plan(pet: egg, now: start, includeAlreadyLow: true).isEmpty)
 
         var dead = livingPet(rules: PetRules(), hunger: 10, happiness: 10, energy: 10)
-        dead.diedAt = start
-        dead.deathReason = .hunger
+        dead.wentHomeAt = start
+        dead.homeReason = .hunger
         XCTAssertTrue(planner(rules: PetRules()).plan(pet: dead, now: start, includeAlreadyLow: true).isEmpty)
     }
 

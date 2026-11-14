@@ -22,16 +22,16 @@ public enum LifeStage: String, Codable, Equatable, CaseIterable, Sendable {
     }
 }
 
-public enum DeathReason: String, Codable, Equatable, Sendable {
+public enum HomeReason: String, Codable, Equatable, Sendable {
     case hunger
     case loneliness
 
-    public var epitaph: String {
+    public var note: String {
         switch self {
         case .hunger:
-            return "They got too hungry for too long."
+            return "Meals got a little scarce."
         case .loneliness:
-            return "They were lonely for too long."
+            return "It got a little too quiet."
         }
     }
 }
@@ -51,15 +51,15 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
     /// True when energy hit zero and they fell asleep on their own.
     public var passedOut: Bool
     public var criticalSince: Date?
-    public var diedAt: Date?
-    public var deathReason: DeathReason?
+    public var wentHomeAt: Date?
+    public var homeReason: HomeReason?
     public var lastSimulatedAt: Date
     /// Care counted while they are a baby. The adult form is chosen from this.
     public var care: CareHistory
     /// Set when a baby grows up. Nil for an egg, a baby, or an older save.
     public var adultForm: AdultForm?
 
-    public var isDead: Bool { diedAt != nil }
+    public var hasGoneHome: Bool { wentHomeAt != nil }
 
     /// What to draw once they have grown up. Older saves with no form use the star.
     public var displayForm: AdultForm? {
@@ -81,8 +81,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         sleepStartedAt: Date?,
         passedOut: Bool,
         criticalSince: Date?,
-        diedAt: Date?,
-        deathReason: DeathReason?,
+        wentHomeAt: Date?,
+        homeReason: HomeReason?,
         lastSimulatedAt: Date,
         care: CareHistory = CareHistory(),
         adultForm: AdultForm? = nil
@@ -100,8 +100,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         self.sleepStartedAt = sleepStartedAt
         self.passedOut = passedOut
         self.criticalSince = criticalSince
-        self.diedAt = diedAt
-        self.deathReason = deathReason
+        self.wentHomeAt = wentHomeAt
+        self.homeReason = homeReason
         self.lastSimulatedAt = lastSimulatedAt
         self.care = care
         self.adultForm = adultForm
@@ -128,8 +128,10 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         sleepStartedAt = try c.decodeIfPresent(Date.self, forKey: .sleepStartedAt)
         passedOut = try c.decodeIfPresent(Bool.self, forKey: .passedOut) ?? false
         criticalSince = try c.decodeIfPresent(Date.self, forKey: .criticalSince)
-        diedAt = try c.decodeIfPresent(Date.self, forKey: .diedAt)
-        deathReason = try c.decodeIfPresent(DeathReason.self, forKey: .deathReason)
+        wentHomeAt = try c.decodeIfPresent(Date.self, forKey: .wentHomeAt)
+            ?? c.decodeIfPresent(Date.self, forKey: .diedAt)
+        homeReason = try c.decodeIfPresent(HomeReason.self, forKey: .homeReason)
+            ?? c.decodeIfPresent(HomeReason.self, forKey: .deathReason)
         lastSimulatedAt = try c.decode(Date.self, forKey: .lastSimulatedAt)
         care = try c.decodeIfPresent(CareHistory.self, forKey: .care) ?? CareHistory()
         adultForm = try c.decodeIfPresent(AdultForm.self, forKey: .adultForm)
@@ -150,8 +152,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         try c.encodeIfPresent(sleepStartedAt, forKey: .sleepStartedAt)
         try c.encode(passedOut, forKey: .passedOut)
         try c.encodeIfPresent(criticalSince, forKey: .criticalSince)
-        try c.encodeIfPresent(diedAt, forKey: .diedAt)
-        try c.encodeIfPresent(deathReason, forKey: .deathReason)
+        try c.encodeIfPresent(wentHomeAt, forKey: .wentHomeAt)
+        try c.encodeIfPresent(homeReason, forKey: .homeReason)
         try c.encode(lastSimulatedAt, forKey: .lastSimulatedAt)
         try c.encode(care, forKey: .care)
         try c.encodeIfPresent(adultForm, forKey: .adultForm)
@@ -161,7 +163,7 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         case id, name, stage, stageStartedAt, createdAt, bornAt
         case hunger, happiness, energy
         case isSleeping, sleepStartedAt, passedOut, criticalSince
-        case diedAt, deathReason, lastSimulatedAt, care, adultForm
+        case diedAt, deathReason, wentHomeAt, homeReason, lastSimulatedAt, care, adultForm
     }
 
     public static func freshEgg(name: String, at now: Date, id: UUID = UUID()) -> Pet {
@@ -181,8 +183,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
             sleepStartedAt: nil,
             passedOut: false,
             criticalSince: nil,
-            diedAt: nil,
-            deathReason: nil,
+            wentHomeAt: nil,
+            homeReason: nil,
             lastSimulatedAt: now
         )
     }

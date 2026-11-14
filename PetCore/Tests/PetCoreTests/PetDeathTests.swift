@@ -10,17 +10,17 @@ final class PetDeathTests: XCTestCase {
         pet.lastSimulatedAt = EngineFixture.start
 
         let still = engine.advance(pet, to: EngineFixture.start.addingTimeInterval(3 * 3600))
-        XCTAssertFalse(still.isDead)
+        XCTAssertFalse(still.hasGoneHome)
         XCTAssertEqual(still.criticalSince, EngineFixture.start)
 
         let gone = engine.advance(pet, to: EngineFixture.start.addingTimeInterval(4 * 3600))
-        XCTAssertTrue(gone.isDead)
-        XCTAssertEqual(gone.diedAt, EngineFixture.start.addingTimeInterval(4 * 3600))
-        XCTAssertEqual(gone.deathReason, .hunger)
-        XCTAssertEqual(gone.lastSimulatedAt, gone.diedAt)
+        XCTAssertTrue(gone.hasGoneHome)
+        XCTAssertEqual(gone.wentHomeAt, EngineFixture.start.addingTimeInterval(4 * 3600))
+        XCTAssertEqual(gone.homeReason, .hunger)
+        XCTAssertEqual(gone.lastSimulatedAt, gone.wentHomeAt)
 
         let later = engine.advance(pet, to: EngineFixture.start.addingTimeInterval(9 * 3600))
-        XCTAssertEqual(later.diedAt, gone.diedAt)
+        XCTAssertEqual(later.wentHomeAt, gone.wentHomeAt)
         XCTAssertEqual(later.hunger, gone.hunger, accuracy: 0.001)
         XCTAssertFalse(engine.perform(.feed, on: later, at: EngineFixture.start.addingTimeInterval(9 * 3600)).applied)
 
@@ -28,14 +28,14 @@ final class PetDeathTests: XCTestCase {
         lonely.criticalSince = EngineFixture.start
         lonely.lastSimulatedAt = EngineFixture.start
         let lonelyDeath = engine.advance(lonely, to: EngineFixture.start.addingTimeInterval(4 * 3600))
-        XCTAssertEqual(lonelyDeath.deathReason, .loneliness)
+        XCTAssertEqual(lonelyDeath.homeReason, .loneliness)
 
         let rescued = engine.perform(.feed, on: pet, at: EngineFixture.start.addingTimeInterval(30 * 60))
         XCTAssertTrue(rescued.applied)
         XCTAssertNil(rescued.pet.criticalSince)
-        XCTAssertFalse(rescued.pet.isDead)
+        XCTAssertFalse(rescued.pet.hasGoneHome)
         let after = engine.advance(rescued.pet, to: EngineFixture.start.addingTimeInterval(10 * 3600))
-        XCTAssertFalse(after.isDead)
+        XCTAssertFalse(after.hasGoneHome)
     }
 
     func testStarvationStillKillsDuringSleepCycles() {
@@ -52,9 +52,9 @@ final class PetDeathTests: XCTestCase {
         let pet = EngineFixture.baby(rules: rules, hunger: 30, happiness: 80, energy: 100)
         let origin = pet.lastSimulatedAt
         let before = engine.advance(pet, to: origin.addingTimeInterval(4 * 3600 + 3500))
-        XCTAssertFalse(before.isDead)
+        XCTAssertFalse(before.hasGoneHome)
         let dead = engine.advance(pet, to: origin.addingTimeInterval(5 * 3600))
-        XCTAssertTrue(dead.isDead)
-        XCTAssertEqual(dead.deathReason, .hunger)
+        XCTAssertTrue(dead.hasGoneHome)
+        XCTAssertEqual(dead.homeReason, .hunger)
     }
 }

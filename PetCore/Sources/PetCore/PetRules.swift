@@ -27,7 +27,7 @@ public struct PetRules: Equatable, Sendable {
     public var playHungerCost: Double
     public var minimumEnergyToPlay: Double
 
-    /// How long hunger or happiness may sit at zero before the pet dies.
+    /// How long Fed or Happy may sit at zero before the pet flies home.
     public var neglectDuration: TimeInterval
 
     public var statMin: Double
@@ -40,7 +40,7 @@ public struct PetRules: Equatable, Sendable {
     public var hungerWarning: Double
     public var happinessWarning: Double
     public var energyWarning: Double
-    public var deathWarningLead: TimeInterval
+    public var homeWarningLead: TimeInterval
     public var planHorizon: TimeInterval
     public var alreadyLowReminderDelay: TimeInterval
 
@@ -79,7 +79,7 @@ public struct PetRules: Equatable, Sendable {
         hungerWarning = 30
         happinessWarning = 30
         energyWarning = 25
-        deathWarningLead = 45 * 60
+        homeWarningLead = 45 * 60
         planHorizon = 48 * 60 * 60
         alreadyLowReminderDelay = 2 * 60
     }

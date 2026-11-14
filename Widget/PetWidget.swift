@@ -143,7 +143,7 @@ struct PetWidgetEntryView: View {
 
     @ViewBuilder
     private func extra(_ pet: Pet) -> some View {
-        if pet.stage == .egg || pet.isDead {
+        if pet.stage == .egg || pet.hasGoneHome {
             Text(PetCopy.stageLine(pet, now: entry.simulatedNow))
                 .font(.caption)
                 .foregroundStyle(.secondary)

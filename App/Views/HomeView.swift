@@ -163,7 +163,7 @@ struct HomeView: View {
     }
 
     private func canCare(_ pet: Pet) -> Bool {
-        pet.stage != .egg && !pet.isSleeping && !pet.isDead
+        pet.stage != .egg && !pet.isSleeping && !pet.hasGoneHome
     }
 
     private func canPlay(_ pet: Pet) -> Bool {

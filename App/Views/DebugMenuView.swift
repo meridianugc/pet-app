@@ -33,7 +33,7 @@ struct DebugMenuView: View {
                 Button("Make them hungry") { session.debugMakeHungry() }
                 Button("Make them sad") { session.debugMakeSad() }
                 Button("Make them tired") { session.debugMakeTired() }
-                Button("Two minutes from passing on") { session.debugBringToBrink() }
+                Button("Two minutes from flying home") { session.debugBringToBrink() }
             }
 
             Section("Reminders") {

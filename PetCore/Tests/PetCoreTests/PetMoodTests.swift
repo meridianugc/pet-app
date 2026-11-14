@@ -11,8 +11,8 @@ final class PetMoodTests: XCTestCase {
         pet.energy = energy
         pet.isSleeping = sleeping
         if dead {
-            pet.diedAt = now
-            pet.deathReason = .hunger
+            pet.wentHomeAt = now
+            pet.homeReason = .hunger
         }
         return pet
     }

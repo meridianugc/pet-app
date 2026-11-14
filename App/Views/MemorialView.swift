@@ -24,18 +24,18 @@ struct MemorialView: View {
                     .frame(maxWidth: 240)
                     .frame(maxWidth: .infinity)
 
-                    Text("\(pet.name) has passed on")
+                    Text("\(pet.name) is flying home")
                         .font(.largeTitle.weight(.semibold))
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.6)
                         .lineLimit(3)
 
-                    Text(pet.deathReason?.epitaph ?? "They ran out of time.")
+                    Text(pet.homeReason?.note ?? "The stars were calling.")
                         .font(.title3)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
 
-                    Text("They were with you for \(life). You can say goodbye, and hatch a new egg whenever you want.")
+                    Text("They were with you for \(life). A new star egg is waiting whenever you are ready.")
                         .font(.body)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -71,6 +71,6 @@ struct MemorialView: View {
     }
 
     private var life: String {
-        PetAge.phrase(from: pet.bornAt ?? pet.createdAt, to: pet.diedAt ?? session.currentDate)
+        PetAge.phrase(from: pet.bornAt ?? pet.createdAt, to: pet.wentHomeAt ?? session.currentDate)
     }
 }

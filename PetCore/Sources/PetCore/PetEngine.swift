@@ -28,7 +28,7 @@ public struct PetEngine: Sendable {
     }
 
     public func advance(_ pet: Pet, to end: Date) -> Pet {
-        guard !pet.isDead else { return pet }
+        guard !pet.hasGoneHome else { return pet }
         guard end > pet.lastSimulatedAt else { return pet }
 
         var pet = pet
@@ -38,7 +38,7 @@ public struct PetEngine: Sendable {
 
         while cursor < end, steps < 4_000 {
             steps += 1
-            if pet.isDead { break }
+            if pet.hasGoneHome { break }
 
             if applyDueTransitions(&pet, at: cursor) {
                 continue
@@ -67,8 +67,8 @@ public struct PetEngine: Sendable {
 
     public func perform(_ action: CareAction, on pet: Pet, at date: Date) -> CareOutcome {
         var pet = advance(pet, to: date)
-        if pet.isDead {
-            return CareOutcome(pet: pet, applied: false, note: "It's too late for that.")
+        if pet.hasGoneHome {
+            return CareOutcome(pet: pet, applied: false, note: "They're already flying home.")
         }
         if pet.stage == .egg {
             return CareOutcome(pet: pet, applied: false, note: "Still an egg.")
@@ -150,7 +150,7 @@ public struct PetEngine: Sendable {
     /// Applies every mode change that is already due at `cursor` without moving time.
     /// Returns true when the pet changed, so the caller looks for the next boundary.
     private func applyDueTransitions(_ pet: inout Pet, at cursor: Date) -> Bool {
-        guard !pet.isDead else { return false }
+        guard !pet.hasGoneHome else { return false }
 
         if pet.stage == .egg {
             guard let duration = rules.duration(for: .egg) else { return false }
@@ -168,7 +168,7 @@ public struct PetEngine: Sendable {
         if let since = pet.criticalSince,
            isCurrentlyCritical(pet, hungerRate: hungerRate, happinessRate: happinessRate),
            cursor.timeIntervalSince(since) >= rules.neglectDuration - 0.000_1 {
-            die(&pet, at: cursor)
+            goHome(&pet, at: cursor)
             return pet != before
         }
 
@@ -205,7 +205,7 @@ public struct PetEngine: Sendable {
 
     private func timeUntilBoundary(_ pet: Pet, from cursor: Date, until end: Date) -> TimeInterval {
         var limit = end.timeIntervalSince(cursor)
-        guard limit > 0, !pet.isDead else { return max(0, limit) }
+        guard limit > 0, !pet.hasGoneHome else { return max(0, limit) }
 
         if let duration = rules.duration(for: pet.stage) {
             let left = duration - cursor.timeIntervalSince(pet.stageStartedAt)
@@ -245,7 +245,7 @@ public struct PetEngine: Sendable {
     }
 
     private func integrate(_ pet: inout Pet, for dt: TimeInterval) {
-        guard dt > 0, pet.stage != .egg, !pet.isDead else { return }
+        guard dt > 0, pet.stage != .egg, !pet.hasGoneHome else { return }
         let hungerWasEmpty = pet.hunger <= rules.statMin + 0.000_1
         let happinessWasEmpty = pet.happiness <= rules.statMin + 0.000_1
         let (hungerRate, happinessRate, energyRate) = ratesPerSecond(sleeping: pet.isSleeping)
@@ -312,14 +312,14 @@ public struct PetEngine: Sendable {
         pet.sleepStartedAt = nil
         pet.passedOut = false
         pet.criticalSince = nil
-        pet.diedAt = nil
-        pet.deathReason = nil
+        pet.wentHomeAt = nil
+        pet.homeReason = nil
     }
 
-    private func die(_ pet: inout Pet, at cursor: Date) {
-        let reason: DeathReason = pet.hunger <= pet.happiness ? .hunger : .loneliness
-        pet.diedAt = cursor
-        pet.deathReason = reason
+    private func goHome(_ pet: inout Pet, at cursor: Date) {
+        let reason: HomeReason = pet.hunger <= pet.happiness ? .hunger : .loneliness
+        pet.wentHomeAt = cursor
+        pet.homeReason = reason
         pet.isSleeping = false
         pet.sleepStartedAt = nil
         pet.passedOut = false

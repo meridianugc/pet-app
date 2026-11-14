@@ -18,7 +18,7 @@ final class PetGrowthTests: XCTestCase {
         XCTAssertEqual(hatched.happiness, rules.hatchHappiness, accuracy: 0.001)
         XCTAssertEqual(hatched.energy, rules.hatchEnergy, accuracy: 0.001)
         XCTAssertNil(hatched.criticalSince)
-        XCTAssertFalse(hatched.isDead)
+        XCTAssertFalse(hatched.hasGoneHome)
     }
 
     func testEggDoesNotDieWhileWaiting() {
@@ -28,7 +28,7 @@ final class PetGrowthTests: XCTestCase {
         let egg = Pet.freshEgg(name: "Pip", at: EngineFixture.start)
         let later = engine.advance(egg, to: EngineFixture.start.addingTimeInterval(5_000))
         XCTAssertEqual(later.stage, .egg)
-        XCTAssertFalse(later.isDead)
+        XCTAssertFalse(later.hasGoneHome)
         XCTAssertNil(later.criticalSince)
     }
 
