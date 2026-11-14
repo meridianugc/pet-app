@@ -81,7 +81,119 @@ final class PetSession: ObservableObject {
     }
 
     func feed() { perform(.feed) }
-    func play() { perform(.play) }
+
+    var level: Int { LevelTable.level(for: record?.progress.xp ?? 0) }
+
+    func finishGame(points: Int) {
+        guard var record else { return }
+        let now = currentDate
+        var pet = engine.advance(record.pet, to: now)
+        guard pet.stage != .egg, !pet.hasGoneHome, !pet.isSleeping, pet.energy >= engine.rules.minimumEnergyToPlay else {
+            note = pet.energy < engine.rules.minimumEnergyToPlay ? "Too tired to play." : "Not a good moment to play."
+            record.pet = pet
+            persist(record, includeAlreadyLow: false)
+            return
+        }
+        let reward = GameRewards.reward(points: points)
+        pet.happiness = min(engine.rules.statMax, pet.happiness + reward.happiness)
+        pet.energy = max(engine.rules.statMin, pet.energy - reward.energyCost)
+        pet.lastSimulatedAt = now
+        if pet.stage == .baby { pet.care.plays += 1 }
+        record.pet = pet
+        record.progress.coins += reward.coins
+        record.progress.xp += reward.xp
+        record.progress.gamesFinished += 1
+        let calendar = Calendar.current
+        record.progress.daily = DailyBoard.recordGame(record.progress.daily, on: now, calendar: calendar)
+        record.progress.streak = Streak.mark(
+            record.progress.streak,
+            on: DayStamp.capture(now, calendar: calendar),
+            calendar: calendar
+        )
+        note = reward.coins == 1 ? "1 coin" : "\(reward.coins) coins"
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func buy(_ id: String) {
+        guard var record else { return }
+        switch Shop.purchase(id: id, progress: record.progress, level: level) {
+        case let .success(progress):
+            record.progress = progress
+            note = "Tucked into the bag."
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = shopNote(error)
+        }
+    }
+
+    func useItem(_ id: String) {
+        guard var record else { return }
+        switch Shop.consume(id: id, progress: record.progress) {
+        case let .success((progress, effect)):
+            record.progress = progress
+            var pet = engine.advance(record.pet, to: currentDate)
+            guard pet.stage != .egg, !pet.hasGoneHome, !pet.isSleeping else {
+                record.progress.stock[id, default: 0] += 1
+                note = "They're not ready for that."
+                persist(record, includeAlreadyLow: false)
+                return
+            }
+            pet = PetCare.apply(effect, to: pet, rules: engine.rules)
+            pet.lastSimulatedAt = currentDate
+            record.pet = pet
+            record.progress.mealsFed += 1
+            record.progress.xp += effect.countsAsHealthyMeal ? 8 : 3
+            if effect.countsAsHealthyMeal {
+                praiseCare(&record.progress, at: currentDate)
+            }
+            note = effect.countsAsTreat ? "A sweet treat." : "Yum."
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = shopNote(error)
+        }
+    }
+
+    func equipOutfit(_ id: String?) {
+        guard var record else { return }
+        switch Shop.equip(id, progress: record.progress) {
+        case let .success(progress):
+            record.progress = progress
+            note = id == nil ? "Back to plain fur." : "Looking sharp."
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = shopNote(error)
+        }
+    }
+
+    func equipBackground(_ id: String?) {
+        guard var record else { return }
+        switch Shop.equipBackground(id, progress: record.progress) {
+        case let .success(progress):
+            record.progress = progress
+            note = id == nil ? "The usual sky." : "New sky."
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = shopNote(error)
+        }
+    }
+
+    func claim(_ task: DailyTask) {
+        guard var record else { return }
+        let calendar = Calendar.current
+        guard let (daily, coins) = DailyBoard.claim(task, state: record.progress.daily, on: currentDate, calendar: calendar) else {
+            note = "That task isn't ready."
+            return
+        }
+        record.progress.daily = daily
+        record.progress.coins += coins
+        record.progress.streak = Streak.mark(
+            record.progress.streak,
+            on: DayStamp.capture(currentDate, calendar: calendar),
+            calendar: calendar
+        )
+        note = "\(coins) coins"
+        persist(record, includeAlreadyLow: false)
+    }
 
     func toggleSleep() {
         guard let pet = record?.pet else { return }
@@ -185,7 +297,41 @@ final class PetSession: ObservableObject {
         let outcome = engine.perform(action, on: record.pet, at: currentDate)
         record.pet = outcome.pet
         note = outcome.note
+        if outcome.applied {
+            let calendar = Calendar.current
+            switch action {
+            case .feed:
+                record.progress.mealsFed += 1
+                record.progress.xp += outcome.wasTreat ? 3 : 8
+                if !outcome.wasTreat {
+                    record.progress.daily = DailyBoard.recordHealthyMeal(record.progress.daily, on: currentDate, calendar: calendar)
+                    praiseCare(&record.progress, at: currentDate)
+                }
+            case .beginSleep:
+                record.progress.xp += 5
+                record.progress.daily = DailyBoard.recordSleep(record.progress.daily, on: currentDate, calendar: calendar)
+                praiseCare(&record.progress, at: currentDate)
+            case .play, .wake:
+                break
+            }
+        }
         persist(record, includeAlreadyLow: false)
+    }
+
+    private func praiseCare(_ progress: inout PlayerProgress, at date: Date) {
+        let calendar = Calendar.current
+        progress.streak = Streak.mark(progress.streak, on: DayStamp.capture(date, calendar: calendar), calendar: calendar)
+    }
+
+    private func shopNote(_ error: ShopError) -> String {
+        switch error {
+        case .unknownItem: return "That isn't in the shop."
+        case .notEnoughCoins: return "Not enough coins."
+        case .levelLocked(let required): return "Unlocks at level \(required)."
+        case .alreadyOwned: return "You already have that."
+        case .noneLeft: return "None left."
+        case .notWearable: return "That can't be worn."
+        }
     }
 
     private func loadFromDisk() {
@@ -220,7 +366,12 @@ final class PetSession: ObservableObject {
     }
 
     private func settle(_ record: inout PetRecord, now: Date) {
+        let before = record.pet
         record.pet = engine.advance(record.pet, to: now)
+        if EvolutionBonus.applies(before: before, after: record.pet) {
+            record.progress.coins += EvolutionBonus.coins
+            record.progress.xp += EvolutionBonus.xp
+        }
         if record.pet.hasGoneHome, record.farewell == nil {
             let trip = PetLineage.succeed(record.pet, collection: record.collection)
             record.collection = trip.collection
@@ -228,6 +379,8 @@ final class PetSession: ObservableObject {
             record.pet = engine.advance(trip.next, to: now)
         }
         record.collection = record.collection.noting(record.pet)
+        record.progress.daily = DailyBoard.refreshed(record.progress.daily, on: now, calendar: .current)
+        record.progress = Achievements.sync(record.progress, collection: record.collection)
     }
 
     private func quarantineUnreadableFile() {

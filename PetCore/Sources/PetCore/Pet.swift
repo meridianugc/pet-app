@@ -211,13 +211,15 @@ public struct PetRecord: Codable, Equatable, Sendable {
     public var notificationPromptDismissed: Bool
     public var collection: PetCollection
     public var farewell: HomeLetter?
+    public var progress: PlayerProgress
 
     public init(
         pet: Pet,
         debugTimeOffset: TimeInterval = 0,
         notificationPromptDismissed: Bool = false,
         collection: PetCollection = .empty,
-        farewell: HomeLetter? = nil
+        farewell: HomeLetter? = nil,
+        progress: PlayerProgress = PlayerProgress()
     ) {
         self.schemaVersion = Self.currentSchema
         self.pet = pet
@@ -225,6 +227,7 @@ public struct PetRecord: Codable, Equatable, Sendable {
         self.notificationPromptDismissed = notificationPromptDismissed
         self.collection = collection
         self.farewell = farewell
+        self.progress = progress
     }
 
     public init(from decoder: Decoder) throws {
@@ -236,6 +239,7 @@ public struct PetRecord: Codable, Equatable, Sendable {
         notificationPromptDismissed = try c.decodeIfPresent(Bool.self, forKey: .notificationPromptDismissed) ?? false
         collection = try c.decodeIfPresent(PetCollection.self, forKey: .collection) ?? .empty
         farewell = try c.decodeIfPresent(HomeLetter.self, forKey: .farewell)
+        progress = try c.decodeIfPresent(PlayerProgress.self, forKey: .progress) ?? PlayerProgress()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -246,9 +250,10 @@ public struct PetRecord: Codable, Equatable, Sendable {
         try c.encode(notificationPromptDismissed, forKey: .notificationPromptDismissed)
         try c.encode(collection, forKey: .collection)
         try c.encodeIfPresent(farewell, forKey: .farewell)
+        try c.encode(progress, forKey: .progress)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, pet, debugTimeOffset, notificationPromptDismissed, collection, farewell
+        case schemaVersion, pet, debugTimeOffset, notificationPromptDismissed, collection, farewell, progress
     }
 }

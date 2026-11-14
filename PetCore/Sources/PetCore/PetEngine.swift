@@ -11,11 +11,13 @@ public struct CareOutcome: Equatable, Sendable {
     public var pet: Pet
     public var applied: Bool
     public var note: String
+    public var wasTreat: Bool
 
-    public init(pet: Pet, applied: Bool, note: String) {
+    public init(pet: Pet, applied: Bool, note: String, wasTreat: Bool = false) {
         self.pet = pet
         self.applied = applied
         self.note = note
+        self.wasTreat = wasTreat
     }
 }
 
@@ -95,7 +97,7 @@ public struct PetEngine: Sendable {
                 }
             }
             let note = overfed ? "That was too much food." : "Yum."
-            return CareOutcome(pet: pet, applied: true, note: note)
+            return CareOutcome(pet: pet, applied: true, note: note, wasTreat: overfed)
 
         case .play:
             if pet.isSleeping {
