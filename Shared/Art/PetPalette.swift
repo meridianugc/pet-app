@@ -68,7 +68,23 @@ struct PocketBackground: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+        ZStack {
+            LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+            TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+                Canvas { context, size in
+                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    for index in 0..<16 {
+                        let x = CGFloat((index * 53) % 97) / 97 * size.width
+                        let y = CGFloat((index * 37) % 91) / 91 * size.height
+                        let twinkle = 0.25 + 0.75 * abs(sin(time * 1.3 + Double(index)))
+                        let dot = CGRect(x: x, y: y, width: 3, height: 3)
+                        context.fill(Path(ellipseIn: dot), with: .color(.white.opacity(twinkle)))
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
     private var colors: [Color] {

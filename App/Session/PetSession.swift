@@ -221,7 +221,7 @@ final class PetSession: ObservableObject {
             on: DayStamp.capture(currentDate, calendar: calendar),
             calendar: calendar
         )
-        note = "\(coins) coins"
+        note = "\(coins) star gems"
         persist(record, includeAlreadyLow: false)
     }
 
@@ -356,7 +356,7 @@ final class PetSession: ObservableObject {
     private func shopNote(_ error: ShopError) -> String {
         switch error {
         case .unknownItem: return "That isn't in the shop."
-        case .notEnoughCoins: return "Not enough coins."
+        case .notEnoughCoins: return "Not enough star gems."
         case .levelLocked(let required): return "Unlocks at level \(required)."
         case .alreadyOwned: return "You already have that."
         case .noneLeft: return "None left."

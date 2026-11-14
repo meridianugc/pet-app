@@ -122,7 +122,7 @@ struct ShopView: View {
         let progress = session.record?.progress ?? PlayerProgress()
         List {
             Section {
-                Text("\(progress.coins) coins · level \(session.level)")
+                Text("\(progress.coins) star gems · level \(session.level)")
                     .font(.headline)
             }
             Section("Food and toys") {
@@ -229,7 +229,7 @@ struct TodayView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if progress.daily.isComplete(task), !progress.daily.claimed.contains(task) {
-                            Button("Collect \(task.reward) coins") {
+                            Button("Collect \(task.reward) star gems") {
                                 session.claim(task)
                             }
                         }

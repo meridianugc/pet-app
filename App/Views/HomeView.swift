@@ -183,7 +183,7 @@ struct HomeView: View {
             careButton(
                 title: "Shop",
                 systemImage: "bag",
-                hint: "Spend coins on food, toys, outfits, and skies.",
+                hint: "Spend star gems on food, toys, outfits, and skies.",
                 disabled: false
             ) {
                 showShop = true
