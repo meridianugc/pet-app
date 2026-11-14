@@ -305,9 +305,10 @@ public struct PetEngine: Sendable {
         pet.stage = .baby
         pet.stageStartedAt = cursor
         pet.bornAt = cursor
-        pet.hunger = rules.hatchHunger
-        pet.happiness = rules.hatchHappiness
-        pet.energy = rules.hatchEnergy
+        let gift = pet.trait
+        pet.hunger = clamp(rules.hatchHunger + (gift?.hungerBonus ?? 0))
+        pet.happiness = clamp(rules.hatchHappiness + (gift?.happinessBonus ?? 0))
+        pet.energy = clamp(rules.hatchEnergy + (gift?.energyBonus ?? 0))
         pet.isSleeping = false
         pet.sleepStartedAt = nil
         pet.passedOut = false

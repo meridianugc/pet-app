@@ -27,7 +27,7 @@ final class PetFileStoreTests: XCTestCase {
         XCTAssertNil(try store.load())
         try store.save(record)
         let loaded = try XCTUnwrap(try store.load())
-        XCTAssertEqual(loaded.schemaVersion, 1)
+        XCTAssertEqual(loaded.schemaVersion, PetRecord.currentSchema)
         XCTAssertEqual(loaded.debugTimeOffset, 3600)
         XCTAssertTrue(loaded.notificationPromptDismissed)
         XCTAssertEqual(loaded.pet.id, pet.id)
@@ -53,7 +53,10 @@ final class PetFileStoreTests: XCTestCase {
         let saved = PetRecord(pet: Pet.freshEgg(name: "Pip", at: Date(timeIntervalSince1970: 10)))
         try store.save(saved)
         let text = try String(contentsOf: store.fileURL, encoding: .utf8)
-        let bumped = text.replacingOccurrences(of: "\"schemaVersion\" : 1", with: "\"schemaVersion\" : 9")
+        let bumped = text.replacingOccurrences(
+            of: "\"schemaVersion\" : \(PetRecord.currentSchema)",
+            with: "\"schemaVersion\" : 9"
+        )
         XCTAssertNotEqual(text, bumped)
         try Data(bumped.utf8).write(to: store.fileURL)
         XCTAssertThrowsError(try store.load()) { error in

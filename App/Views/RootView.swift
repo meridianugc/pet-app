@@ -24,8 +24,8 @@ struct RootView: View {
     private var screen: some View {
         if session.loadError != nil, session.record == nil {
             RecoveryView()
-        } else if let pet = session.record?.pet, pet.hasGoneHome {
-            MemorialView(pet: pet)
+        } else if session.record?.farewell != nil {
+            FarewellView()
         } else if session.record?.pet != nil {
             HomeView()
         } else {

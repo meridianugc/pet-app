@@ -88,6 +88,17 @@ final class PetSession: ObservableObject {
         perform(pet.isSleeping ? .wake : .beginSleep)
     }
 
+    func dismissFarewell(naming name: String) {
+        guard var record, record.farewell != nil else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            record.pet.name = String(trimmed.prefix(24))
+        }
+        record.farewell = nil
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
     func dismissReminderPrompt() {
         guard var record else { return }
         record.notificationPromptDismissed = true
@@ -181,7 +192,7 @@ final class PetSession: ObservableObject {
         do {
             guard var loaded = try store.load() else { return }
             let now = Date().addingTimeInterval(loaded.debugTimeOffset)
-            loaded.pet = engine.advance(loaded.pet, to: now)
+            settle(&loaded, now: now)
             self.record = loaded
             try? store.save(loaded)
             WidgetCenter.shared.reloadAllTimelines()
@@ -193,7 +204,7 @@ final class PetSession: ObservableObject {
     private func persist(_ record: PetRecord, includeAlreadyLow: Bool) {
         var record = record
         let now = Date().addingTimeInterval(record.debugTimeOffset)
-        record.pet = engine.advance(record.pet, to: now)
+        settle(&record, now: now)
         do {
             try store.save(record)
             saveError = nil
@@ -206,6 +217,17 @@ final class PetSession: ObservableObject {
         Task { @MainActor in
             await scheduler.reschedule(pet: pet, now: now, includeAlreadyLow: includeAlreadyLow)
         }
+    }
+
+    private func settle(_ record: inout PetRecord, now: Date) {
+        record.pet = engine.advance(record.pet, to: now)
+        if record.pet.hasGoneHome, record.farewell == nil {
+            let trip = PetLineage.succeed(record.pet, collection: record.collection)
+            record.collection = trip.collection
+            record.farewell = trip.letter
+            record.pet = engine.advance(trip.next, to: now)
+        }
+        record.collection = record.collection.noting(record.pet)
     }
 
     private func quarantineUnreadableFile() {

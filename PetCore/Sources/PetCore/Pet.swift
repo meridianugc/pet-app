@@ -58,6 +58,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
     public var care: CareHistory
     /// Set when a baby grows up. Nil for an egg, a baby, or an older save.
     public var adultForm: AdultForm?
+    /// Gift from the previous alien, carried by the egg and the hatchling.
+    public var trait: InheritedTrait?
 
     public var hasGoneHome: Bool { wentHomeAt != nil }
 
@@ -85,7 +87,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         homeReason: HomeReason?,
         lastSimulatedAt: Date,
         care: CareHistory = CareHistory(),
-        adultForm: AdultForm? = nil
+        adultForm: AdultForm? = nil,
+        trait: InheritedTrait? = nil
     ) {
         self.id = id
         self.name = name
@@ -105,6 +108,7 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         self.lastSimulatedAt = lastSimulatedAt
         self.care = care
         self.adultForm = adultForm
+        self.trait = trait
     }
 
     public init(from decoder: Decoder) throws {
@@ -135,6 +139,7 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         lastSimulatedAt = try c.decode(Date.self, forKey: .lastSimulatedAt)
         care = try c.decodeIfPresent(CareHistory.self, forKey: .care) ?? CareHistory()
         adultForm = try c.decodeIfPresent(AdultForm.self, forKey: .adultForm)
+        trait = try c.decodeIfPresent(InheritedTrait.self, forKey: .trait)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -157,16 +162,22 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         try c.encode(lastSimulatedAt, forKey: .lastSimulatedAt)
         try c.encode(care, forKey: .care)
         try c.encodeIfPresent(adultForm, forKey: .adultForm)
+        try c.encodeIfPresent(trait, forKey: .trait)
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, stage, stageStartedAt, createdAt, bornAt
         case hunger, happiness, energy
         case isSleeping, sleepStartedAt, passedOut, criticalSince
-        case diedAt, deathReason, wentHomeAt, homeReason, lastSimulatedAt, care, adultForm
+        case diedAt, deathReason, wentHomeAt, homeReason, lastSimulatedAt, care, adultForm, trait
     }
 
-    public static func freshEgg(name: String, at now: Date, id: UUID = UUID()) -> Pet {
+    public static func freshEgg(
+        name: String,
+        at now: Date,
+        id: UUID = UUID(),
+        trait: InheritedTrait? = nil
+    ) -> Pet {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let safeName = trimmed.isEmpty ? "Mochi" : String(trimmed.prefix(24))
         return Pet(
@@ -185,27 +196,59 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
             criticalSince: nil,
             wentHomeAt: nil,
             homeReason: nil,
-            lastSimulatedAt: now
+            lastSimulatedAt: now,
+            trait: trait
         )
     }
 }
 
 public struct PetRecord: Codable, Equatable, Sendable {
-    public static let currentSchema = 1
+    public static let currentSchema = 2
 
     public var schemaVersion: Int
     public var pet: Pet
     public var debugTimeOffset: TimeInterval
     public var notificationPromptDismissed: Bool
+    public var collection: PetCollection
+    public var farewell: HomeLetter?
 
     public init(
         pet: Pet,
         debugTimeOffset: TimeInterval = 0,
-        notificationPromptDismissed: Bool = false
+        notificationPromptDismissed: Bool = false,
+        collection: PetCollection = .empty,
+        farewell: HomeLetter? = nil
     ) {
         self.schemaVersion = Self.currentSchema
         self.pet = pet
         self.debugTimeOffset = debugTimeOffset
         self.notificationPromptDismissed = notificationPromptDismissed
+        self.collection = collection
+        self.farewell = farewell
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let stored = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        schemaVersion = stored > Self.currentSchema ? stored : Self.currentSchema
+        pet = try c.decode(Pet.self, forKey: .pet)
+        debugTimeOffset = try c.decodeIfPresent(TimeInterval.self, forKey: .debugTimeOffset) ?? 0
+        notificationPromptDismissed = try c.decodeIfPresent(Bool.self, forKey: .notificationPromptDismissed) ?? false
+        collection = try c.decodeIfPresent(PetCollection.self, forKey: .collection) ?? .empty
+        farewell = try c.decodeIfPresent(HomeLetter.self, forKey: .farewell)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(pet, forKey: .pet)
+        try c.encode(debugTimeOffset, forKey: .debugTimeOffset)
+        try c.encode(notificationPromptDismissed, forKey: .notificationPromptDismissed)
+        try c.encode(collection, forKey: .collection)
+        try c.encodeIfPresent(farewell, forKey: .farewell)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, pet, debugTimeOffset, notificationPromptDismissed, collection, farewell
     }
 }

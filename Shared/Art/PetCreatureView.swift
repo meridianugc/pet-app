@@ -6,6 +6,7 @@ import SwiftUI
 struct PetCreatureView: View {
     var stage: LifeStage
     var mood: PetMood
+    var form: AdultForm? = nil
     var animates: Bool = true
     var accessibilityLabel: String
 
@@ -24,7 +25,7 @@ struct PetCreatureView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isImage)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(accessibilityLabel + (form == nil ? "" : ""))
     }
 
     private func framed(time: TimeInterval) -> some View {

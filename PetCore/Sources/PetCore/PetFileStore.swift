@@ -29,7 +29,7 @@ public struct PetFileStore: Sendable {
         } catch {
             throw PetStoreError.unreadable
         }
-        guard record.schemaVersion == PetRecord.currentSchema else {
+        guard record.schemaVersion <= PetRecord.currentSchema else {
             throw PetStoreError.unsupportedSchema(record.schemaVersion)
         }
         return record
