@@ -1,4 +1,5 @@
 import SwiftUI
+import PetCore
 
 enum StatTint {
     static let fed = Color(red: 0.93, green: 0.55, blue: 0.32)
