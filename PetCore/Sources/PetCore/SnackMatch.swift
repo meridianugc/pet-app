@@ -187,12 +187,23 @@ public enum SnackMatch {
         return next
     }
 
+    public struct SnackStep: Equatable, Sendable {
+        public var cleared: [Int]
+        public var cells: [Int]
+
+        public init(cleared: [Int], cells: [Int]) {
+            self.cleared = cleared
+            self.cells = cells
+        }
+    }
+
     public struct Outcome: Equatable {
         public var cells: [Int]
         public var points: Int
         public var cascades: Int
         public var madeStripe: Bool
         public var madeBomb: Bool
+        public var steps: [SnackStep]
     }
 
     /// Swaps two neighbors. Returns nil when the swap is illegal or makes no match.
@@ -225,12 +236,19 @@ public enum SnackMatch {
         clearing: Set<Int>,
         refill: () -> Int
     ) -> Outcome {
-        var board = clearing.isEmpty ? cells : drop(cells: cells, width: width, height: height, clearing: clearing, refill: refill)
-        var total = clearing.isEmpty ? 0 : points(forClearing: clearing.count, lineLength: 1)
-        var cascades = clearing.isEmpty ? 0 : 1
+        var board = cells
+        var total = 0
+        var cascades = 0
         var madeStripe = false
         var madeBomb = false
+        var steps: [SnackStep] = []
         var guardrail = 0
+        if !clearing.isEmpty {
+            board = drop(cells: cells, width: width, height: height, clearing: clearing, refill: refill)
+            total = points(forClearing: clearing.count, lineLength: 1)
+            cascades = 1
+            steps.append(SnackStep(cleared: clearing.sorted(), cells: board))
+        }
         while guardrail < 8 {
             guardrail += 1
             let matched = matchedIndexes(in: board, width: width, height: height)
@@ -246,8 +264,9 @@ public enum SnackMatch {
             if let spot, board.indices.contains(spot), longest >= 4 {
                 board[spot] = (longest >= 5 ? bombOffset : stripeOffset) + (color % kinds)
             }
+            steps.append(SnackStep(cleared: matched.sorted(), cells: board))
         }
-        return Outcome(cells: board, points: total, cascades: cascades, madeStripe: madeStripe, madeBomb: madeBomb)
+        return Outcome(cells: board, points: total, cascades: cascades, madeStripe: madeStripe, madeBomb: madeBomb, steps: steps)
     }
 
     private static func longestRun(in matched: Set<Int>, width: Int) -> Int {

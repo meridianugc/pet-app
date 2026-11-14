@@ -32,6 +32,7 @@ final class SnackMatchTests: XCTestCase {
         XCTAssertNotNil(outcome)
         XCTAssertGreaterThan(outcome?.points ?? 0, 0)
         XCTAssertGreaterThan(outcome?.cascades ?? 0, 0)
+        XCTAssertFalse(outcome?.steps.isEmpty ?? true)
     }
 
     func testAUselessSwapIsRejected() {
