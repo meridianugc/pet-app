@@ -573,6 +573,7 @@ struct GamePicker: View {
     @State private var planet = false
     @State private var hopper = false
     @State private var snacks = false
+    @State private var defense = false
 
     var body: some View {
         ZStack {
@@ -614,6 +615,16 @@ struct GamePicker: View {
                 }
                 .offset(y: appeared ? 0 : 100)
                 .opacity(appeared ? 1 : 0)
+                gameCard(
+                    title: "Star Defense",
+                    blurb: "Place towers. Pop the blobs before they land.",
+                    score: best[MiniGame.starDefense.rawValue] ?? 0,
+                    colors: [Color(red: 0.55, green: 0.85, blue: 0.7), Color(red: 0.95, green: 0.55, blue: 0.5)]
+                ) {
+                    defense = true
+                }
+                .offset(y: appeared ? 0 : 120)
+                .opacity(appeared ? 1 : 0)
             }
             .padding(20)
         }
@@ -630,6 +641,9 @@ struct GamePicker: View {
         }
         .fullScreenCover(isPresented: $snacks) {
             SnackMatchGame()
+        }
+        .fullScreenCover(isPresented: $defense) {
+            StarDefenseGame()
         }
     }
 
@@ -1882,5 +1896,265 @@ struct SnackMatchGame: View {
         closed = true
         session.finishGame(points: table.score, gameID: MiniGame.snackMatch.rawValue, title: "Snack Match")
         dismiss()
+    }
+}
+
+struct StarDefenseGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var map: Int?
+    @State private var field = StarDefense.field(for: 1)
+    @State private var kind: DefenseTowerKind = .dart
+    @State private var fast = false
+    @State private var ticking = false
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starDefense")
+    @State private var askingLeave = false
+    @State private var closed = false
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            PocketBackground(theme: "bg_merge").ignoresSafeArea()
+            if let map {
+                battlefield(map)
+            } else {
+                levelMap
+            }
+            if askingLeave {
+                LeaveGamePrompt(onStay: {
+                    askingLeave = false
+                    if field.running { ticking = true }
+                }, onLeave: leave)
+            }
+            if showHowTo {
+                HowToOverlay(
+                    title: "Star Defense",
+                    pages: [
+                        "Pick a map, then a tower, then a pad along the lane.",
+                        "Start the round. Blobs pop into smaller ones. Don't let them through.",
+                        "Each tower has one upgrade path. A gem farm pays you between shots."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.starDefense")
+                        showHowTo = false
+                    }
+                )
+            }
+        }
+        .task(id: ticking) {
+            while ticking, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: fast ? 20_000_000 : 34_000_000)
+                guard ticking else { return }
+                field = StarDefense.step(field, dt: fast ? 0.08 : 0.034)
+                if field.won || field.lost {
+                    ticking = false
+                    finish(won: field.won)
+                }
+            }
+        }
+    }
+
+    private var levelMap: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                CosmicCloseButton(label: "Leave Star Defense") { dismiss() }
+                Text("Star Defense")
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                Spacer()
+                Button("?") { showHowTo = true }
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+            }
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(StarDefense.levels) { level in
+                        let stars = session.record?.progress.bestScores["starDefense.level.\(level.id)"] ?? 0
+                        let open = StarDefense.isOpen(
+                            level: level.id,
+                            petLevel: session.level,
+                            stars: starMap
+                        )
+                        Button {
+                            guard open else { return }
+                            field = StarDefense.field(for: level.id)
+                            map = level.id
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(level.name)
+                                        .font(.system(.headline, design: .rounded))
+                                    Text(open ? "Lv \(level.unlockLevel) · \(stars) stars" : "Lv \(level.unlockLevel)")
+                                        .font(.system(.caption, design: .rounded))
+                                }
+                                Spacer()
+                                Text(open ? "Play" : "Locked")
+                                    .font(.system(.caption, design: .rounded).weight(.bold))
+                            }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(open ? 0.62 : 0.28)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!open)
+                    }
+                }
+            }
+        }
+        .padding(16)
+    }
+
+    private func battlefield(_ level: Int) -> some View {
+        VStack(spacing: 10) {
+            HStack {
+                CosmicCloseButton(label: "Leave Star Defense") {
+                    ticking = false
+                    askingLeave = true
+                }
+                VStack(alignment: .leading) {
+                    Text("Lives \(field.lives)")
+                    Text("Cash \(field.cash)")
+                }
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                Spacer()
+                Text("Round \(min(field.round, field.roundsToWin))/\(field.roundsToWin)")
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+            }
+            GeometryReader { geo in
+                let path = lane(in: geo.size)
+                ZStack {
+                    path.stroke(Color.white.opacity(0.85), style: StrokeStyle(lineWidth: 28, lineCap: .round))
+                    path.stroke(Color(red: 0.45, green: 0.32, blue: 0.75), style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                    ForEach(0..<StarDefense.slotCount, id: \.self) { slot in
+                        let point = pointAlong(slot: slot, size: geo.size)
+                        Button {
+                            if let placed = StarDefense.place(kind, slot: slot, on: field) {
+                                field = placed
+                            }
+                        } label: {
+                            Circle()
+                                .fill(field.towers.contains { $0.slot == slot } ? Color(red: 1, green: 0.84, blue: 0.4) : Color.white.opacity(0.45))
+                                .frame(width: 36, height: 36)
+                                .overlay(Text(towerMark(slot)).font(.system(size: 11, weight: .bold, design: .rounded)))
+                        }
+                        .position(point)
+                    }
+                    ForEach(field.critters) { critter in
+                        Circle()
+                            .fill(Color(red: 0.95, green: 0.45, blue: 0.55))
+                            .frame(width: 14 + CGFloat(critter.layers) * 4, height: 14 + CGFloat(critter.layers) * 4)
+                            .overlay(Text("\(critter.layers)").font(.system(size: 10, weight: .bold, design: .rounded)))
+                            .position(pointAlong(distance: critter.distance, size: geo.size))
+                    }
+                }
+            }
+            .frame(height: 280)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack {
+                    ForEach(DefenseTowerKind.allCases, id: \.self) { tower in
+                        Button {
+                            kind = tower
+                        } label: {
+                            VStack {
+                                Text(tower.title)
+                                Text("\(tower.cost)")
+                            }
+                            .font(.system(.caption, design: .rounded).weight(.bold))
+                            .padding(8)
+                            .background(Capsule().fill(kind == tower ? Color(red: 1, green: 0.8, blue: 0.45) : Color.white.opacity(0.55)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            HStack {
+                Button(field.running ? "Running" : "Start") {
+                    field = StarDefense.beginRound(field)
+                    ticking = field.running
+                }
+                .disabled(field.running || field.won || field.lost)
+                Button(fast ? "Fast" : "Speed") { fast.toggle() }
+                if let tower = field.towers.last {
+                    Button("Upgrade") {
+                        if let next = StarDefense.upgrade(tower: tower.id, pathA: true, on: field) {
+                            field = next
+                        }
+                    }
+                }
+            }
+            .font(.system(.headline, design: .rounded).weight(.bold))
+            Button("Maps") {
+                ticking = false
+                map = nil
+            }
+            .font(.system(.caption, design: .rounded).weight(.bold))
+            Text("Level \(level)")
+                .font(.system(.caption, design: .rounded))
+        }
+        .padding(16)
+    }
+
+    private var starMap: [Int: Int] {
+        var map: [Int: Int] = [:]
+        for level in StarDefense.levels {
+            map[level.id] = session.record?.progress.bestScores["starDefense.level.\(level.id)"] ?? 0
+        }
+        return map
+    }
+
+    private func lane(in size: CGSize) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 20, y: size.height * 0.2))
+        path.addCurve(
+            to: CGPoint(x: size.width - 20, y: size.height * 0.8),
+            control1: CGPoint(x: size.width * 0.2, y: size.height * 0.85),
+            control2: CGPoint(x: size.width * 0.75, y: size.height * 0.15)
+        )
+        return path
+    }
+
+    private func pointAlong(distance: Double, size: CGSize) -> CGPoint {
+        let t = min(1, max(0, distance / StarDefense.pathLength))
+        let start = CGPoint(x: 20, y: size.height * 0.2)
+        let end = CGPoint(x: size.width - 20, y: size.height * 0.8)
+        let c1 = CGPoint(x: size.width * 0.2, y: size.height * 0.85)
+        let c2 = CGPoint(x: size.width * 0.75, y: size.height * 0.15)
+        return cubic(start, c1, c2, end, t)
+    }
+
+    private func pointAlong(slot: Int, size: CGSize) -> CGPoint {
+        let center = (Double(slot) + 0.5) / Double(StarDefense.slotCount) * StarDefense.pathLength
+        return pointAlong(distance: center, size: size)
+    }
+
+    private func cubic(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ p3: CGPoint, _ t: Double) -> CGPoint {
+        let time = CGFloat(t)
+        let u = 1 - time
+        let x = u * u * u * p0.x + 3 * u * u * time * p1.x + 3 * u * time * time * p2.x + time * time * time * p3.x
+        let y = u * u * u * p0.y + 3 * u * u * time * p1.y + 3 * u * time * time * p2.y + time * time * time * p3.y
+        return CGPoint(x: x, y: y)
+    }
+
+    private func towerMark(_ slot: Int) -> String {
+        guard let tower = field.towers.first(where: { $0.slot == slot }) else { return "+" }
+        return String(tower.kind.title.prefix(1))
+    }
+
+    private func finish(won: Bool) {
+        guard !closed, let map else { return }
+        closed = true
+        let stars = StarDefense.stars(lives: field.lives, livesAtStart: field.livesAtStart, won: won)
+        session.recordStars(id: "starDefense.level.\(map)", stars: stars)
+        let points = won ? stars * 40 + field.lives : max(0, field.round - 1) * 4
+        if points > 0 {
+            session.finishGame(points: points, gameID: MiniGame.starDefense.rawValue, title: "Star Defense")
+        }
+        dismiss()
+    }
+
+    private func leave() {
+        ticking = false
+        if field.round > 1 || field.lives < field.livesAtStart {
+            finish(won: false)
+        } else {
+            closed = true
+            dismiss()
+        }
     }
 }

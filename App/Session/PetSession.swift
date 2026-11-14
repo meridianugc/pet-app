@@ -165,6 +165,12 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: false)
     }
 
+    func recordStars(id: String, stars: Int) {
+        guard var record, stars > 0 else { return }
+        _ = record.progress.noteBest(gameID: id, score: stars)
+        persist(record, includeAlreadyLow: false)
+    }
+
     func dismissReward() {
         playReward = nil
     }
