@@ -336,6 +336,10 @@ struct GamesMenu: View {
                 MemoryMatchGame()
             }
             .accessibilityHint("Flip cards and find the pairs.")
+            NavigationLink("Hide and Seek") {
+                HideAndSeekGame()
+            }
+            .accessibilityHint("Find the alien hiding behind a planet. Three rounds.")
         }
         .navigationTitle("Games")
         .navigationBarTitleDisplayMode(.inline)
@@ -560,6 +564,82 @@ struct MemoryMatchGame: View {
         guard !finished else { return }
         finished = true
         session.finishGame(points: GameRewards.memoryPoints(pairs: pairs, misses: misses))
+        dismiss()
+    }
+}
+
+struct HideAndSeekGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var round = 1
+    @State private var hiding = Int.random(in: 0..<3)
+    @State private var finds = 0
+    @State private var reveal: Int?
+    @State private var finished = false
+
+    private let names = ["Lilac", "Butter", "Mist"]
+    private let colors = [
+        Color(red: 0.72, green: 0.62, blue: 0.98),
+        Color(red: 1, green: 0.86, blue: 0.55),
+        Color(red: 0.62, green: 0.82, blue: 1)
+    ]
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Round \(min(round, 3)) of 3")
+                .font(.headline)
+            Text(reveal == nil ? "Which planet is the alien behind?" : (reveal == hiding ? "Found!" : "Not that one."))
+                .font(.body)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 16) {
+                ForEach(0..<3, id: \.self) { index in
+                    Button {
+                        guess(index)
+                    } label: {
+                        VStack(spacing: 8) {
+                            Circle()
+                                .fill(colors[index])
+                                .frame(width: 72, height: 72)
+                                .overlay {
+                                    if reveal != nil, index == hiding {
+                                        Circle().fill(Color.white).frame(width: 16, height: 16)
+                                    }
+                                }
+                            Text(names[index])
+                                .font(.caption)
+                        }
+                    }
+                    .disabled(reveal != nil || finished)
+                    .accessibilityLabel("\(names[index]) planet")
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(PocketBackground().ignoresSafeArea())
+        .navigationTitle("Hide and Seek")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func guess(_ index: Int) {
+        reveal = index
+        if index == hiding { finds += 1 }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            if round == 3 {
+                finish()
+            } else {
+                round += 1
+                hiding = Int.random(in: 0..<3)
+                reveal = nil
+            }
+        }
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        session.finishGame(points: GameRewards.hideAndSeekPoints(finds: finds))
         dismiss()
     }
 }
