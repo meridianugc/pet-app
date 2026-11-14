@@ -29,7 +29,7 @@ public struct PetEngine: Sendable {
         self.rules = rules
     }
 
-    public func advance(_ pet: Pet, to end: Date) -> Pet {
+    public func advance(_ pet: Pet, to end: Date, decayScale: Double = 1) -> Pet {
         guard !pet.hasGoneHome else { return pet }
         guard end > pet.lastSimulatedAt else { return pet }
 
@@ -46,7 +46,7 @@ public struct PetEngine: Sendable {
                 continue
             }
 
-            let gap = timeUntilBoundary(pet, from: cursor, until: end)
+            let gap = timeUntilBoundary(pet, from: cursor, until: end, decayScale: decayScale)
             if gap <= epsilon {
                 if !applyDueTransitions(&pet, at: cursor) {
                     break
@@ -54,7 +54,7 @@ public struct PetEngine: Sendable {
                 continue
             }
 
-            integrate(&pet, for: gap)
+            integrate(&pet, for: gap, decayScale: decayScale)
             cursor = cursor.addingTimeInterval(gap)
             pet.lastSimulatedAt = cursor
             _ = applyDueTransitions(&pet, at: cursor)
@@ -205,7 +205,7 @@ public struct PetEngine: Sendable {
         return pet != before
     }
 
-    private func timeUntilBoundary(_ pet: Pet, from cursor: Date, until end: Date) -> TimeInterval {
+    private func timeUntilBoundary(_ pet: Pet, from cursor: Date, until end: Date, decayScale: Double) -> TimeInterval {
         var limit = end.timeIntervalSince(cursor)
         guard limit > 0, !pet.hasGoneHome else { return max(0, limit) }
 
@@ -218,7 +218,11 @@ public struct PetEngine: Sendable {
             return max(0, limit)
         }
 
-        let (hungerRate, happinessRate, energyRate) = ratesPerSecond(sleeping: pet.isSleeping)
+        let scale = max(0, decayScale)
+        var (hungerRate, happinessRate, energyRate) = ratesPerSecond(sleeping: pet.isSleeping)
+        hungerRate *= scale
+        happinessRate *= scale
+        energyRate *= scale
 
         if let dt = timeToReach(pet.hunger, rate: hungerRate, target: rules.statMin) {
             limit = min(limit, dt)
@@ -246,17 +250,18 @@ public struct PetEngine: Sendable {
         return max(0, limit)
     }
 
-    private func integrate(_ pet: inout Pet, for dt: TimeInterval) {
+    private func integrate(_ pet: inout Pet, for dt: TimeInterval, decayScale: Double) {
         guard dt > 0, pet.stage != .egg, !pet.hasGoneHome else { return }
+        let scaled = dt * max(0, decayScale)
         let hungerWasEmpty = pet.hunger <= rules.statMin + 0.000_1
         let happinessWasEmpty = pet.happiness <= rules.statMin + 0.000_1
         let (hungerRate, happinessRate, energyRate) = ratesPerSecond(sleeping: pet.isSleeping)
-        pet.hunger = clamp(pet.hunger + hungerRate * dt)
-        pet.happiness = clamp(pet.happiness + happinessRate * dt)
-        pet.energy = clamp(pet.energy + energyRate * dt)
+        pet.hunger = clamp(pet.hunger + hungerRate * scaled)
+        pet.happiness = clamp(pet.happiness + happinessRate * scaled)
+        pet.energy = clamp(pet.energy + energyRate * scaled)
         if pet.stage == .baby {
-            if hungerWasEmpty { pet.care.hungerEmptySeconds += dt }
-            if happinessWasEmpty { pet.care.happinessEmptySeconds += dt }
+            if hungerWasEmpty { pet.care.hungerEmptySeconds += scaled }
+            if happinessWasEmpty { pet.care.happinessEmptySeconds += scaled }
         }
     }
 

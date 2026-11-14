@@ -49,10 +49,16 @@ public enum StarDex {
         DexEntry(id: "look.shell.stars", title: "Star shell", hint: "Buy the star shell for an egg.", rarity: .common, setName: "Looks"),
         DexEntry(id: "look.antenna.heart", title: "Heart antennae", hint: "Finish a space trip, then buy them.", rarity: .legendary, setName: "Looks"),
         DexEntry(id: "sticker.letter", title: "Home letter", hint: "Keep a letter when an alien flies home.", rarity: .rare, setName: "Stickers"),
-        DexEntry(id: "sticker.game", title: "First game", hint: "Finish any mini-game.", rarity: .common, setName: "Stickers")
+        DexEntry(id: "sticker.game", title: "First game", hint: "Finish any mini-game.", rarity: .common, setName: "Stickers"),
+        DexEntry(id: "sticker.postcard", title: "Postcard", hint: "Send them on a space trip and welcome them home.", rarity: .rare, setName: "Stickers")
     ]
 
-    public static func isFound(id: String, collection: PetCollection, progress: PlayerProgress) -> Bool {
+    public static func isFound(
+        id: String,
+        collection: PetCollection,
+        progress: PlayerProgress,
+        world: AwayWorld = .fresh(at: .distantPast)
+    ) -> Bool {
         switch id {
         case "form.egg": return collection.sawEgg
         case "form.baby": return collection.sawBaby
@@ -65,16 +71,21 @@ public enum StarDex {
         case "look.antenna.heart": return progress.wardrobe.owned.contains("antenna.heart")
         case "sticker.letter": return !collection.letters.isEmpty
         case "sticker.game": return progress.gamesFinished > 0
+        case "sticker.postcard": return !world.postcards.isEmpty
         default: return false
         }
     }
 
-    public static func status(collection: PetCollection, progress: PlayerProgress) -> DexStatus {
-        let found = entries.filter { isFound(id: $0.id, collection: collection, progress: progress) }.count
+    public static func status(
+        collection: PetCollection,
+        progress: PlayerProgress,
+        world: AwayWorld = .fresh(at: .distantPast)
+    ) -> DexStatus {
+        let found = entries.filter { isFound(id: $0.id, collection: collection, progress: progress, world: world) }.count
         let total = entries.count
         let sets = Set(entries.map(\.setName)).filter { set in
             entries.filter { $0.setName == set }.allSatisfy {
-                isFound(id: $0.id, collection: collection, progress: progress)
+                isFound(id: $0.id, collection: collection, progress: progress, world: world)
             }
         }
         return DexStatus(

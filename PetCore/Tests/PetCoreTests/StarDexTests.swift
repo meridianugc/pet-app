@@ -18,6 +18,8 @@ final class StarDexTests: XCTestCase {
         var progress = PlayerProgress(ownedIDs: ["outfit.scarf", "outfit.bow", "outfit.helmet"], gamesFinished: 1)
         progress.wardrobe.owned.append("shell.stars")
         progress.wardrobe.owned.append("antenna.heart")
+        var world = AwayWorld.fresh(at: Date(timeIntervalSince1970: 10))
+        world.postcards = [Postcard(title: "A short hop", message: "Hi", at: Date(timeIntervalSince1970: 10), souvenir: "gems")]
         collection.letters = [HomeLetter(
             name: "Mochi",
             form: .star,
@@ -26,7 +28,7 @@ final class StarDexTests: XCTestCase {
             message: "Hi",
             trait: InheritedTrait(tint: .starlight, fromName: "Mochi")
         )]
-        let status = StarDex.status(collection: collection, progress: progress)
+        let status = StarDex.status(collection: collection, progress: progress, world: world)
         XCTAssertEqual(status.found, status.total)
         XCTAssertEqual(status.completedSets, ["Forms", "Looks", "Outfits", "Stickers"])
         let claimed = StarDex.claim(setName: "Forms", progress: progress, collection: collection)

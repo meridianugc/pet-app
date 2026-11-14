@@ -19,8 +19,11 @@ public struct PlannedNotification: Equatable, Identifiable, Sendable {
     public static let energyID = "pocketpet.energy"
     public static let criticalID = "pocketpet.critical"
     public static let testID = "pocketpet.test"
+    public static let gardenID = "pocketpet.garden"
+    public static let tripID = "pocketpet.trip"
+    public static let treeID = "pocketpet.tree"
 
-    public static let allIDs = [hatchID, hungerID, happinessID, energyID, criticalID, testID]
+    public static let allIDs = [hatchID, hungerID, happinessID, energyID, criticalID, testID, gardenID, tripID, treeID]
 }
 
 /// Turns the stat curves into the next local notifications.
@@ -93,6 +96,38 @@ public struct NotificationPlanner: Sendable {
         }
 
         return items.sorted { $0.fireAt < $1.fireAt }
+    }
+
+    public func awayPlan(world: AwayWorld, now: Date) -> [PlannedNotification] {
+        var items: [PlannedNotification] = []
+        let readyTimes = world.seeds.map { $0.plantedAt.addingTimeInterval(6 * 3600) }.filter { $0 > now.addingTimeInterval(1) }
+        if let ready = readyTimes.min() {
+            items.append(PlannedNotification(
+                id: PlannedNotification.gardenID,
+                fireAt: ready,
+                title: "Your star seeds are ready",
+                body: "The garden can be harvested."
+            ))
+        }
+        if let trip = world.trip, trip.returnsAt > now.addingTimeInterval(1) {
+            items.append(PlannedNotification(
+                id: PlannedNotification.tripID,
+                fireAt: trip.returnsAt,
+                title: "Back from the stars with a gift",
+                body: "A postcard is waiting in the star book."
+            ))
+        }
+        let stored = AwayLife.pendingGems(world, at: now)
+        if stored < AwayWorld.gemCap {
+            let hours = Double(AwayWorld.gemCap - stored) / Double(AwayWorld.gemPerHour)
+            items.append(PlannedNotification(
+                id: PlannedNotification.treeID,
+                fireAt: now.addingTimeInterval(hours * 3600),
+                title: "The gem tree is full",
+                body: "Tap it before it stops growing."
+            ))
+        }
+        return items
     }
 
     private func hatchPlan(_ pet: Pet, now: Date) -> [PlannedNotification] {
