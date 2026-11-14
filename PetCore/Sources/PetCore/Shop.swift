@@ -147,6 +147,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
     public var bestScores: [String: Int]
     public var gemBonusPercent: Int
     public var gemBonusUntil: Date?
+    public var wardrobe: Wardrobe
 
     public init(
         coins: Int = 0,
@@ -162,7 +163,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         gamesFinished: Int = 0,
         bestScores: [String: Int] = [:],
         gemBonusPercent: Int = 0,
-        gemBonusUntil: Date? = nil
+        gemBonusUntil: Date? = nil,
+        wardrobe: Wardrobe = .plain
     ) {
         self.coins = coins
         self.xp = xp
@@ -178,6 +180,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         self.bestScores = bestScores
         self.gemBonusPercent = gemBonusPercent
         self.gemBonusUntil = gemBonusUntil
+        self.wardrobe = wardrobe
     }
 
     public init(from decoder: Decoder) throws {
@@ -196,6 +199,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         bestScores = try c.decodeIfPresent([String: Int].self, forKey: .bestScores) ?? [:]
         gemBonusPercent = try c.decodeIfPresent(Int.self, forKey: .gemBonusPercent) ?? 0
         gemBonusUntil = try c.decodeIfPresent(Date.self, forKey: .gemBonusUntil)
+        wardrobe = try c.decodeIfPresent(Wardrobe.self, forKey: .wardrobe) ?? .plain
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -214,12 +218,13 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         try c.encode(bestScores, forKey: .bestScores)
         try c.encode(gemBonusPercent, forKey: .gemBonusPercent)
         try c.encodeIfPresent(gemBonusUntil, forKey: .gemBonusUntil)
+        try c.encode(wardrobe, forKey: .wardrobe)
     }
 
     private enum CodingKeys: String, CodingKey {
         case coins, xp, ownedIDs, stock, outfitID, backgroundID
         case daily, streak, achievements, mealsFed, gamesFinished, bestScores
-        case gemBonusPercent, gemBonusUntil
+        case gemBonusPercent, gemBonusUntil, wardrobe
     }
 
     /// Extra gems from a lucky charm. Expired charms pay the base amount.
