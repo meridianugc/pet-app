@@ -141,7 +141,9 @@ final class PetSession: ObservableObject {
             pet = PetCare.apply(effect, to: pet, rules: engine.rules)
             pet.lastSimulatedAt = currentDate
             record.pet = pet
-            record.progress.mealsFed += 1
+            if effect.hunger > 0 {
+                record.progress.mealsFed += 1
+            }
             record.progress.xp += effect.countsAsHealthyMeal ? 8 : 3
             if effect.countsAsHealthyMeal {
                 praiseCare(&record.progress, at: currentDate)
