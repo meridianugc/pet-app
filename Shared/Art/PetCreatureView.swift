@@ -46,6 +46,22 @@ struct PetCreatureView: View {
             }
     }
 
+    private var spriteName: String {
+        if stage == .egg { return "alien_egg" }
+        switch shownForm {
+        case .star: return "alien_star"
+        case .cloud: return "alien_cloud"
+        case .spiky: return "alien_spiky"
+        case nil:
+            switch mood {
+            case .sleepy, .gone: return "alien_baby_sleep"
+            case .sad, .critical, .tired: return "alien_baby_sad"
+            case .hungry: return "alien_baby_eat"
+            default: return "alien_baby_happy"
+            }
+        }
+    }
+
     private var shownForm: AdultForm? {
         stage == .adult ? (form ?? .star) : nil
     }
@@ -66,7 +82,9 @@ struct PetCreatureView: View {
                     .frame(width: side * 0.72, height: side * 0.72)
                     .blur(radius: side * 0.04)
             }
-            if stage == .egg {
+            if let sprite = GameArt.image(spriteName) {
+                sprite.resizable().scaledToFit().frame(width: side * 0.8, height: side * 0.8)
+            } else if stage == .egg {
                 StarEgg(side: side, palette: palette, shell: shell)
             } else {
                 AlienBody(

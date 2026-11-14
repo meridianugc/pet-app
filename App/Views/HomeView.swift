@@ -670,6 +670,9 @@ enum PlanetArt {
             UIColor(red: 0.55, green: 0.42, blue: 0.85, alpha: 1)
         ]
         let fill = colors[index % colors.count]
+        if let packed = GameArt.uiImage("planet_\(min(8, index + 1))") {
+            return SKTexture(image: packed)
+        }
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
             let cg = context.cgContext
             let rect = CGRect(x: 8, y: 8, width: radius * 2, height: radius * 2)

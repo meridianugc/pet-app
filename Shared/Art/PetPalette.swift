@@ -1,5 +1,31 @@
 import PetCore
 import SwiftUI
+import UIKit
+
+/// Catalog images ship under these names. Missing art falls back to the drawn shapes.
+enum GameArt {
+    static func uiImage(_ name: String) -> UIImage? {
+        UIImage(named: name)
+    }
+
+    static func image(_ name: String) -> Image? {
+        guard uiImage(name) != nil else { return nil }
+        return Image(name)
+    }
+}
+
+struct CatalogImage<Fallback: View>: View {
+    var name: String
+    @ViewBuilder var fallback: () -> Fallback
+
+    var body: some View {
+        if let image = GameArt.image(name) {
+            image.resizable().scaledToFit()
+        } else {
+            fallback()
+        }
+    }
+}
 
 struct PetPalette {
     var body: Color
@@ -69,7 +95,11 @@ struct PocketBackground: View {
 
     var body: some View {
         ZStack {
+            if let image = GameArt.image(backgroundName) {
+                image.resizable().scaledToFill()
+            }
             LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+                .opacity(GameArt.image(backgroundName) == nil ? 1 : 0.28)
             TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
                 Canvas { context, size in
                     let time = timeline.date.timeIntervalSinceReferenceDate
@@ -84,6 +114,16 @@ struct PocketBackground: View {
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+        }
+    }
+
+    private var backgroundName: String {
+        switch theme {
+        case "bg_match", "match": return "bg_match"
+        case "bg_hopper", "hopper": return "bg_hopper"
+        case "bg_merge", "merge": return "bg_merge"
+        case "bg_shop", "shop": return "bg_shop"
+        default: return "bg_home"
         }
     }
 

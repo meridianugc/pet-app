@@ -84,6 +84,23 @@ struct CareGlyph: View {
     var side: CGFloat = 22
 
     var body: some View {
+        if let image = GameArt.image(iconName) {
+            image.resizable().scaledToFit().frame(width: side, height: side).accessibilityHidden(true)
+        } else {
+            drawn
+        }
+    }
+
+    private var iconName: String {
+        switch stat {
+        case .fed: return "icon_fed"
+        case .happy, .look: return "icon_happy"
+        case .energy, .sleep: return "icon_energy"
+        case .gems, .sky: return "icon_gem"
+        }
+    }
+
+    private var drawn: some View {
         ZStack {
             Circle()
                 .fill(fill)
