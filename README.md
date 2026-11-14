@@ -1,10 +1,10 @@
 # Pocket Pet
 
-Pocket Pet is a small Tamagotchi-style pet that lives on your iPhone. It starts as an egg, hatches, and grows up over real time. Hunger, happiness, and energy change even while the app is closed. You can feed it, play with it, and put it to sleep. If it is left empty or lonely for too long, it passes on, and you can hatch a new egg.
+Pocket Pet is a small alien that lives on your iPhone. It starts as a speckled star egg, hatches into a round baby, and grows into a star, a cloud, or a spiky form depending on how you look after it. Hunger, happiness, and energy change even while the app is closed. You can feed it, play with it, and put it to sleep. If it is left empty or lonely for too long, it flies home to its planet, leaves a letter, and a new star egg arrives with a little gift from the one who left.
 
 There is no account and no server. The pet is saved on the phone. A home screen widget can show the same pet.
 
-The drawing is made of simple shapes, in soft colors, so it can be replaced with real artwork later. The pictures live in `Shared/Art`.
+The alien is drawn with simple shapes in a pastel lavender palette, so it can be replaced with real artwork later. The pictures live in `Shared/Art`. The sparkles button opens the star book, which lists every form you have raised and the letters left behind.
 
 ## How the pet behaves
 
@@ -19,12 +19,12 @@ Feed fills them up. If they are already very full, extra food makes them a bit l
 Growth, from the moment you name them:
 
 - Egg: 45 minutes, then they hatch
-- Baby: 6 hours
-- Child: 18 hours
-- Teen: 36 hours
-- Adult: they stay an adult
+- Baby: 6 hours, then they grow into one adult form
+- Star: balanced meals and play, without long empty meters
+- Cloud: lots of extra treats, or lots of play and few steady meals
+- Spiky: no care, or Fed and Happy left empty for a long time
 
-If **Fed** or **Happy** sits at zero for 4 hours, they pass on. You get a quiet goodbye screen and a button to start a new egg. Nothing is sent off the phone.
+If **Fed** or **Happy** sits at zero for 4 hours, they fly home. You see them wave from a little ship, read their letter, and meet the new egg. The new egg keeps one gift: a color tint and a small bonus to one meter. Nothing is sent off the phone.
 
 ## What you need
 
@@ -139,7 +139,7 @@ Use it to test days of pet life in a minute:
 - **Skip to the next life stage** jumps to the hatch, or to the next age.
 - **Fill fed, happy, and energy** restores them.
 - **Make them hungry / sad / tired** drops one meter so you can see the face and the reminders.
-- **Two minutes from passing on** puts a hatched pet close to the end. Then tap **Forward 15 minutes** and you should see the goodbye screen.
+- **Two minutes from flying home** puts a hatched alien close to the end. Then tap **Forward 15 minutes** and you should see them leave in the ship, with a letter and a new egg.
 - **Use the real clock again** stops the fast-forward. The meters stay where they are; time just goes back to normal.
 - **Send a test reminder** checks that notifications are allowed.
 
@@ -164,7 +164,7 @@ The Free Device entitlements files are intentionally empty, so a free Apple ID c
 
 ## Check the game rules
 
-The rules (growth, decay, sleep, death, and when reminders fire) live in the `PetCore` folder. That folder does not use SwiftUI or any iPhone-only framework, so the tests can run without a simulator.
+The rules (growth, decay, sleep, which adult form they become, flying home, and when reminders fire) live in the `PetCore` folder. That folder does not use SwiftUI or any iPhone-only framework, so the tests can run without a simulator.
 
 On a Mac, with Xcode installed, open Terminal in this folder and run:
 
