@@ -1071,7 +1071,7 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
     }
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.20, green: 0.12, blue: 0.38, alpha: 1)
+        backgroundColor = .clear
         physicsWorld.gravity = CGVector(dx: 0, dy: -14)
         physicsWorld.contactDelegate = self
         let cameraNode = SKCameraNode()
@@ -1093,16 +1093,16 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
             node.lineWidth = 3
             let artName: String
             switch pad.kind {
-            case .steady: artName = GameArt.platformCloud
             case .moving: artName = GameArt.platformAsteroid
             case .crumbly: artName = GameArt.platformBreaking
-            case .spring: artName = GameArt.spring
+            default: artName = GameArt.platformCloud
             }
-            if let image = GameArt.uiImage(artName) {
-                let sprite = SKSpriteNode(texture: SKTexture(image: image))
-                sprite.size = CGSize(width: width, height: 28)
+            if let texture = SpriteArt.texture(artName) {
+                let sprite = SKSpriteNode(texture: texture)
+                sprite.size = CGSize(width: width, height: width)
                 node.addChild(sprite)
                 node.fillColor = .clear
+                node.strokeColor = .clear
             }
             let body = SKPhysicsBody(rectangleOf: CGSize(width: width, height: 20))
             body.isDynamic = false
@@ -1114,11 +1114,18 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
             pads.append(node)
             origins[ObjectIdentifier(node)] = node.position.x
             if pad.kind == .spring {
-                let coil = SKShapeNode(rectOf: CGSize(width: 16, height: 18), cornerRadius: 4)
-                coil.fillColor = SKColor(red: 0.55, green: 0.35, blue: 0.85, alpha: 1)
-                coil.strokeColor = .white
-                coil.position = CGPoint(x: 0, y: 16)
-                node.addChild(coil)
+                if let texture = SpriteArt.texture(GameArt.spring) {
+                    let coil = SKSpriteNode(texture: texture)
+                    coil.size = CGSize(width: 42, height: 42)
+                    coil.position = CGPoint(x: 0, y: 24)
+                    node.addChild(coil)
+                } else {
+                    let coil = SKShapeNode(rectOf: CGSize(width: 16, height: 18), cornerRadius: 4)
+                    coil.fillColor = SKColor(red: 0.55, green: 0.35, blue: 0.85, alpha: 1)
+                    coil.strokeColor = .white
+                    coil.position = CGPoint(x: 0, y: 16)
+                    node.addChild(coil)
+                }
             }
             if Int(pad.y) % 288 == 0, pad.y > 0 {
                 let gem = SKShapeNode(circleOfRadius: 9)
@@ -1127,11 +1134,13 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
                 gem.lineWidth = 2
                 gem.position = CGPoint(x: node.position.x, y: node.position.y + 34)
                 gem.name = "gem"
-                if let image = GameArt.uiImage(GameArt.gemPickup) {
-                    let sprite = SKSpriteNode(texture: SKTexture(image: image))
-                    sprite.size = CGSize(width: 18, height: 18)
+                if let texture = SpriteArt.texture(GameArt.gemPickup) {
+                    let sprite = SKSpriteNode(texture: texture)
+                    sprite.size = CGSize(width: 30, height: 30)
                     gem.addChild(sprite)
                     gem.fillColor = .clear
+                    gem.strokeColor = .clear
+                    addSparkle(to: sprite)
                 }
                 addChild(gem)
             }
@@ -1249,6 +1258,22 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
     }
 
     func didBegin(_ contact: SKPhysicsContact) {}
+
+    private func addSparkle(to node: SKNode) {
+        for index in 0..<5 {
+            let dot = SKShapeNode(circleOfRadius: 1.6)
+            dot.fillColor = .white
+            dot.strokeColor = .clear
+            dot.alpha = 0.15
+            dot.position = CGPoint(x: CGFloat(index - 2) * 5, y: index % 2 == 0 ? 7 : -5)
+            node.addChild(dot)
+            let twinkle = SKAction.sequence([
+                .fadeAlpha(to: 0.95, duration: 0.35),
+                .fadeAlpha(to: 0.12, duration: 0.45)
+            ])
+            dot.run(.sequence([.wait(forDuration: 0.12 * Double(index)), .repeatForever(twinkle)]))
+        }
+    }
 }
 
 struct StarHopperGame: View {
@@ -1269,7 +1294,8 @@ struct StarHopperGame: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            SpriteView(scene: scene).ignoresSafeArea()
+            PocketBackground(theme: "bg_hopper").ignoresSafeArea()
+            SpriteView(scene: scene, options: [.allowsTransparency]).ignoresSafeArea()
             VStack(spacing: 8) {
                 HStack {
                     CosmicCloseButton(label: "Leave Star Hopper") {
