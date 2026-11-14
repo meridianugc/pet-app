@@ -574,6 +574,7 @@ struct GamePicker: View {
     @State private var hopper = false
     @State private var snacks = false
     @State private var defense = false
+    @State private var solitaire = false
 
     var body: some View {
         ZStack {
@@ -625,6 +626,16 @@ struct GamePicker: View {
                 }
                 .offset(y: appeared ? 0 : 120)
                 .opacity(appeared ? 1 : 0)
+                gameCard(
+                    title: "Cosmic Solitaire",
+                    blurb: "Stack the stars. Draw one or three.",
+                    score: best[MiniGame.cosmicSolitaire.rawValue] ?? 0,
+                    colors: [Color(red: 0.95, green: 0.78, blue: 0.45), Color(red: 0.55, green: 0.45, blue: 0.85)]
+                ) {
+                    solitaire = true
+                }
+                .offset(y: appeared ? 0 : 140)
+                .opacity(appeared ? 1 : 0)
             }
             .padding(20)
         }
@@ -644,6 +655,9 @@ struct GamePicker: View {
         }
         .fullScreenCover(isPresented: $defense) {
             StarDefenseGame()
+        }
+        .fullScreenCover(isPresented: $solitaire) {
+            CosmicSolitaireGame()
         }
     }
 
@@ -2156,5 +2170,256 @@ struct StarDefenseGame: View {
             closed = true
             dismiss()
         }
+    }
+}
+
+struct CosmicSolitaireGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var map: CosmicSolitaire.Level?
+    @State private var deal = SolitaireDeal.deal(seed: 1, drawCount: 1)
+    @State private var history: [SolitaireDeal] = []
+    @State private var moves = 0
+    @State private var selection: SolitaireDeal.Move?
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.solitaire")
+    @State private var askingLeave = false
+    @State private var closed = false
+
+    var body: some View {
+        ZStack {
+            PocketBackground(theme: "bg_shop").ignoresSafeArea()
+            if let map {
+                table(map)
+            } else {
+                levelList
+            }
+            if askingLeave {
+                LeaveGamePrompt(onStay: { askingLeave = false }, onLeave: leave)
+            }
+            if showHowTo {
+                HowToOverlay(
+                    title: "Cosmic Solitaire",
+                    pages: [
+                        "Tap the deck to draw. Tap a card, then where it should go.",
+                        "Build down in alternating colors. Foundations build up by suit from the ace.",
+                        "Undo a mistake or ask for a hint. Clear the board to win."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.solitaire")
+                        showHowTo = false
+                    }
+                )
+            }
+        }
+    }
+
+    private var levelList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                CosmicCloseButton(label: "Leave Cosmic Solitaire") { dismiss() }
+                Text("Cosmic Solitaire")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                Spacer()
+                Button("?") { showHowTo = true }.font(.system(.headline, design: .rounded).weight(.bold))
+            }
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(CosmicSolitaire.levels) { level in
+                        let stars = session.record?.progress.bestScores["solitaire.level.\(level.id)"] ?? 0
+                        let open = CosmicSolitaire.isOpen(level: level.id, petLevel: session.level, stars: starMap)
+                        Button {
+                            guard open else { return }
+                            self.map = level
+                            deal = SolitaireDeal.deal(seed: level.seed, drawCount: level.drawCount)
+                            history = []
+                            moves = 0
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(level.name).font(.system(.headline, design: .rounded))
+                                    Text(open ? "Draw \(level.drawCount) · \(stars) stars" : "Lv \(level.unlockLevel)")
+                                        .font(.system(.caption, design: .rounded))
+                                }
+                                Spacer()
+                                Text(open ? "Play" : "Locked").font(.system(.caption, design: .rounded).weight(.bold))
+                            }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(open ? 0.62 : 0.28)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!open)
+                    }
+                }
+            }
+        }
+        .padding(16)
+    }
+
+    private func table(_ level: CosmicSolitaire.Level) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                CosmicCloseButton(label: "Leave Cosmic Solitaire") { askingLeave = true }
+                Text("Moves \(moves)").font(.system(.headline, design: .rounded).weight(.bold))
+                Spacer()
+                Button("Undo") { undo() }.disabled(history.isEmpty)
+                Button("Hint") { applyHint() }
+            }
+            .font(.system(.caption, design: .rounded).weight(.bold))
+            HStack(spacing: 8) {
+                Button { play(.draw) } label: { cardBack.overlay(Text("\(deal.stock.count)").font(.caption.bold())) }
+                cardView(deal.waste.last, selected: false).onTapGesture { play(.wasteToFoundation) }
+                Spacer()
+                ForEach(0..<4, id: \.self) { index in
+                    cardView(deal.foundations[index].last, selected: false)
+                        .onTapGesture { tryFoundationOrWaste(index) }
+                }
+            }
+            HStack(alignment: .top, spacing: 4) {
+                ForEach(0..<7, id: \.self) { pile in
+                    VStack(spacing: 2) {
+                        if deal.tableau[pile].isEmpty {
+                            RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.4)).frame(width: 42, height: 58)
+                                .onTapGesture { dropOnTableau(pile) }
+                        }
+                        ForEach(Array(deal.tableau[pile].enumerated()), id: \.element.id) { index, card in
+                            cardView(card, selected: isSelected(pile: pile, index: index))
+                                .onTapGesture { tapTableau(pile, index) }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            Button("Maps") { self.map = nil }.font(.system(.caption, design: .rounded).weight(.bold))
+            Text(level.name).font(.system(.caption, design: .rounded))
+        }
+        .padding(12)
+    }
+
+    private var cardBack: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(Color(red: 0.45, green: 0.32, blue: 0.75))
+            .frame(width: 42, height: 58)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white, lineWidth: 1))
+    }
+
+    private func cardView(_ card: CosmicCard?, selected: Bool) -> some View {
+        Group {
+            if let card, card.faceUp {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.white)
+                    .overlay(
+                        Text(label(card))
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(card.suit.isRed ? Color.red : Color(red: 0.2, green: 0.15, blue: 0.35))
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? Color.yellow : Color.white, lineWidth: selected ? 3 : 1))
+            } else if card != nil {
+                cardBack
+            } else {
+                RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.35)).frame(width: 42, height: 58)
+            }
+        }
+        .frame(width: 42, height: 58)
+    }
+
+    private func label(_ card: CosmicCard) -> String {
+        let rank: String
+        switch card.rank {
+        case 1: rank = "A"
+        case 11: rank = "J"
+        case 12: rank = "Q"
+        case 13: rank = "K"
+        default: rank = "\(card.rank)"
+        }
+        let mark = ["★", "☾", "☄", "◆"][card.suit.rawValue]
+        return "\(rank)\(mark)"
+    }
+
+    private func isSelected(pile: Int, index: Int) -> Bool {
+        guard case let .tableauToTableau(from, _, count) = selection else { return false }
+        return from == pile && index >= deal.tableau[pile].count - count
+    }
+
+    private func tapTableau(_ pile: Int, _ index: Int) {
+        let cards = deal.tableau[pile]
+        guard cards.indices.contains(index), cards[index].faceUp else { return }
+        if selection != nil {
+            dropOnTableau(pile)
+            return
+        }
+        let count = cards.count - index
+        let run = Array(cards.suffix(count))
+        guard SolitaireDeal.isRun(run) else { return }
+        selection = .tableauToTableau(from: pile, to: pile, count: count)
+        if let moved = deal.applying(.tableauToFoundation(pile: pile)), count == 1 {
+            selection = nil
+            play(.tableauToFoundation(pile: pile))
+            _ = moved
+        }
+    }
+
+    private func dropOnTableau(_ pile: Int) {
+        if case let .tableauToTableau(from, _, count) = selection {
+            play(.tableauToTableau(from: from, to: pile, count: count))
+        } else if deal.waste.last != nil {
+            play(.wasteToTableau(pile))
+        }
+        selection = nil
+    }
+
+    private func tryFoundationOrWaste(_ suit: Int) {
+        if case .tableauToTableau = selection {
+            if case let .tableauToTableau(from, _, _) = selection {
+                play(.tableauToFoundation(pile: from))
+            }
+        } else {
+            play(.wasteToFoundation)
+        }
+        selection = nil
+        _ = suit
+    }
+
+    private func play(_ move: SolitaireDeal.Move) {
+        guard let next = deal.applying(move) else {
+            selection = nil
+            return
+        }
+        history.append(deal)
+        deal = next
+        moves += 1
+        selection = nil
+        if deal.won, let map {
+            let stars = CosmicSolitaire.stars(moves: moves, won: true)
+            session.recordStars(id: "solitaire.level.\(map.id)", stars: stars)
+            session.finishGame(points: stars * 35 + max(0, 80 - moves), gameID: MiniGame.cosmicSolitaire.rawValue, title: "Cosmic Solitaire")
+            dismiss()
+        }
+    }
+
+    private func undo() {
+        guard let previous = history.popLast() else { return }
+        deal = previous
+        moves = max(0, moves - 1)
+        selection = nil
+    }
+
+    private func applyHint() {
+        if let move = deal.hint() { play(move) }
+    }
+
+    private var starMap: [Int: Int] {
+        var map: [Int: Int] = [:]
+        for level in CosmicSolitaire.levels {
+            map[level.id] = session.record?.progress.bestScores["solitaire.level.\(level.id)"] ?? 0
+        }
+        return map
+    }
+
+    private func leave() {
+        if moves > 0 {
+            session.finishGame(points: min(12, moves / 4), gameID: MiniGame.cosmicSolitaire.rawValue, title: "Cosmic Solitaire")
+        }
+        closed = true
+        dismiss()
     }
 }
