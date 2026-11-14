@@ -3,6 +3,15 @@ import Foundation
 import PetCore
 import WidgetKit
 
+struct PlayReward: Equatable {
+    var title: String
+    var score: Int
+    var gems: Int
+    var xp: Int
+    var isBest: Bool
+    var gamesPlayed: Int
+}
+
 enum ReminderAccess: Equatable {
     case unknown
     case notAsked
@@ -18,6 +27,7 @@ final class PetSession: ObservableObject {
     @Published private(set) var saveError: String?
     @Published var note: String?
     @Published private(set) var reminderAccess: ReminderAccess = .unknown
+    @Published var playReward: PlayReward?
 
     let usesAppGroup: Bool
 
@@ -84,7 +94,11 @@ final class PetSession: ObservableObject {
 
     var level: Int { LevelTable.level(for: record?.progress.xp ?? 0) }
 
-    func finishGame(points: Int) {
+    func dismissReward() {
+        playReward = nil
+    }
+
+    func finishGame(points: Int, gameID: String? = nil, title: String = "Game") {
         guard var record else { return }
         let now = currentDate
         var pet = engine.advance(record.pet, to: now)
@@ -103,6 +117,10 @@ final class PetSession: ObservableObject {
         record.progress.coins += reward.coins
         record.progress.xp += reward.xp
         record.progress.gamesFinished += 1
+        var isBest = false
+        if let gameID {
+            isBest = record.progress.noteBest(gameID: gameID, score: points)
+        }
         let calendar = Calendar.current
         record.progress.daily = DailyBoard.recordGame(record.progress.daily, on: now, calendar: calendar)
         record.progress.streak = Streak.mark(
@@ -110,7 +128,17 @@ final class PetSession: ObservableObject {
             on: DayStamp.capture(now, calendar: calendar),
             calendar: calendar
         )
-        note = reward.coins == 1 ? "1 coin" : "\(reward.coins) coins"
+        note = nil
+        if gameID != nil {
+            playReward = PlayReward(
+                title: title,
+                score: points,
+                gems: reward.coins,
+                xp: reward.xp,
+                isBest: isBest,
+                gamesPlayed: record.progress.daily.gamesPlayed
+            )
+        }
         persist(record, includeAlreadyLow: false)
     }
 

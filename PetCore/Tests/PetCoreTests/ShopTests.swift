@@ -49,6 +49,17 @@ final class ShopTests: XCTestCase {
         }
     }
 
+    func testBestScoreStaysWhenTheNextRunIsLowerAndOldSavesStillOpen() throws {
+        var progress = PlayerProgress(coins: 3)
+        XCTAssertTrue(progress.noteBest(gameID: "planetMerge", score: 40))
+        XCTAssertFalse(progress.noteBest(gameID: "planetMerge", score: 12))
+        XCTAssertEqual(progress.bestScores["planetMerge"], 40)
+        let bare = "{\"coins\":3,\"xp\":0}".data(using: .utf8)!
+        let loaded = try JSONDecoder().decode(PlayerProgress.self, from: bare)
+        XCTAssertEqual(loaded.coins, 3)
+        XCTAssertTrue(loaded.bestScores.isEmpty)
+    }
+
     func testStarBerryIsAHealthyMeal() {
         let progress = tryResult(Shop.purchase(id: "food.starBerry", progress: PlayerProgress(coins: 8), level: 1))
         guard case let .success((_, effect)) = Shop.consume(id: "food.starBerry", progress: progress) else {

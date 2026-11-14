@@ -65,6 +65,7 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
     public var achievements: [Achievement]
     public var mealsFed: Int
     public var gamesFinished: Int
+    public var bestScores: [String: Int]
 
     public init(
         coins: Int = 0,
@@ -77,7 +78,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         streak: CareStreak = CareStreak(),
         achievements: [Achievement] = [],
         mealsFed: Int = 0,
-        gamesFinished: Int = 0
+        gamesFinished: Int = 0,
+        bestScores: [String: Int] = [:]
     ) {
         self.coins = coins
         self.xp = xp
@@ -90,6 +92,52 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         self.achievements = achievements
         self.mealsFed = mealsFed
         self.gamesFinished = gamesFinished
+        self.bestScores = bestScores
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        coins = try c.decodeIfPresent(Int.self, forKey: .coins) ?? 0
+        xp = try c.decodeIfPresent(Int.self, forKey: .xp) ?? 0
+        ownedIDs = try c.decodeIfPresent([String].self, forKey: .ownedIDs) ?? []
+        stock = try c.decodeIfPresent([String: Int].self, forKey: .stock) ?? [:]
+        outfitID = try c.decodeIfPresent(String.self, forKey: .outfitID)
+        backgroundID = try c.decodeIfPresent(String.self, forKey: .backgroundID)
+        daily = try c.decodeIfPresent(DailyState.self, forKey: .daily) ?? DailyState()
+        streak = try c.decodeIfPresent(CareStreak.self, forKey: .streak) ?? CareStreak()
+        achievements = try c.decodeIfPresent([Achievement].self, forKey: .achievements) ?? []
+        mealsFed = try c.decodeIfPresent(Int.self, forKey: .mealsFed) ?? 0
+        gamesFinished = try c.decodeIfPresent(Int.self, forKey: .gamesFinished) ?? 0
+        bestScores = try c.decodeIfPresent([String: Int].self, forKey: .bestScores) ?? [:]
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(coins, forKey: .coins)
+        try c.encode(xp, forKey: .xp)
+        try c.encode(ownedIDs, forKey: .ownedIDs)
+        try c.encode(stock, forKey: .stock)
+        try c.encodeIfPresent(outfitID, forKey: .outfitID)
+        try c.encodeIfPresent(backgroundID, forKey: .backgroundID)
+        try c.encode(daily, forKey: .daily)
+        try c.encode(streak, forKey: .streak)
+        try c.encode(achievements, forKey: .achievements)
+        try c.encode(mealsFed, forKey: .mealsFed)
+        try c.encode(gamesFinished, forKey: .gamesFinished)
+        try c.encode(bestScores, forKey: .bestScores)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case coins, xp, ownedIDs, stock, outfitID, backgroundID
+        case daily, streak, achievements, mealsFed, gamesFinished, bestScores
+    }
+
+    /// Returns whether this score is a new record for that game.
+    public mutating func noteBest(gameID: String, score: Int) -> Bool {
+        let previous = bestScores[gameID] ?? 0
+        guard score > previous else { return false }
+        bestScores[gameID] = score
+        return true
     }
 }
 
