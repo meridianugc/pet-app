@@ -711,6 +711,19 @@ struct GamePicker: View {
     }
 }
 
+enum SpriteArt {
+    private static var cache: [String: SKTexture] = [:]
+
+    static func texture(_ name: String) -> SKTexture? {
+        if let cached = cache[name] { return cached }
+        guard let image = GameArt.uiImage(name) else { return nil }
+        let texture = SKTexture(image: image)
+        texture.usesMipmaps = true
+        cache[name] = texture
+        return texture
+    }
+}
+
 enum PlanetArt {
     static func texture(index: Int, radius: CGFloat) -> SKTexture {
         let side = radius * 2 + 16
@@ -724,8 +737,8 @@ enum PlanetArt {
             UIColor(red: 0.55, green: 0.42, blue: 0.85, alpha: 1)
         ]
         let fill = colors[index % colors.count]
-        if let packed = GameArt.uiImage(GameArt.planet(index + 1)) {
-            return SKTexture(image: packed)
+        if let packed = SpriteArt.texture(GameArt.planet(index + 1)) {
+            return packed
         }
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { context in
             let cg = context.cgContext
@@ -773,7 +786,7 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
     ]
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.14, green: 0.11, blue: 0.26, alpha: 1)
+        backgroundColor = .clear
         physicsWorld.gravity = CGVector(dx: 0, dy: -3.6)
         physicsWorld.contactDelegate = self
         let bin = CGRect(x: 16, y: 12, width: size.width - 32, height: 20)
@@ -799,7 +812,7 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
         guard ready, !ended else { return }
         ready = false
         let node = planet(sizeIndex: current)
-        let radius = node.frame.width / 2
+        let radius = (node.userData?["radius"] as? CGFloat) ?? node.frame.width / 2
         let clamped = min(size.width - 24 - radius, max(24 + radius, x))
         node.position = CGPoint(x: clamped, y: size.height - radius - 8)
         addChild(node)
@@ -820,17 +833,27 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func planet(sizeIndex: Int) -> SKSpriteNode {
-        let radius = CGFloat(PlanetMerge.radius(for: sizeIndex))
-        let node = SKSpriteNode(texture: PlanetArt.texture(index: sizeIndex, radius: radius))
-        node.size = CGSize(width: radius * 2.2, height: radius * 2.2)
+        let index = min(7, max(0, sizeIndex))
+        let canvas: CGFloat = 148
+        let bodyScale: [CGFloat] = [0.34, 0.42, 0.50, 0.58, 0.66, 0.74, 0.84, 0.94]
+        let painted = SpriteArt.texture(GameArt.planet(index + 1))
+        let radius = painted == nil
+            ? CGFloat(PlanetMerge.radius(for: sizeIndex))
+            : canvas * 0.5 * bodyScale[index] * 0.86
+        let node = SKSpriteNode(texture: painted ?? PlanetArt.texture(index: sizeIndex, radius: radius))
+        node.size = painted == nil
+            ? CGSize(width: radius * 2.2, height: radius * 2.2)
+            : CGSize(width: canvas, height: canvas)
         node.name = "planet"
-        node.userData = ["size": sizeIndex]
-        let glow = SKSpriteNode(texture: node.texture)
-        glow.size = CGSize(width: radius * 2.8, height: radius * 2.8)
-        glow.alpha = 0.35
-        glow.blendMode = .add
-        glow.zPosition = -1
-        node.addChild(glow)
+        node.userData = ["size": sizeIndex, "radius": radius]
+        if painted == nil {
+            let glow = SKSpriteNode(texture: node.texture)
+            glow.size = CGSize(width: radius * 2.8, height: radius * 2.8)
+            glow.alpha = 0.35
+            glow.blendMode = .add
+            glow.zPosition = -1
+            node.addChild(glow)
+        }
         let body = SKPhysicsBody(circleOfRadius: radius)
         body.restitution = 0.05
         body.friction = 0.4
@@ -934,7 +957,8 @@ struct PlanetMergeGame: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            SpriteView(scene: scene)
+            PocketBackground(theme: "bg_merge").ignoresSafeArea()
+            SpriteView(scene: scene, options: [.allowsTransparency])
                 .ignoresSafeArea()
             VStack(spacing: 8) {
                 HStack {
