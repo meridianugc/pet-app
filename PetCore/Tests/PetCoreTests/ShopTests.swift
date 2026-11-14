@@ -85,6 +85,15 @@ final class ShopTests: XCTestCase {
         XCTAssertEqual(progress.stock["food.moonMilk"] ?? 0, 0)
     }
 
+    func testLuckyCharmAddsGemsUntilItExpires() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var progress = PlayerProgress(gemBonusPercent: 10, gemBonusUntil: now.addingTimeInterval(3600))
+        XCTAssertEqual(progress.gemPayout(base: 8, now: now), 9)
+        XCTAssertEqual(progress.gemPayout(base: 8, now: now.addingTimeInterval(4000)), 8)
+        progress.gemBonusPercent = 0
+        XCTAssertEqual(progress.gemPayout(base: 8, now: now), 8)
+    }
+
     func testStarBerryIsAHealthyMeal() {
         let progress = tryResult(Shop.purchase(id: "food.starBerry", progress: PlayerProgress(coins: 8), level: 1))
         guard case let .success((_, effect)) = Shop.consume(id: "food.starBerry", progress: progress) else {

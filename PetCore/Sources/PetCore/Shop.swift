@@ -137,6 +137,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
     public var mealsFed: Int
     public var gamesFinished: Int
     public var bestScores: [String: Int]
+    public var gemBonusPercent: Int
+    public var gemBonusUntil: Date?
 
     public init(
         coins: Int = 0,
@@ -150,7 +152,9 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         achievements: [Achievement] = [],
         mealsFed: Int = 0,
         gamesFinished: Int = 0,
-        bestScores: [String: Int] = [:]
+        bestScores: [String: Int] = [:],
+        gemBonusPercent: Int = 0,
+        gemBonusUntil: Date? = nil
     ) {
         self.coins = coins
         self.xp = xp
@@ -164,6 +168,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         self.mealsFed = mealsFed
         self.gamesFinished = gamesFinished
         self.bestScores = bestScores
+        self.gemBonusPercent = gemBonusPercent
+        self.gemBonusUntil = gemBonusUntil
     }
 
     public init(from decoder: Decoder) throws {
@@ -180,6 +186,8 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         mealsFed = try c.decodeIfPresent(Int.self, forKey: .mealsFed) ?? 0
         gamesFinished = try c.decodeIfPresent(Int.self, forKey: .gamesFinished) ?? 0
         bestScores = try c.decodeIfPresent([String: Int].self, forKey: .bestScores) ?? [:]
+        gemBonusPercent = try c.decodeIfPresent(Int.self, forKey: .gemBonusPercent) ?? 0
+        gemBonusUntil = try c.decodeIfPresent(Date.self, forKey: .gemBonusUntil)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -196,11 +204,20 @@ public struct PlayerProgress: Codable, Equatable, Sendable {
         try c.encode(mealsFed, forKey: .mealsFed)
         try c.encode(gamesFinished, forKey: .gamesFinished)
         try c.encode(bestScores, forKey: .bestScores)
+        try c.encode(gemBonusPercent, forKey: .gemBonusPercent)
+        try c.encodeIfPresent(gemBonusUntil, forKey: .gemBonusUntil)
     }
 
     private enum CodingKeys: String, CodingKey {
         case coins, xp, ownedIDs, stock, outfitID, backgroundID
         case daily, streak, achievements, mealsFed, gamesFinished, bestScores
+        case gemBonusPercent, gemBonusUntil
+    }
+
+    /// Extra gems from a lucky charm. Expired charms pay the base amount.
+    public func gemPayout(base: Int, now: Date) -> Int {
+        guard gemBonusPercent > 0, let gemBonusUntil, gemBonusUntil > now, base > 0 else { return base }
+        return base + max(1, base * gemBonusPercent / 100)
     }
 
     /// Returns whether this score is a new record for that game.
