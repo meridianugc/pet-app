@@ -4,12 +4,18 @@ public enum MiniGame: String, Codable, Equatable, Sendable, CaseIterable {
     case starCatch
     case memoryMatch
     case hideAndSeek
+    case planetMerge
+    case starHopper
+    case snackMatch
 
     public var title: String {
         switch self {
         case .starCatch: return "Star Catch"
         case .memoryMatch: return "Memory Match"
         case .hideAndSeek: return "Hide and Seek"
+        case .planetMerge: return "Planet Merge"
+        case .starHopper: return "Star Hopper"
+        case .snackMatch: return "Snack Match"
         }
     }
 }
