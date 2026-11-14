@@ -80,7 +80,7 @@ struct DepartureArtwork: View {
                 mood: .joyful,
                 form: form,
                 animates: false,
-                accessibilityLabel: ""
+                accessibilityLabel: "Waving alien"
             )
             .frame(width: 140, height: 140)
             .offset(y: lift ? -36 : 8)

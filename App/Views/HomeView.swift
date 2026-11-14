@@ -103,6 +103,8 @@ struct HomeView: View {
         PetCreatureView(
             stage: pet.stage,
             mood: PetMood.resolve(pet),
+            form: pet.displayForm,
+            tint: pet.trait?.tint,
             accessibilityLabel: PetCopy.summary(pet, now: session.currentDate)
         )
         .frame(maxWidth: 280)

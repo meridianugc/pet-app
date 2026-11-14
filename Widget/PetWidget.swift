@@ -160,8 +160,10 @@ struct PetWidgetEntryView: View {
 
     private func creature(_ pet: Pet) -> some View {
         PetCreatureView(
-            stage: pet.stage == .egg ? .egg : pet.stage,
+            stage: pet.stage,
             mood: PetMood.resolve(pet),
+            form: pet.displayForm,
+            tint: pet.trait?.tint,
             animates: false,
             accessibilityLabel: PetCopy.summary(pet, now: entry.simulatedNow)
         )
