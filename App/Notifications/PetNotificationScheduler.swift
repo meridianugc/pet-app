@@ -27,7 +27,7 @@ final class PetNotificationScheduler: NSObject, UNUserNotificationCenterDelegate
         }
     }
 
-    func reschedule(pet: Pet?, now: Date, includeAlreadyLow: Bool) async {
+    func reschedule(pet: Pet?, world: AwayWorld?, now: Date, includeAlreadyLow: Bool) async {
         let removable = PlannedNotification.allIDs.filter { $0 != PlannedNotification.testID }
         center.removePendingNotificationRequests(withIdentifiers: removable)
         guard let pet else { return }
@@ -35,7 +35,10 @@ final class PetNotificationScheduler: NSObject, UNUserNotificationCenterDelegate
         let status = await authorizationStatus()
         guard status == .authorized || status == .provisional || status == .ephemeral else { return }
 
-        let items = planner.plan(pet: pet, now: now, includeAlreadyLow: includeAlreadyLow)
+        var items = planner.plan(pet: pet, now: now, includeAlreadyLow: includeAlreadyLow)
+        if let world {
+            items.append(contentsOf: planner.awayPlan(world: world, now: now))
+        }
         for item in items {
             let content = UNMutableNotificationContent()
             content.title = item.title

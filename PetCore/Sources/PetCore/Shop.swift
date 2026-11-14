@@ -14,6 +14,7 @@ public enum GoodsKind: Equatable, Sendable {
     case toy(happiness: Double)
     case tonic(hunger: Double, happiness: Double, energy: Double)
     case charm(percent: Int, hours: Double)
+    case seed
     case outfit
     case background
 }
@@ -57,14 +58,14 @@ public struct Goods: Equatable, Sendable, Identifiable {
     public var needsThePetAwake: Bool {
         switch kind {
         case .food, .toy, .tonic: return true
-        case .charm, .outfit, .background: return false
+        case .charm, .seed, .outfit, .background: return false
         }
     }
 
     public var isDurable: Bool {
         switch kind {
         case .outfit, .background: return true
-        case .food, .toy, .tonic, .charm: return false
+        case .food, .toy, .tonic, .charm, .seed: return false
         }
     }
 
@@ -79,6 +80,8 @@ public struct Goods: Equatable, Sendable, Identifiable {
             return Self.chips(fed: hunger, happy: happiness, energy: energy)
         case let .charm(percent, _):
             return [CareChip(stat: .gems, amount: percent)]
+        case .seed:
+            return [CareChip(stat: .gems, amount: 12)]
         case .outfit:
             return [CareChip(stat: .look, amount: 1)]
         case .background:
@@ -285,6 +288,7 @@ public enum Shop {
         Goods(id: "food.moonCookie", name: "Moon cookie", price: 20, unlockLevel: 3, kind: .food(hunger: 40, happiness: 8, treat: false, healthyMeal: true)),
         Goods(id: "food.moonMilk", name: "Moon milk", price: 14, unlockLevel: 1, kind: .tonic(hunger: 10, happiness: 4, energy: 15)),
         Goods(id: "charm.lucky", name: "Lucky pebble", price: 18, unlockLevel: 2, kind: .charm(percent: 10, hours: 1)),
+        Goods(id: "garden.seed", name: "Star seed", price: 10, unlockLevel: 1, kind: .seed),
         Goods(id: "toy.comet", name: "Squeaky comet", price: 15, unlockLevel: 2, kind: .toy(happiness: 18)),
         Goods(id: "outfit.scarf", name: "Scarf", price: 25, unlockLevel: 1, kind: .outfit),
         Goods(id: "outfit.bow", name: "Bow", price: 30, unlockLevel: 2, kind: .outfit),
@@ -361,6 +365,8 @@ public enum Shop {
             return .success((progress, ItemEffect(hunger: hunger, happiness: happiness, energy: energy, countsAsTreat: false, countsAsHealthyMeal: true)))
         case let .charm(percent, hours):
             return .success((progress, ItemEffect(hunger: 0, happiness: 0, countsAsTreat: false, countsAsHealthyMeal: false, gemBonusPercent: percent, gemBonusHours: hours)))
+        case .seed:
+            return .failure(.notWearable)
         case .outfit, .background:
             return .failure(.notWearable)
         }

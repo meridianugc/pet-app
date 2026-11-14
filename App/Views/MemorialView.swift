@@ -554,3 +554,139 @@ struct TodayView: View {
         }
     }
 }
+
+struct AwaySummaryCard: View {
+    var report: AwayReport
+    var onOpen: () -> Void
+    var onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 10) {
+                Text("While you were away")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                ForEach(report.lines, id: \.self) { line in
+                    Text(line)
+                        .font(.system(.body, design: .rounded))
+                }
+                if report.gift > 0 {
+                    ChipFace(chip: CareChip(stat: .gems, amount: report.gift))
+                }
+                HStack {
+                    Button("Look", action: onOpen)
+                    Button("Yay!", action: onClose)
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.55, green: 0.42, blue: 0.86))
+            }
+            .padding(24)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
+            .padding(28)
+        }
+        .accessibilityAddTraits(.isModal)
+    }
+}
+
+struct AwayView: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let world = session.record?.world ?? AwayWorld.fresh(at: session.currentDate)
+        let now = session.currentDate
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(world.doodle.isEmpty ? "The room is tidy." : roomLine(world.doodle))
+                    .font(.system(.body, design: .rounded))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Star garden")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                    if world.seeds.isEmpty {
+                        Text("Plant a star seed from the shop.")
+                            .font(.system(.body, design: .rounded))
+                    }
+                    ForEach(world.seeds) { seed in
+                        Text(stageName(seed.stage(at: now)))
+                            .font(.system(.headline, design: .rounded))
+                    }
+                    HStack {
+                        Button("Plant") { session.plantSeed() }
+                        Button("Harvest") { session.harvestGarden() }
+                    }
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.45)))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Gem tree")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                    ChipFace(chip: CareChip(stat: .gems, amount: max(AwayLife.pendingGems(world, at: now), 0)))
+                    Button("Collect") { session.collectTree() }
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.45)))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Space trip")
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                    if let trip = world.trip, !trip.isBack(at: now) {
+                        Text("Traveling")
+                            .font(.system(.body, design: .rounded))
+                    } else if world.trip != nil {
+                        Button("Welcome home") { session.collectTrip() }
+                            .font(.system(.headline, design: .rounded).weight(.bold))
+                    } else {
+                        HStack {
+                            Button("1h") { session.launchTrip(hours: 1) }
+                            Button("4h") { session.launchTrip(hours: 4) }
+                            Button("8h") { session.launchTrip(hours: 8) }
+                        }
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                    }
+                    ForEach(world.postcards) { card in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(card.title)
+                                .font(.system(.headline, design: .rounded))
+                            Text(card.message)
+                                .font(.system(.body, design: .rounded))
+                        }
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.45)))
+            }
+            .padding(16)
+        }
+        .background(PocketBackground().ignoresSafeArea())
+        .navigationTitle("While you were away")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    private func stageName(_ stage: Int) -> String {
+        switch stage {
+        case 1: return "Sprout"
+        case 2: return "Bud"
+        case 3: return "Ready"
+        default: return "Seed"
+        }
+    }
+
+    private func roomLine(_ doodle: String) -> String {
+        switch doodle {
+        case "doodle": return "There are new doodles on the wall."
+        case "toys": return "A toy is out of place."
+        case "nap": return "The bed is rumpled from an extra nap."
+        default: return "The room is tidy."
+        }
+    }
+}

@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var showShop = false
     @State private var showToday = false
     @State private var showDressing = false
+    @State private var showAway = false
 #if DEBUG
     @State private var showDebug = false
 #endif
@@ -75,6 +76,13 @@ struct HomeView: View {
                     } onClose: {
                         session.dismissReward()
                     }
+                } else if let report = session.awayReport, !report.lines.isEmpty {
+                    AwaySummaryCard(report: report) {
+                        session.dismissAway()
+                        showAway = true
+                    } onClose: {
+                        session.dismissAway()
+                    }
                 } else if session.careAsk != nil {
                     WakeConfirm(
                         onWake: { session.confirmCare() },
@@ -98,6 +106,11 @@ struct HomeView: View {
             .sheet(isPresented: $showDressing) {
                 NavigationStack {
                     DressingRoomView()
+                }
+            }
+            .sheet(isPresented: $showAway) {
+                NavigationStack {
+                    AwayView()
                 }
             }
             .fullScreenCover(isPresented: $showGames) {
@@ -197,6 +210,14 @@ struct HomeView: View {
                 showToday = true
             }
             careButton(
+                title: "Away",
+                systemImage: "leaf.fill",
+                hint: "Garden, trips, and the gem tree.",
+                disabled: pet.stage == .egg
+            ) {
+                showAway = true
+            }
+            careButton(
                 title: "Dress",
                 systemImage: "paintpalette.fill",
                 hint: "Change shell, eyes, antennae, and markings.",
@@ -253,7 +274,7 @@ struct HomeView: View {
     }
 
     private func canPlay(_ pet: Pet) -> Bool {
-        pet.stage != .egg && !pet.hasGoneHome && (pet.isSleeping || pet.energy >= 15)
+        pet.stage != .egg && !pet.hasGoneHome && !session.isTraveling && (pet.isSleeping || pet.energy >= 15)
     }
 
     private func playHint(_ pet: Pet) -> String {
@@ -331,7 +352,7 @@ struct CollectionBookView: View {
     var body: some View {
         let collection = session.record?.collection ?? .empty
         let progress = session.record?.progress ?? PlayerProgress()
-        let status = StarDex.status(collection: collection, progress: progress)
+        let status = StarDex.status(collection: collection, progress: progress, world: session.record?.world ?? .fresh(at: session.currentDate))
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 GoalMeter(title: "\(status.found)/\(status.total)", fraction: status.fraction, ink: .primary)
@@ -400,7 +421,7 @@ struct CollectionBookView: View {
     }
 
     private func dexCard(_ entry: DexEntry, collection: PetCollection, progress: PlayerProgress) -> some View {
-        let found = StarDex.isFound(id: entry.id, collection: collection, progress: progress)
+        let found = StarDex.isFound(id: entry.id, collection: collection, progress: progress, world: session.record?.world ?? .fresh(at: session.currentDate))
         return VStack(spacing: 6) {
             dexArt(entry, found: found)
                 .frame(width: 54, height: 54)

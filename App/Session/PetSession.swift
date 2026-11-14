@@ -41,6 +41,7 @@ final class PetSession: ObservableObject {
     @Published var playReward: PlayReward?
     @Published var meterPops: [MeterPop] = []
     @Published var careAsk: CareAsk?
+    @Published var awayReport: AwayReport?
 
     let usesAppGroup: Bool
 
@@ -103,7 +104,15 @@ final class PetSession: ObservableObject {
         )
     }
 
+    var isTraveling: Bool {
+        record?.world.traveling(at: currentDate) ?? false
+    }
+
     func feed() {
+        if isTraveling {
+            note = "They're off on a trip."
+            return
+        }
         if record?.pet.isSleeping == true {
             careAsk = .feed
             return
@@ -165,6 +174,12 @@ final class PetSession: ObservableObject {
         let now = currentDate
         var pet = engine.advance(record.pet, to: now)
         let solo = pet.isSleeping
+        guard !record.world.traveling(at: now) else {
+            note = "They're off on a trip."
+            record.pet = pet
+            persist(record, includeAlreadyLow: false)
+            return
+        }
         guard pet.stage != .egg, !pet.hasGoneHome, solo || pet.energy >= engine.rules.minimumEnergyToPlay else {
             note = pet.energy < engine.rules.minimumEnergyToPlay ? "Too tired to play." : "Not a good moment to play."
             record.pet = pet
@@ -244,7 +259,94 @@ final class PetSession: ObservableObject {
         }
     }
 
+    func plantSeed() {
+        guard var record else { return }
+        let count = record.progress.stock["garden.seed"] ?? 0
+        guard count > 0 else {
+            note = "Buy a star seed first."
+            return
+        }
+        guard let world = AwayLife.plant(record.world, at: currentDate) else {
+            note = "The garden beds are full."
+            return
+        }
+        record.world = world
+        if count == 1 {
+            record.progress.stock.removeValue(forKey: "garden.seed")
+        } else {
+            record.progress.stock["garden.seed"] = count - 1
+        }
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func harvestGarden() {
+        guard var record else { return }
+        guard let (world, gems) = AwayLife.harvest(record.world, at: currentDate) else {
+            note = "Nothing is ready to pick."
+            return
+        }
+        record.world = world
+        record.progress.coins += gems
+        flash([CareChip(stat: .gems, amount: gems)])
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func launchTrip(hours: Int) {
+        guard var record else { return }
+        guard record.pet.stage != .egg, !record.pet.hasGoneHome else {
+            note = "The egg stays here."
+            return
+        }
+        guard let world = AwayLife.launch(record.world, hours: hours, at: currentDate) else {
+            note = "They're already traveling."
+            return
+        }
+        record.world = world
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func collectTrip() {
+        guard var record else { return }
+        guard let (world, card) = AwayLife.collectTrip(record.world, at: currentDate) else {
+            note = "They aren't home yet."
+            return
+        }
+        record.world = world
+        record.progress.wardrobe.tripsFinished += 1
+        let gems = card.souvenir.contains("helmet") ? 20 : 8
+        record.progress.coins += gems
+        flash([CareChip(stat: .gems, amount: gems)])
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func collectTree() {
+        guard var record else { return }
+        let (world, gems) = AwayLife.collectTree(record.world, at: currentDate)
+        record.world = world
+        guard gems > 0 else {
+            note = "The tree is still growing."
+            persist(record, includeAlreadyLow: false)
+            return
+        }
+        record.progress.coins += gems
+        flash([CareChip(stat: .gems, amount: gems)])
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func dismissAway() {
+        awayReport = nil
+    }
+
     func useItem(_ id: String) {
+        if id == "garden.seed" {
+            plantSeed()
+            return
+        }
         guard var record else { return }
         if record.pet.isSleeping, let item = Shop.item(id), item.needsThePetAwake {
             careAsk = .item(id)
@@ -567,14 +669,24 @@ final class PetSession: ObservableObject {
         self.record = record
         WidgetCenter.shared.reloadAllTimelines()
         let pet = record.pet
+        let world = record.world
         Task { @MainActor in
-            await scheduler.reschedule(pet: pet, now: now, includeAlreadyLow: includeAlreadyLow)
+            await scheduler.reschedule(pet: pet, world: world, now: now, includeAlreadyLow: includeAlreadyLow)
         }
     }
 
     private func settle(_ record: inout PetRecord, now: Date) {
         let before = record.pet
-        record.pet = engine.advance(record.pet, to: now)
+        let traveling = record.world.traveling(at: now)
+        record.pet = engine.advance(record.pet, to: now, decayScale: traveling ? 0.4 : 1)
+        let caught = AwayLife.catchUp(record.world, at: now)
+        record.world = caught.0
+        if caught.1.gift > 0 {
+            record.progress.coins += caught.1.gift
+        }
+        if !caught.1.lines.isEmpty {
+            awayReport = caught.1
+        }
         if EvolutionBonus.applies(before: before, after: record.pet) {
             record.progress.coins += EvolutionBonus.coins
             record.progress.xp += EvolutionBonus.xp
