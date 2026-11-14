@@ -330,40 +330,59 @@ struct CollectionBookView: View {
 
     var body: some View {
         let collection = session.record?.collection ?? .empty
-        List {
-            Section("Forms") {
-                formRow(title: "Star egg", found: collection.sawEgg, stage: .egg, form: nil)
-                formRow(title: "Baby", found: collection.sawBaby, stage: .baby, form: nil)
-                formRow(title: "Star", found: collection.raisedForms.contains(.star), stage: .adult, form: .star)
-                formRow(title: "Cloud", found: collection.raisedForms.contains(.cloud), stage: .adult, form: .cloud)
-                formRow(title: "Spiky", found: collection.raisedForms.contains(.spiky), stage: .adult, form: .spiky)
-            }
-            Section("Letters") {
-                if collection.letters.isEmpty {
-                    Text("When an alien flies home, their letter will stay here.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(collection.letters) { letter in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(letter.name)
-                                .font(.headline)
-                            Text(letter.form?.displayName ?? "Hatchling")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text(letter.message)
-                                .font(.body)
-                                .fixedSize(horizontal: false, vertical: true)
+        let progress = session.record?.progress ?? PlayerProgress()
+        let status = StarDex.status(collection: collection, progress: progress)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                GoalMeter(title: "\(status.found)/\(status.total)", fraction: status.fraction, ink: .primary)
+                    .padding(.horizontal, 4)
+                ForEach(setNames, id: \.self) { setName in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(setName)
+                                .font(.system(.headline, design: .rounded))
+                            Spacer()
+                            if status.completedSets.contains(setName), !progress.claimedDexSets.contains(setName) {
+                                Button("Gift") { session.claimDex(setName) }
+                                    .font(.system(.caption, design: .rounded).weight(.bold))
+                            }
                         }
-                        .padding(.vertical, 4)
-                        .accessibilityElement(children: .combine)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+                            ForEach(StarDex.entries.filter { $0.setName == setName }) { entry in
+                                dexCard(entry, collection: collection, progress: progress)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.5)))
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Letters")
+                        .font(.system(.headline, design: .rounded))
+                    if collection.letters.isEmpty {
+                        Text("When an alien flies home, their letter will stay here.")
+                            .font(.system(.body, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(collection.letters) { letter in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(letter.name)
+                                    .font(.system(.headline, design: .rounded))
+                                Text(letter.message)
+                                    .font(.system(.body, design: .rounded))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(0.55)))
+                        }
                     }
                 }
             }
+            .padding(16)
         }
-        .scrollContentBackground(.hidden)
-        .background(PocketBackground())
-        .navigationTitle("Star book")
+        .background(PocketBackground().ignoresSafeArea())
+        .navigationTitle("Star Dex")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -372,26 +391,56 @@ struct CollectionBookView: View {
         }
     }
 
-    private func formRow(title: String, found: Bool, stage: LifeStage, form: AdultForm?) -> some View {
-        HStack(spacing: 12) {
-            PetCreatureView(
-                stage: stage,
-                mood: found ? .joyful : .sleepy,
-                form: form,
-                animates: false,
-                accessibilityLabel: found ? title : "\(title), not yet"
-            )
-            .frame(width: 56, height: 56)
-            .opacity(found ? 1 : 0.35)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body)
-                Text(found ? "Raised" : "Not yet")
-                    .font(.caption)
+    private var setNames: [String] {
+        var seen: [String] = []
+        for entry in StarDex.entries where !seen.contains(entry.setName) {
+            seen.append(entry.setName)
+        }
+        return seen
+    }
+
+    private func dexCard(_ entry: DexEntry, collection: PetCollection, progress: PlayerProgress) -> some View {
+        let found = StarDex.isFound(id: entry.id, collection: collection, progress: progress)
+        return VStack(spacing: 6) {
+            dexArt(entry, found: found)
+                .frame(width: 54, height: 54)
+                .opacity(found ? 1 : 0.28)
+                .saturation(found ? 1 : 0)
+            Text(found ? entry.title : "???")
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                .lineLimit(1)
+            if !found {
+                Text(entry.hint)
+                    .font(.system(size: 10, design: .rounded))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
             }
         }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: 120)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.7)))
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(found ? "\(entry.title), \(entry.rarity.rawValue)" : "Unknown. \(entry.hint)")
+    }
+
+    @ViewBuilder
+    private func dexArt(_ entry: DexEntry, found: Bool) -> some View {
+        switch entry.id {
+        case "form.egg":
+            PetCreatureView(stage: .egg, mood: .egging, animates: false, accessibilityLabel: "")
+        case "form.baby":
+            PetCreatureView(stage: .baby, mood: .joyful, animates: false, accessibilityLabel: "")
+        case "form.star":
+            PetCreatureView(stage: .adult, mood: .joyful, form: .star, animates: false, accessibilityLabel: "")
+        case "form.cloud":
+            PetCreatureView(stage: .adult, mood: .joyful, form: .cloud, animates: false, accessibilityLabel: "")
+        case "form.spiky":
+            PetCreatureView(stage: .adult, mood: .joyful, form: .spiky, animates: false, accessibilityLabel: "")
+        default:
+            CareGlyph(stat: entry.id.hasPrefix("outfit") ? .look : (entry.id.hasPrefix("look") ? .happy : .gems), side: 36)
+                .grayscale(found ? 0 : 1)
+        }
     }
 }
 
@@ -1075,12 +1124,13 @@ struct WakeConfirm: View {
 struct GoalMeter: View {
     var title: String
     var fraction: Double
+    var ink: Color = .white
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(.caption, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(ink)
             Capsule()
                 .fill(Color.white.opacity(0.25))
                 .overlay(alignment: .leading) {

@@ -233,6 +233,22 @@ final class PetSession: ObservableObject {
         }
     }
 
+    func claimDex(_ setName: String) {
+        guard var record else { return }
+        guard let (progress, gems) = StarDex.claim(
+            setName: setName,
+            progress: record.progress,
+            collection: record.collection
+        ) else {
+            note = "That set isn't complete yet."
+            return
+        }
+        record.progress = progress
+        flash([CareChip(stat: .gems, amount: gems)])
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
     func buyLook(_ id: String) {
         guard var record else { return }
         switch LookBook.buy(
