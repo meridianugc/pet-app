@@ -1701,9 +1701,13 @@ final class SnackBoardScene: SKScene {
         let names = [GameArt.gemStar, GameArt.gemMoon, GameArt.gemPlanet, GameArt.gemComet, GameArt.gemDonut]
         let special = SnackMatch.isBomb(tile) ? GameArt.gemStarbomb : (SnackMatch.isStripe(tile) ? GameArt.gemLineblast : names[hue % names.count])
         let node: SKNode
-        if let image = GameArt.uiImage(special) {
-            let sprite = SKSpriteNode(texture: SKTexture(image: image))
-            sprite.size = CGSize(width: cellSize * 0.86, height: cellSize * 0.86)
+        if let texture = SpriteArt.texture(special) {
+            let sprite = SKSpriteNode(texture: texture)
+            let side = cellSize * 0.86
+            sprite.size = CGSize(width: side, height: side)
+            if special == GameArt.gemStarbomb {
+                addBoardSparkle(to: sprite)
+            }
             node = sprite
         } else {
             let shape = SKShapeNode(circleOfRadius: cellSize * 0.38)
@@ -1722,6 +1726,23 @@ final class SnackBoardScene: SKScene {
         node.position = point(for: index)
         node.name = "\(index)"
         return node
+    }
+
+    private func addBoardSparkle(to node: SKNode) {
+        for index in 0..<6 {
+            let dot = SKShapeNode(circleOfRadius: 1.4)
+            dot.fillColor = .white
+            dot.strokeColor = .clear
+            dot.alpha = 0.2
+            let angle = CGFloat(index) / 6 * .pi * 2
+            dot.position = CGPoint(x: cos(angle) * 12, y: sin(angle) * 12)
+            node.addChild(dot)
+            let twinkle = SKAction.sequence([
+                .fadeAlpha(to: 1, duration: 0.28),
+                .fadeAlpha(to: 0.15, duration: 0.4)
+            ])
+            dot.run(.sequence([.wait(forDuration: 0.08 * Double(index)), .repeatForever(twinkle)]))
+        }
     }
 
     private func index(at point: CGPoint) -> Int? {
