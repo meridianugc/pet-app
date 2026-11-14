@@ -1214,58 +1214,56 @@ struct HowToOverlay: View {
 struct SnackMatchGame: View {
     @EnvironmentObject private var session: PetSession
     @Environment(\.dismiss) private var dismiss
-    @State private var cells: [Int] = (0..<42).map { _ in Int.random(in: 0..<SnackMatch.kinds) }
-    @State private var selected: Int?
+    @State private var cells: [Int] = (0..<64).map { _ in Int.random(in: 0..<SnackMatch.kinds) }
     @State private var score = 0
-    @State private var moves = 18
+    @State private var moves = 28
     @State private var finished = false
-    @State private var pop = ""
+    @State private var banner = ""
+    @State private var hintPair: (Int, Int)?
+    @State private var armed: PowerUpKind?
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.snackMatch")
+    @State private var idle = Date()
 
-    private let columns = 6
-    private let rows = 7
+    private let columns = 8
+    private let rows = 8
+    private let goal = 500
     private let paints: [Color] = [
-        Color(red: 1, green: 0.62, blue: 0.72),
-        Color(red: 1, green: 0.84, blue: 0.45),
-        Color(red: 0.62, green: 0.78, blue: 1),
-        Color(red: 0.72, green: 0.62, blue: 0.98),
-        Color(red: 0.55, green: 0.88, blue: 0.72)
+        Color(red: 1, green: 0.55, blue: 0.7),
+        Color(red: 1, green: 0.82, blue: 0.35),
+        Color(red: 0.55, green: 0.75, blue: 1),
+        Color(red: 0.72, green: 0.55, blue: 0.98),
+        Color(red: 0.55, green: 0.9, blue: 0.75)
     ]
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             HStack {
                 Button("?") { showHowTo = true }
                     .font(.system(.headline, design: .rounded).weight(.bold))
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white.opacity(0.8)))
                     .accessibilityLabel("How to play Snack Match")
-                Text("Moves \(moves)")
                 Spacer()
-                Text("\(score)")
+                Text("\(moves)")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .accessibilityLabel("\(moves) moves left")
             }
-            .font(.system(.title3, design: .rounded).weight(.bold))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columns), spacing: 6) {
+            GoalMeter(title: "\(min(score, goal))/\(goal)", fraction: Double(score) / Double(goal), ink: .primary)
+            if !banner.isEmpty {
+                Text(banner)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundStyle(Color(red: 0.45, green: 0.3, blue: 0.75))
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: columns), spacing: 5) {
                 ForEach(cells.indices, id: \.self) { index in
-                    let tile = cells[index]
-                    let hue = SnackMatch.hue(of: tile)
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(paints[hue % paints.count])
-                        .overlay {
-                            if SnackMatch.isStripe(tile) {
-                                Capsule().fill(Color.white.opacity(0.8)).frame(height: 6)
-                            }
-                        }
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(selected == index ? Color.white : Color.clear, lineWidth: 3)
-                        )
-                        .frame(height: 46)
-                        .onTapGesture { tap(index) }
-                        .accessibilityLabel("Snack \(hue + 1)")
+                    gem(index)
                 }
             }
-            if !pop.isEmpty {
-                Text(pop)
-                    .font(.system(.title2, design: .rounded).weight(.bold))
+            HStack(spacing: 8) {
+                tool(.hammer, title: "Hammer")
+                tool(.shuffle, title: "Shuffle")
+                tool(.colorBomb, title: "Color")
+                tool(.extraMoves, title: "+5")
             }
             Button("Close") { finish() }
                 .font(.system(.body, design: .rounded).weight(.bold))
@@ -1273,14 +1271,32 @@ struct SnackMatchGame: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PocketBackground().ignoresSafeArea())
+        .onAppear {
+            cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
+            idle = Date()
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !finished, !showHowTo else { continue }
+                if Date().timeIntervalSince(idle) > 5 {
+                    hintPair = SnackMatch.hint(in: cells, width: columns, height: rows)
+                    if hintPair == nil {
+                        cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
+                        banner = "Reshuffle"
+                        idle = Date()
+                    }
+                }
+            }
+        }
         .overlay {
             if showHowTo {
                 HowToOverlay(
                     title: "Snack Match",
                     pages: [
-                        "Tap a snack, then tap a neighbor to swap.",
-                        "A line of three or more pops. Longer lines pay more.",
-                        "You have 18 moves. Cascades keep the combo going."
+                        "Drag a gem into a neighbor. A swap that matches nothing slides back.",
+                        "Three in a line pop. Four makes a line blast. Five makes a star bomb.",
+                        "Fill the star meter before your moves run out. Tools refill over time."
                     ],
                     onDone: {
                         UserDefaults.standard.set(true, forKey: "howto.snackMatch")
@@ -1291,28 +1307,135 @@ struct SnackMatchGame: View {
         }
     }
 
+    private func gem(_ index: Int) -> some View {
+        let tile = cells[index]
+        let hue = SnackMatch.hue(of: tile)
+        let hinted = hintPair?.0 == index || hintPair?.1 == index
+        return ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(colors: [Color.white, paints[hue % paints.count]], center: .topLeading, startRadius: 2, endRadius: 28)
+                )
+                .overlay {
+                    if SnackMatch.isStripe(tile) {
+                        Capsule().fill(Color.white.opacity(0.85)).frame(height: 5)
+                    } else if SnackMatch.isBomb(tile) {
+                        Circle().fill(Color.white).frame(width: 10, height: 10)
+                    }
+                }
+                .overlay(Circle().stroke(hinted || armed != nil ? Color.white : Color.white.opacity(0.4), lineWidth: hinted ? 3 : 1))
+                .shadow(color: paints[hue % paints.count].opacity(0.7), radius: hinted ? 8 : 3, y: 2)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .gesture(
+            DragGesture(minimumDistance: 14).onEnded { value in
+                let neighbor = neighborIndex(from: index, translation: value.translation)
+                trySwap(index, neighbor)
+            }
+        )
+        .onTapGesture { tap(index) }
+        .accessibilityLabel("Gem \(hue + 1)")
+    }
+
+    private func tool(_ kind: PowerUpKind, title: String) -> some View {
+        Button {
+            useTool(kind)
+        } label: {
+            VStack(spacing: 2) {
+                Text(title)
+                Text("\(session.powerCount(kind))")
+            }
+            .font(.system(.caption, design: .rounded).weight(.bold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(armed == kind ? Color(red: 1, green: 0.84, blue: 0.4) : Color.white.opacity(0.7))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(session.powerCount(kind)) charges")
+    }
+
+    private func neighborIndex(from index: Int, translation: CGSize) -> Int {
+        if abs(translation.width) > abs(translation.height) {
+            return translation.width > 0 ? index + 1 : index - 1
+        }
+        return translation.height > 0 ? index + columns : index - columns
+    }
+
+    private func trySwap(_ a: Int, _ b: Int) {
+        guard !finished, cells.indices.contains(a), cells.indices.contains(b) else { return }
+        idle = Date()
+        hintPair = nil
+        guard let outcome = SnackMatch.swapAndResolve(cells: cells, width: columns, height: rows, a: a, b: b, refill: { Int.random(in: 0..<SnackMatch.kinds) }) else {
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+            return
+        }
+        apply(outcome)
+        moves -= 1
+        if moves <= 0 { finish() }
+    }
+
     private func tap(_ index: Int) {
         guard !finished else { return }
-        guard let selected else {
-            self.selected = index
-            return
+        if armed == .hammer {
+            guard session.spendPower(.hammer),
+                  let outcome = SnackMatch.smash(cells: cells, width: columns, height: rows, index: index, refill: { Int.random(in: 0..<SnackMatch.kinds) }) else { return }
+            armed = nil
+            apply(outcome)
+        } else if armed == .colorBomb {
+            guard session.spendPower(.colorBomb),
+                  let outcome = SnackMatch.clearColor(cells: cells, width: columns, height: rows, hue: SnackMatch.hue(of: cells[index]), refill: { Int.random(in: 0..<SnackMatch.kinds) }) else { return }
+            armed = nil
+            apply(outcome)
         }
-        guard SnackMatch.areNeighbors(selected, index, width: columns) else {
-            self.selected = index
-            return
+    }
+
+    private func useTool(_ kind: PowerUpKind) {
+        switch kind {
+        case .hammer, .colorBomb:
+            if session.powerCount(kind) == 0 {
+                session.buyPower(kind)
+                return
+            }
+            armed = armed == kind ? nil : kind
+        case .shuffle:
+            guard session.spendPower(.shuffle) else {
+                session.buyPower(.shuffle)
+                return
+            }
+            cells = SnackMatch.reshuffled(cells, width: columns, height: rows, seed: UInt64.random(in: 1...90_000))
+            banner = "Shuffled"
+        case .extraMoves:
+            guard session.spendPower(.extraMoves) else {
+                session.buyPower(.extraMoves)
+                return
+            }
+            moves += 5
+            banner = "+5 moves"
+        case .blast, .jet:
+            break
         }
-        let first = selected
-        self.selected = nil
-        if let outcome = SnackMatch.swapAndResolve(cells: cells, width: columns, height: rows, a: first, b: index, refill: { Int.random(in: 0..<SnackMatch.kinds) }) {
+        idle = Date()
+    }
+
+    private func apply(_ outcome: SnackMatch.Outcome) {
+        withAnimation(.spring(duration: 0.28)) {
             cells = outcome.cells
-            score += outcome.points
-            moves -= 1
-            pop = outcome.madeStripe ? "Stripe!" : (outcome.cascades > 1 ? "Cascade \(outcome.cascades)" : "")
-            UIImpactFeedbackGenerator(style: outcome.cascades > 1 ? .medium : .light).impactOccurred()
-            if moves <= 0 { finish() }
-        } else {
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         }
+        score += outcome.points
+        if outcome.madeBomb {
+            banner = "Star bomb"
+        } else if outcome.madeStripe {
+            banner = "Line blast"
+        } else if outcome.cascades > 1 {
+            banner = "Combo \(outcome.cascades)"
+        } else {
+            banner = ""
+        }
+        UIImpactFeedbackGenerator(style: outcome.cascades > 1 ? .medium : .light).impactOccurred()
+        idle = Date()
+        if score >= goal { finish() }
     }
 
     private func finish() {

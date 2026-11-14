@@ -131,6 +131,31 @@ final class PetSession: ObservableObject {
 
     var level: Int { LevelTable.level(for: record?.progress.xp ?? 0) }
 
+    func powerCount(_ kind: PowerUpKind) -> Int {
+        guard let record else { return 0 }
+        return record.progress.powers.count(kind, now: currentDate)
+    }
+
+    func spendPower(_ kind: PowerUpKind) -> Bool {
+        guard var record else { return false }
+        guard let pouch = record.progress.powers.spending(kind, now: currentDate) else { return false }
+        record.progress.powers = pouch
+        persist(record, includeAlreadyLow: false)
+        return true
+    }
+
+    func buyPower(_ kind: PowerUpKind) {
+        guard var record else { return }
+        guard let (pouch, coins) = record.progress.powers.buying(kind, coins: record.progress.coins, now: currentDate) else {
+            note = "Not enough star gems, or that tool is full."
+            return
+        }
+        record.progress.powers = pouch
+        record.progress.coins = coins
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
     func dismissReward() {
         playReward = nil
     }
