@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var showGames = false
     @State private var showShop = false
     @State private var showToday = false
+    @State private var showDressing = false
 #if DEBUG
     @State private var showDebug = false
 #endif
@@ -94,6 +95,11 @@ struct HomeView: View {
                     ShopView()
                 }
             }
+            .sheet(isPresented: $showDressing) {
+                NavigationStack {
+                    DressingRoomView()
+                }
+            }
             .fullScreenCover(isPresented: $showGames) {
                 GamePicker(best: session.record?.progress.bestScores ?? [:])
             }
@@ -146,6 +152,10 @@ struct HomeView: View {
             form: pet.displayForm,
             tint: pet.trait?.tint,
             outfit: session.record?.progress.outfitID,
+            shell: session.record?.progress.wardrobe.shell ?? "shell.plain",
+            eyes: session.record?.progress.wardrobe.eyes ?? "eyes.round",
+            antenna: session.record?.progress.wardrobe.antenna ?? "antenna.ball",
+            marking: session.record?.progress.wardrobe.marking ?? "marking.none",
             accessibilityLabel: PetCopy.summary(pet, now: session.currentDate)
         )
         .frame(maxWidth: 280)
@@ -185,6 +195,14 @@ struct HomeView: View {
                 disabled: false
             ) {
                 showToday = true
+            }
+            careButton(
+                title: "Dress",
+                systemImage: "paintpalette.fill",
+                hint: "Change shell, eyes, antennae, and markings.",
+                disabled: false
+            ) {
+                showDressing = true
             }
             careButton(
                 title: "Shop",

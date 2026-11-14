@@ -114,6 +114,101 @@ struct DepartureArtwork: View {
     }
 }
 
+struct DressingRoomView: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let pet = session.record?.pet
+        let wardrobe = session.record?.progress.wardrobe ?? .plain
+        let stage = pet?.stage ?? .egg
+        let form = pet?.displayForm
+        ScrollView {
+            VStack(spacing: 16) {
+                PetCreatureView(
+                    stage: stage,
+                    mood: pet.map { PetMood.resolve($0) } ?? .egging,
+                    form: form,
+                    tint: pet?.trait?.tint,
+                    outfit: session.record?.progress.outfitID,
+                    shell: wardrobe.shell,
+                    eyes: wardrobe.eyes,
+                    antenna: wardrobe.antenna,
+                    marking: wardrobe.marking,
+                    accessibilityLabel: "Your alien in the dressing room"
+                )
+                .frame(width: 220, height: 220)
+                ForEach(LookSlot.allCases, id: \.self) { slot in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(slot.spoken)
+                            .font(.system(.headline, design: .rounded))
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(LookBook.options.filter { $0.slot == slot }) { option in
+                                    lookCard(option, wardrobe: wardrobe, stage: stage, form: form)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(20)
+        }
+        .background(PocketBackground().ignoresSafeArea())
+        .navigationTitle("Dressing room")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    private func lookCard(_ option: LookOption, wardrobe: Wardrobe, stage: LifeStage, form: AdultForm?) -> some View {
+        let owned = wardrobe.owned.contains(option.id)
+        let worn = wardrobe.equipped(in: option.slot) == option.id
+        let fits = LookBook.fits(option, stage: stage, form: form)
+        return VStack(spacing: 6) {
+            Circle()
+                .fill(swatch(option.id))
+                .frame(width: 46, height: 46)
+                .overlay(Circle().stroke(worn ? Color.white : Color.clear, lineWidth: 3))
+                .opacity(owned ? 1 : 0.45)
+            if owned {
+                Button(worn ? "On" : "Wear") { session.wearLook(option.id) }
+                    .disabled(!fits || worn)
+            } else {
+                Button {
+                    session.buyLook(option.id)
+                } label: {
+                    HStack(spacing: 3) {
+                        CareGlyph(stat: .gems, side: 12)
+                        Text("\(option.price)")
+                    }
+                }
+            }
+        }
+        .font(.system(.caption, design: .rounded).weight(.bold))
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.55)))
+        .accessibilityLabel(option.id)
+    }
+
+    private func swatch(_ id: String) -> Color {
+        switch id {
+        case "shell.stripes": return Color(red: 0.75, green: 0.65, blue: 0.95)
+        case "shell.stars": return Color(red: 0.95, green: 0.85, blue: 0.45)
+        case "eyes.star": return Color(red: 1, green: 0.9, blue: 0.5)
+        case "eyes.soft": return Color(red: 1, green: 0.7, blue: 0.8)
+        case "antenna.star": return Color(red: 0.7, green: 0.6, blue: 1)
+        case "antenna.heart": return Color(red: 1, green: 0.55, blue: 0.7)
+        case "marking.freckles": return Color(red: 0.85, green: 0.7, blue: 0.6)
+        case "marking.belly": return Color(red: 1, green: 0.86, blue: 0.4)
+        default: return Color(red: 0.9, green: 0.86, blue: 1)
+        }
+    }
+}
+
 struct ShopView: View {
     @EnvironmentObject private var session: PetSession
     @Environment(\.dismiss) private var dismiss

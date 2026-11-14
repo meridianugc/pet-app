@@ -1,10 +1,19 @@
 import Foundation
 
-public enum LookSlot: String, Codable, Equatable, Sendable {
+public enum LookSlot: String, Codable, Equatable, CaseIterable, Sendable {
     case shell
     case eyes
     case antenna
     case marking
+
+    public var spoken: String {
+        switch self {
+        case .shell: return "Shell"
+        case .eyes: return "Eyes"
+        case .antenna: return "Antennae"
+        case .marking: return "Markings"
+        }
+    }
 }
 
 public struct LookOption: Equatable, Sendable, Identifiable {

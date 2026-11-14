@@ -8,6 +8,10 @@ struct PetCreatureView: View {
     var form: AdultForm? = nil
     var tint: TraitTint? = nil
     var outfit: String? = nil
+    var shell: String = "shell.plain"
+    var eyes: String = "eyes.round"
+    var antenna: String = "antenna.ball"
+    var marking: String = "marking.none"
     var animates: Bool = true
     var accessibilityLabel: String
 
@@ -63,7 +67,7 @@ struct PetCreatureView: View {
                     .blur(radius: side * 0.04)
             }
             if stage == .egg {
-                StarEgg(side: side, palette: palette)
+                StarEgg(side: side, palette: palette, shell: shell)
             } else {
                 AlienBody(
                     side: side,
@@ -72,7 +76,10 @@ struct PetCreatureView: View {
                     blink: blink,
                     palette: palette,
                     sparkle: moving ? 0.55 + 0.45 * abs(sin(time * 2.2)) : 0.8,
-                    outfit: outfit
+                    outfit: outfit,
+                    eyes: eyes,
+                    antenna: antenna,
+                    marking: marking
                 )
             }
         }
@@ -89,6 +96,7 @@ struct PetCreatureView: View {
 private struct StarEgg: View {
     var side: CGFloat
     var palette: PetPalette
+    var shell: String = "shell.plain"
 
     var body: some View {
         ZStack {
@@ -110,6 +118,14 @@ private struct StarEgg: View {
             MiniStar(color: palette.sparkle)
                 .frame(width: side * 0.05, height: side * 0.05)
                 .offset(x: -side * 0.07, y: side * 0.1)
+            if shell == "shell.stripes" {
+                Capsule().fill(palette.shade.opacity(0.55)).frame(width: side * 0.34, height: side * 0.03).offset(y: -side * 0.08)
+                Capsule().fill(palette.shade.opacity(0.55)).frame(width: side * 0.4, height: side * 0.03)
+                Capsule().fill(palette.shade.opacity(0.55)).frame(width: side * 0.3, height: side * 0.03).offset(y: side * 0.08)
+            }
+            if shell == "shell.stars" {
+                MiniStar(color: palette.sparkle).frame(width: side * 0.08, height: side * 0.08).offset(x: -side * 0.02, y: side * 0.02)
+            }
         }
     }
 
@@ -129,6 +145,9 @@ private struct AlienBody: View {
     var palette: PetPalette
     var sparkle: Double
     var outfit: String? = nil
+    var eyes: String = "eyes.round"
+    var antenna: String = "antenna.ball"
+    var marking: String = "marking.none"
 
     var body: some View {
         ZStack {
@@ -142,8 +161,9 @@ private struct AlienBody: View {
                     .frame(width: side * 0.05, height: side * 0.05)
                     .offset(x: -side * 0.24, y: side * 0.02)
             }
-            AlienFace(side: side, mood: mood, blink: blink, grumpy: form == .spiky, palette: palette)
+            AlienFace(side: side, mood: mood, blink: blink, grumpy: form == .spiky, palette: palette, eyes: eyes)
                 .offset(y: form == .cloud ? side * 0.02 : -side * 0.02)
+            markings
             accessory
             if mood == .sleepy {
                 SleepMarks(side: side, ink: palette.ink)
@@ -154,8 +174,8 @@ private struct AlienBody: View {
 
     private var antennae: some View {
         HStack(spacing: side * 0.22) {
-            Antenna(side: side, lean: -1, color: palette.antenna)
-            Antenna(side: side, lean: 1, color: palette.antenna)
+            Antenna(side: side, lean: -1, color: palette.antenna, tip: antenna)
+            Antenna(side: side, lean: 1, color: palette.antenna, tip: antenna)
         }
         .offset(y: -side * (form == .star ? 0.34 : 0.30))
     }
@@ -225,6 +245,24 @@ private struct AlienBody: View {
         }
     }
 
+    @ViewBuilder
+    private var markings: some View {
+        if marking == "marking.freckles" {
+            HStack(spacing: side * 0.04) {
+                Circle().frame(width: side * 0.025)
+                Circle().frame(width: side * 0.02)
+                Circle().frame(width: side * 0.025)
+            }
+            .foregroundStyle(palette.shade)
+            .offset(y: side * 0.08)
+        }
+        if marking == "marking.belly" {
+            MiniStar(color: palette.sparkle)
+                .frame(width: side * 0.1, height: side * 0.1)
+                .offset(y: side * 0.1)
+        }
+    }
+
     private func puff(_ size: CGFloat, x: CGFloat, y: CGFloat) -> some View {
         Circle()
             .fill(palette.body)
@@ -237,17 +275,28 @@ private struct Antenna: View {
     var side: CGFloat
     var lean: CGFloat
     var color: Color
+    var tip: String = "antenna.ball"
 
     var body: some View {
         VStack(spacing: 0) {
-            Circle()
-                .fill(color)
-                .frame(width: side * 0.075, height: side * 0.075)
+            tipView
             Capsule()
                 .fill(color)
                 .frame(width: side * 0.028, height: side * 0.11)
         }
         .rotationEffect(.degrees(Double(lean) * 16))
+    }
+
+    @ViewBuilder
+    private var tipView: some View {
+        switch tip {
+        case "antenna.star":
+            MiniStar(color: color).frame(width: side * 0.09, height: side * 0.09)
+        case "antenna.heart":
+            HeartMark().fill(Color(red: 1, green: 0.5, blue: 0.65)).frame(width: side * 0.08, height: side * 0.07)
+        default:
+            Circle().fill(color).frame(width: side * 0.075, height: side * 0.075)
+        }
     }
 }
 
@@ -257,6 +306,7 @@ private struct AlienFace: View {
     var blink: CGFloat
     var grumpy: Bool
     var palette: PetPalette
+    var eyes: String = "eyes.round"
 
     var body: some View {
         let eye = side * 0.09
@@ -292,10 +342,15 @@ private struct AlienFace: View {
                 .fill(palette.ink)
                 .frame(width: width * 0.78, height: height)
             if !closed, height > width * 0.4 {
-                Circle()
-                    .fill(Color.white.opacity(0.9))
-                    .frame(width: width * 0.22, height: width * 0.22)
-                    .offset(x: -width * 0.12, y: -width * 0.14)
+                if eyes == "eyes.star" {
+                    MiniStar(color: .white)
+                        .frame(width: width * 0.45, height: width * 0.45)
+                } else {
+                    Circle()
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: width * (eyes == "eyes.soft" ? 0.34 : 0.22), height: width * 0.22)
+                        .offset(x: -width * 0.12, y: -width * 0.14)
+                }
             }
             if grumpy, mood != .sleepy, mood != .gone {
                 Capsule()

@@ -233,6 +233,55 @@ final class PetSession: ObservableObject {
         }
     }
 
+    func buyLook(_ id: String) {
+        guard var record else { return }
+        switch LookBook.buy(
+            id: id,
+            wardrobe: record.progress.wardrobe,
+            coins: record.progress.coins,
+            level: level,
+            achievements: record.progress.achievements
+        ) {
+        case let .success((wardrobe, coins)):
+            record.progress.wardrobe = wardrobe
+            record.progress.coins = coins
+            note = nil
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = lookNote(error)
+        }
+    }
+
+    func wearLook(_ id: String) {
+        guard var record else { return }
+        switch LookBook.wear(
+            id: id,
+            wardrobe: record.progress.wardrobe,
+            stage: record.pet.stage,
+            form: record.pet.displayForm
+        ) {
+        case let .success(wardrobe):
+            record.progress.wardrobe = wardrobe
+            note = nil
+            persist(record, includeAlreadyLow: false)
+        case let .failure(error):
+            note = lookNote(error)
+        }
+    }
+
+    private func lookNote(_ error: LookError) -> String {
+        switch error {
+        case .unknown: return "That look isn't here."
+        case .lockedLevel(let level): return "Unlocks at level \(level)."
+        case .lockedAchievement: return "A little more care unlocks that."
+        case .lockedTrips(let count): return count == 1 ? "Finish a space trip first." : "Finish \(count) space trips first."
+        case .notEnoughGems: return "Not enough star gems."
+        case .alreadyOwned: return "You already have that look."
+        case .notOwned: return "Buy it first."
+        case .wrongStage: return "That look waits for another stage."
+        }
+    }
+
     func equipOutfit(_ id: String?) {
         guard var record else { return }
         switch Shop.equip(id, progress: record.progress) {
