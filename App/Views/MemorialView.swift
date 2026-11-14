@@ -158,8 +158,8 @@ struct DressingRoomView: View {
         .navigationTitle("Dressing room")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
+            ToolbarItem(placement: .topBarTrailing) {
+                CosmicCloseButton(label: "Close dressing room") { dismiss() }
             }
         }
     }
@@ -330,8 +330,8 @@ struct ShopView: View {
         .navigationTitle("Shop")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
+            ToolbarItem(placement: .topBarTrailing) {
+                CosmicCloseButton(label: "Close shop") { dismiss() }
             }
         }
         .overlay {
@@ -530,8 +530,8 @@ struct TodayView: View {
         .navigationTitle("Today")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
+            ToolbarItem(placement: .topBarTrailing) {
+                CosmicCloseButton(label: "Close today") { dismiss() }
             }
         }
     }
@@ -668,8 +668,8 @@ struct AwayView: View {
         .navigationTitle("While you were away")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
+            ToolbarItem(placement: .topBarTrailing) {
+                CosmicCloseButton(label: "Close away") { dismiss() }
             }
         }
     }

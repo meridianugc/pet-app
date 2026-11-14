@@ -406,8 +406,8 @@ struct CollectionBookView: View {
         .navigationTitle("Star Dex")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
+            ToolbarItem(placement: .topBarTrailing) {
+                CosmicCloseButton(label: "Close star dex") { dismiss() }
             }
         }
     }
@@ -542,6 +542,10 @@ struct RewardPopup: View {
                     .fill(Color(red: 0.96, green: 0.93, blue: 1))
             )
             .padding(28)
+            CosmicCloseButton(label: "Close reward", action: onClose)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(.trailing, 16)
+                .padding(.top, 8)
             ForEach(0..<8, id: \.self) { index in
                 Circle()
                     .fill(Color(red: 1, green: 0.84, blue: 0.4))
@@ -578,9 +582,7 @@ struct GamePicker: View {
                     Text("Play")
                         .font(.system(.largeTitle, design: .rounded).weight(.bold))
                     Spacer()
-                    Button("Close") { dismiss() }
-                        .font(.system(.body, design: .rounded).weight(.bold))
-                        .accessibilityLabel("Close games")
+                    CosmicCloseButton(label: "Close games") { dismiss() }
                 }
                 gameCard(
                     title: "Planet Merge",
@@ -879,6 +881,7 @@ struct PlanetMergeGame: View {
     @State private var score = 0
     @State private var closed = false
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.planetMerge")
+    @State private var askingLeave = false
 
     private let goal = 80
 
@@ -888,6 +891,10 @@ struct PlanetMergeGame: View {
                 .ignoresSafeArea()
             VStack(spacing: 8) {
                 HStack {
+                    CosmicCloseButton(label: "Leave Planet Merge") {
+                        scene.isPaused = true
+                        askingLeave = true
+                    }
                     Button("?") { showHowTo = true }
                         .font(.system(.headline, design: .rounded).weight(.bold))
                         .frame(width: 36, height: 36)
@@ -914,6 +921,19 @@ struct PlanetMergeGame: View {
                 GoalMeter(title: "\(min(score, goal))/\(goal)", fraction: Double(min(score, goal)) / Double(goal))
             }
             .padding(16)
+            if askingLeave {
+                LeaveGamePrompt(onStay: {
+                    askingLeave = false
+                    scene.isPaused = false
+                }, onLeave: {
+                    guard !closed else { return }
+                    closed = true
+                    if score > 0 {
+                        session.finishGame(points: score, gameID: MiniGame.planetMerge.rawValue, title: "Planet Merge")
+                    }
+                    dismiss()
+                })
+            }
             if showHowTo {
                 HowToOverlay(
                     title: "Planet Merge",
@@ -1153,6 +1173,7 @@ struct StarHopperGame: View {
     @State private var closed = false
     @State private var countdown = 3
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starHopper")
+    @State private var askingLeave = false
 
     private let goal = 40
 
@@ -1161,6 +1182,10 @@ struct StarHopperGame: View {
             SpriteView(scene: scene).ignoresSafeArea()
             VStack(spacing: 8) {
                 HStack {
+                    CosmicCloseButton(label: "Leave Star Hopper") {
+                        scene.isPaused = true
+                        askingLeave = true
+                    }
                     Button("?") { showHowTo = true }
                         .font(.system(.headline, design: .rounded).weight(.bold))
                         .frame(width: 36, height: 36)
@@ -1197,6 +1222,19 @@ struct StarHopperGame: View {
                     .shadow(radius: 8)
                     .frame(maxHeight: .infinity)
                     .onTapGesture { skipCountdown() }
+            }
+            if askingLeave {
+                LeaveGamePrompt(onStay: {
+                    askingLeave = false
+                    if countdown == 0 { scene.isPaused = false }
+                }, onLeave: {
+                    guard !closed else { return }
+                    closed = true
+                    if score > 0 {
+                        session.finishGame(points: score, gameID: MiniGame.starHopper.rawValue, title: "Star Hopper")
+                    }
+                    dismiss()
+                })
             }
             if showHowTo {
                 HowToOverlay(
@@ -1300,6 +1338,87 @@ struct GoalMeter: View {
     }
 }
 
+struct CosmicPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .offset(y: configuration.isPressed ? 2 : 0)
+            .animation(.spring(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
+struct CosmicCloseButton: View {
+    var label: String = "Close"
+    var action: () -> Void
+
+    var body: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white, Color(red: 0.73, green: 0.64, blue: 0.98)],
+                            center: .topLeading,
+                            startRadius: 1,
+                            endRadius: 32
+                        )
+                    )
+                Circle().stroke(Color.white, lineWidth: 2)
+                CloseMark()
+                    .stroke(Color(red: 0.38, green: 0.26, blue: 0.62), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 16, height: 16)
+            }
+            .frame(width: 46, height: 46)
+            .shadow(color: Color(red: 0.5, green: 0.35, blue: 0.9).opacity(0.55), radius: 8, y: 3)
+        }
+        .buttonStyle(CosmicPressStyle())
+        .accessibilityLabel(label)
+    }
+}
+
+struct CloseMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        return path
+    }
+}
+
+struct LeaveGamePrompt: View {
+    var onStay: () -> Void
+    var onLeave: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 14) {
+                Text("Leave game?")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                Text("You can keep what you scored, or stay and play on.")
+                    .font(.system(.body, design: .rounded))
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 12) {
+                    Button("Stay", action: onStay)
+                    Button("Leave", action: onLeave)
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.55, green: 0.42, blue: 0.86))
+            }
+            .padding(24)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
+            .padding(28)
+        }
+        .accessibilityAddTraits(.isModal)
+    }
+}
+
 struct HowToOverlay: View {
     var title: String
     var pages: [String]
@@ -1307,7 +1426,7 @@ struct HowToOverlay: View {
     @State private var page = 0
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             Color.black.opacity(0.45).ignoresSafeArea()
             VStack(spacing: 16) {
                 Text(title)
@@ -1337,6 +1456,9 @@ struct HowToOverlay: View {
             .padding(24)
             .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
             .padding(28)
+            CosmicCloseButton(label: "Close how to play", action: onDone)
+                .padding(.trailing, 16)
+                .padding(.top, 8)
         }
         .accessibilityAddTraits(.isModal)
     }
@@ -1633,12 +1755,17 @@ struct SnackMatchGame: View {
     @StateObject private var table = SnackTable()
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.snackMatch")
     @State private var closed = false
+    @State private var askingLeave = false
 
     private let goal = 500
 
     var body: some View {
         VStack(spacing: 10) {
             HStack {
+                CosmicCloseButton(label: "Leave Snack Match") {
+                    table.board.isPaused = true
+                    askingLeave = true
+                }
                 Button("?") { showHowTo = true }
                     .font(.system(.headline, design: .rounded).weight(.bold))
                     .frame(width: 36, height: 36)
@@ -1665,8 +1792,6 @@ struct SnackMatchGame: View {
                 tool(.colorBomb, "Color")
                 tool(.extraMoves, "+5")
             }
-            Button("Close") { close() }
-                .font(.system(.body, design: .rounded).weight(.bold))
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1683,6 +1808,20 @@ struct SnackMatchGame: View {
             }
         }
         .overlay {
+            if askingLeave {
+                LeaveGamePrompt(onStay: {
+                    askingLeave = false
+                    table.board.isPaused = false
+                }, onLeave: {
+                    table.board.isPaused = true
+                    if table.score > 0 {
+                        close()
+                    } else {
+                        closed = true
+                        dismiss()
+                    }
+                })
+            }
             if showHowTo {
                 HowToOverlay(
                     title: "Snack Match",
