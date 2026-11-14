@@ -12,8 +12,30 @@ public enum ShopError: Equatable, Error, Sendable {
 public enum GoodsKind: Equatable, Sendable {
     case food(hunger: Double, happiness: Double, treat: Bool, healthyMeal: Bool)
     case toy(happiness: Double)
+    case tonic(hunger: Double, happiness: Double, energy: Double)
+    case charm(percent: Int, hours: Double)
     case outfit
     case background
+}
+
+public enum CareStat: String, Codable, Equatable, Sendable {
+    case fed
+    case happy
+    case energy
+    case gems
+    case sleep
+    case look
+    case sky
+}
+
+public struct CareChip: Equatable, Sendable {
+    public var stat: CareStat
+    public var amount: Int
+
+    public init(stat: CareStat, amount: Int) {
+        self.stat = stat
+        self.amount = amount
+    }
 }
 
 public struct Goods: Equatable, Sendable, Identifiable {
@@ -34,22 +56,71 @@ public struct Goods: Equatable, Sendable, Identifiable {
     public var isDurable: Bool {
         switch kind {
         case .outfit, .background: return true
-        case .food, .toy: return false
+        case .food, .toy, .tonic, .charm: return false
         }
+    }
+
+    /// What the item does, as numbers the screen draws with icons.
+    public var chips: [CareChip] {
+        switch kind {
+        case let .food(hunger, happiness, _, _):
+            return Self.chips(fed: hunger, happy: happiness)
+        case let .toy(happiness):
+            return Self.chips(happy: happiness)
+        case let .tonic(hunger, happiness, energy):
+            return Self.chips(fed: hunger, happy: happiness, energy: energy)
+        case let .charm(percent, _):
+            return [CareChip(stat: .gems, amount: percent)]
+        case .outfit:
+            return [CareChip(stat: .look, amount: 1)]
+        case .background:
+            return [CareChip(stat: .sky, amount: 1)]
+        }
+    }
+
+    private static func chips(fed: Double = 0, happy: Double = 0, energy: Double = 0) -> [CareChip] {
+        var chips: [CareChip] = []
+        if fed != 0 { chips.append(CareChip(stat: .fed, amount: Int(fed.rounded()))) }
+        if happy != 0 { chips.append(CareChip(stat: .happy, amount: Int(happy.rounded()))) }
+        if energy != 0 { chips.append(CareChip(stat: .energy, amount: Int(energy.rounded()))) }
+        return chips
     }
 }
 
 public struct ItemEffect: Equatable, Sendable {
     public var hunger: Double
     public var happiness: Double
+    public var energy: Double
     public var countsAsTreat: Bool
     public var countsAsHealthyMeal: Bool
+    public var gemBonusPercent: Int
+    public var gemBonusHours: Double
 
-    public init(hunger: Double, happiness: Double, countsAsTreat: Bool, countsAsHealthyMeal: Bool) {
+    public init(
+        hunger: Double,
+        happiness: Double,
+        energy: Double = 0,
+        countsAsTreat: Bool,
+        countsAsHealthyMeal: Bool,
+        gemBonusPercent: Int = 0,
+        gemBonusHours: Double = 0
+    ) {
         self.hunger = hunger
         self.happiness = happiness
+        self.energy = energy
         self.countsAsTreat = countsAsTreat
         self.countsAsHealthyMeal = countsAsHealthyMeal
+        self.gemBonusPercent = gemBonusPercent
+        self.gemBonusHours = gemBonusHours
+    }
+
+    public var chips: [CareChip] {
+        var chips: [CareChip] = []
+        if hunger != 0 { chips.append(CareChip(stat: .fed, amount: Int(hunger.rounded()))) }
+        if happiness != 0 { chips.append(CareChip(stat: .happy, amount: Int(happiness.rounded()))) }
+        if energy != 0 { chips.append(CareChip(stat: .energy, amount: Int(energy.rounded()))) }
+        if gemBonusPercent != 0 { chips.append(CareChip(stat: .gems, amount: gemBonusPercent)) }
+        return chips
     }
 }
 
@@ -146,6 +217,8 @@ public enum Shop {
         Goods(id: "food.starBerry", name: "Star berry", price: 8, unlockLevel: 1, kind: .food(hunger: 28, happiness: 4, treat: false, healthyMeal: true)),
         Goods(id: "food.cloudPuff", name: "Cloud puff", price: 12, unlockLevel: 1, kind: .food(hunger: 16, happiness: 14, treat: true, healthyMeal: false)),
         Goods(id: "food.moonCookie", name: "Moon cookie", price: 20, unlockLevel: 3, kind: .food(hunger: 40, happiness: 8, treat: false, healthyMeal: true)),
+        Goods(id: "food.moonMilk", name: "Moon milk", price: 14, unlockLevel: 1, kind: .tonic(hunger: 10, happiness: 4, energy: 15)),
+        Goods(id: "charm.lucky", name: "Lucky pebble", price: 18, unlockLevel: 2, kind: .charm(percent: 10, hours: 1)),
         Goods(id: "toy.comet", name: "Squeaky comet", price: 15, unlockLevel: 2, kind: .toy(happiness: 18)),
         Goods(id: "outfit.scarf", name: "Scarf", price: 25, unlockLevel: 1, kind: .outfit),
         Goods(id: "outfit.bow", name: "Bow", price: 30, unlockLevel: 2, kind: .outfit),
@@ -213,6 +286,10 @@ public enum Shop {
             return .success((progress, ItemEffect(hunger: hunger, happiness: happiness, countsAsTreat: treat, countsAsHealthyMeal: healthy)))
         case let .toy(happiness):
             return .success((progress, ItemEffect(hunger: 0, happiness: happiness, countsAsTreat: false, countsAsHealthyMeal: false)))
+        case let .tonic(hunger, happiness, energy):
+            return .success((progress, ItemEffect(hunger: hunger, happiness: happiness, energy: energy, countsAsTreat: false, countsAsHealthyMeal: true)))
+        case let .charm(percent, hours):
+            return .success((progress, ItemEffect(hunger: 0, happiness: 0, countsAsTreat: false, countsAsHealthyMeal: false, gemBonusPercent: percent, gemBonusHours: hours)))
         case .outfit, .background:
             return .failure(.notWearable)
         }
@@ -225,6 +302,7 @@ public enum PetCare {
         var pet = pet
         pet.hunger = min(rules.statMax, max(rules.statMin, pet.hunger + effect.hunger))
         pet.happiness = min(rules.statMax, max(rules.statMin, pet.happiness + effect.happiness))
+        pet.energy = min(rules.statMax, max(rules.statMin, pet.energy + effect.energy))
         if pet.stage == .baby {
             if effect.countsAsTreat {
                 pet.care.overfeeds += 1

@@ -199,6 +199,8 @@ struct ShopView: View {
         switch item.kind {
         case .food(_, _, true, _): return "A treat. Too many can spoil a baby."
         case .food: return "A healthy meal."
+        case .tonic: return "A sip that fills and wakes them up."
+        case .charm: return "Games pay extra gems for a while."
         case .toy: return "A burst of play."
         case .outfit: return "Wear it on the alien."
         case .background: return "A new sky for the room."

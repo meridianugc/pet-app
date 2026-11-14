@@ -60,6 +60,31 @@ final class ShopTests: XCTestCase {
         XCTAssertTrue(loaded.bestScores.isEmpty)
     }
 
+    func testEveryItemHasAnEffectChip() {
+        for item in Shop.catalog {
+            XCTAssertFalse(item.chips.isEmpty, item.id)
+        }
+        let berry = Shop.item("food.starBerry")
+        XCTAssertEqual(berry?.chips, [CareChip(stat: .fed, amount: 28), CareChip(stat: .happy, amount: 4)])
+        XCTAssertEqual(Shop.item("food.moonMilk")?.chips, [
+            CareChip(stat: .fed, amount: 10),
+            CareChip(stat: .happy, amount: 4),
+            CareChip(stat: .energy, amount: 15)
+        ])
+        XCTAssertEqual(Shop.item("charm.lucky")?.chips, [CareChip(stat: .gems, amount: 10)])
+    }
+
+    func testMoonMilkRaisesEnergy() throws {
+        let bought = tryResult(Shop.purchase(id: "food.moonMilk", progress: PlayerProgress(coins: 20), level: 1))
+        let (progress, effect) = tryResult(Shop.consume(id: "food.moonMilk", progress: bought))
+        XCTAssertEqual(effect.energy, 15, accuracy: 0.001)
+        var pet = EngineFixture.baby(rules: PetRules())
+        pet.energy = 20
+        pet = PetCare.apply(effect, to: pet)
+        XCTAssertEqual(pet.energy, 35, accuracy: 0.001)
+        XCTAssertEqual(progress.stock["food.moonMilk"] ?? 0, 0)
+    }
+
     func testStarBerryIsAHealthyMeal() {
         let progress = tryResult(Shop.purchase(id: "food.starBerry", progress: PlayerProgress(coins: 8), level: 1))
         guard case let .success((_, effect)) = Shop.consume(id: "food.starBerry", progress: progress) else {
