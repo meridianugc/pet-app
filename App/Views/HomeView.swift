@@ -332,6 +332,10 @@ struct GamesMenu: View {
                 StarCatchGame()
             }
             .accessibilityHint("Drag to catch stars and snacks. Avoid rocks. About 40 seconds.")
+            NavigationLink("Memory Match") {
+                MemoryMatchGame()
+            }
+            .accessibilityHint("Flip cards and find the pairs.")
         }
         .navigationTitle("Games")
         .navigationBarTitleDisplayMode(.inline)
@@ -449,6 +453,113 @@ struct StarCatchGame: View {
         finished = true
         let points = GameRewards.starCatchPoints(stars: stars, snacks: snacks, rocks: rocks)
         session.finishGame(points: points)
+        dismiss()
+    }
+}
+
+private struct MemoryCard: Identifiable {
+    let id = UUID()
+    let symbol: Int
+    var faceUp = false
+    var matched = false
+}
+
+struct MemoryMatchGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var cards: [MemoryCard] = MemoryMatchGame.deal()
+    @State private var picks: [UUID] = []
+    @State private var pairs = 0
+    @State private var misses = 0
+    @State private var secondsLeft = 45
+    @State private var finished = false
+    @State private var lock = false
+
+    private static let colors: [Color] = [
+        Color(red: 1, green: 0.86, blue: 0.45),
+        Color(red: 0.72, green: 0.62, blue: 0.98),
+        Color(red: 0.62, green: 0.82, blue: 1)
+    ]
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("\(secondsLeft)s · \(pairs) pairs")
+                .font(.headline)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                ForEach(cards) { card in
+                    Button {
+                        flip(card)
+                    } label: {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(card.faceUp || card.matched ? Self.colors[card.symbol] : Color.white.opacity(0.35))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color(red: 0.45, green: 0.35, blue: 0.7), lineWidth: 2)
+                            )
+                            .frame(height: 88)
+                    }
+                    .disabled(card.matched || card.faceUp || lock || finished)
+                    .accessibilityLabel(card.faceUp || card.matched ? "Card showing color \(card.symbol + 1)" : "Face-down card")
+                }
+            }
+        }
+        .padding()
+        .background(PocketBackground().ignoresSafeArea())
+        .navigationTitle("Memory Match")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await countdown() }
+    }
+
+    private static func deal() -> [MemoryCard] {
+        ([0, 0, 1, 1, 2, 2].shuffled()).map { MemoryCard(symbol: $0) }
+    }
+
+    private func flip(_ card: MemoryCard) {
+        guard let index = cards.firstIndex(where: { $0.id == card.id }) else { return }
+        cards[index].faceUp = true
+        picks.append(card.id)
+        guard picks.count == 2 else { return }
+        lock = true
+        let first = cards.first { $0.id == picks[0] }
+        let second = cards.first { $0.id == picks[1] }
+        if first?.symbol == second?.symbol {
+            for id in picks {
+                if let match = cards.firstIndex(where: { $0.id == id }) {
+                    cards[match].matched = true
+                }
+            }
+            pairs += 1
+            picks = []
+            lock = false
+            if pairs == 3 { finish() }
+        } else {
+            misses += 1
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                for id in picks {
+                    if let match = cards.firstIndex(where: { $0.id == id }) {
+                        cards[match].faceUp = false
+                    }
+                }
+                picks = []
+                lock = false
+            }
+        }
+    }
+
+    private func countdown() async {
+        while secondsLeft > 0, !finished {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            if finished { return }
+            secondsLeft -= 1
+        }
+        finish()
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        session.finishGame(points: GameRewards.memoryPoints(pairs: pairs, misses: misses))
         dismiss()
     }
 }
