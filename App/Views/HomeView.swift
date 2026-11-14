@@ -65,6 +65,16 @@ struct HomeView: View {
                 }
             }
             .background(PocketBackground(theme: session.record?.progress.backgroundID).ignoresSafeArea())
+            .overlay {
+                if let reward = session.playReward {
+                    RewardPopup(reward: reward) {
+                        session.dismissReward()
+                        showShop = true
+                    } onClose: {
+                        session.dismissReward()
+                    }
+                }
+            }
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -117,9 +127,7 @@ struct HomeView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Level \(session.level) · \(session.record?.progress.coins ?? 0) coins")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            GemCounter(count: session.record?.progress.coins ?? 0, level: session.level)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -346,6 +354,95 @@ struct CollectionBookView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+struct GemCounter: View {
+    var count: Int
+    var level: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(Color(red: 1, green: 0.84, blue: 0.35))
+                Circle().fill(Color.white.opacity(0.7)).frame(width: 8, height: 8).offset(x: -3, y: -3)
+            }
+            .frame(width: 22, height: 22)
+            .accessibilityHidden(true)
+            Text("\(count)")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .contentTransition(.numericText())
+                .animation(.spring(duration: 0.35), value: count)
+            Spacer()
+            Text("Lv \(level)")
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.white.opacity(0.45)))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(count) star gems, level \(level)")
+    }
+}
+
+struct RewardPopup: View {
+    var reward: PlayReward
+    var onShop: () -> Void
+    var onClose: () -> Void
+    @State private var burst = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 14) {
+                Text(reward.title)
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                Text("\(reward.score)")
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .accessibilityLabel("Score \(reward.score)")
+                if reward.isBest {
+                    Text("New best")
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color(red: 1, green: 0.84, blue: 0.4)))
+                }
+                Text("+\(reward.gems) star gems")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                Text("+\(reward.xp) XP")
+                    .font(.system(.body, design: .rounded))
+                if reward.gamesPlayed > 0 {
+                    Text("Games today: \(min(reward.gamesPlayed, 2))/2")
+                        .font(.system(.footnote, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 12) {
+                    Button("Shop", action: onShop)
+                    Button("Yay!", action: onClose)
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.55, green: 0.42, blue: 0.86))
+            }
+            .padding(24)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color(red: 0.96, green: 0.93, blue: 1))
+            )
+            .padding(28)
+            ForEach(0..<8, id: \.self) { index in
+                Circle()
+                    .fill(Color(red: 1, green: 0.84, blue: 0.4))
+                    .frame(width: 14, height: 14)
+                    .offset(x: burst ? CGFloat(index - 4) * 28 : 0, y: burst ? -220 : 20)
+                    .opacity(burst ? 0 : 1)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.8)) { burst = true }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+        .accessibilityAddTraits(.isModal)
     }
 }
 
