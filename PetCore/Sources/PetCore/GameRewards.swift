@@ -9,6 +9,7 @@ public enum MiniGame: String, Codable, Equatable, Sendable, CaseIterable {
     case snackMatch
     case starDefense
     case cosmicSolitaire
+    case starSudoku
 
     public var title: String {
         switch self {
@@ -20,6 +21,7 @@ public enum MiniGame: String, Codable, Equatable, Sendable, CaseIterable {
         case .snackMatch: return "Snack Match"
         case .starDefense: return "Star Defense"
         case .cosmicSolitaire: return "Cosmic Solitaire"
+        case .starSudoku: return "Star Sudoku"
         }
     }
 }

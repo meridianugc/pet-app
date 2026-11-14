@@ -575,6 +575,7 @@ struct GamePicker: View {
     @State private var snacks = false
     @State private var defense = false
     @State private var solitaire = false
+    @State private var sudoku = false
 
     var body: some View {
         ZStack {
@@ -586,6 +587,8 @@ struct GamePicker: View {
                     Spacer()
                     CosmicCloseButton(label: "Close games") { dismiss() }
                 }
+                ScrollView {
+                VStack(spacing: 14) {
                 gameCard(
                     title: "Planet Merge",
                     blurb: "Drop planets. Twins become one bigger world.",
@@ -636,6 +639,18 @@ struct GamePicker: View {
                 }
                 .offset(y: appeared ? 0 : 140)
                 .opacity(appeared ? 1 : 0)
+                gameCard(
+                    title: "Star Sudoku",
+                    blurb: "Fill the sky. One answer, four difficulties.",
+                    score: best[MiniGame.starSudoku.rawValue] ?? 0,
+                    colors: [Color(red: 0.55, green: 0.72, blue: 1), Color(red: 0.85, green: 0.7, blue: 1)]
+                ) {
+                    sudoku = true
+                }
+                .offset(y: appeared ? 0 : 160)
+                .opacity(appeared ? 1 : 0)
+                }
+                }
             }
             .padding(20)
         }
@@ -658,6 +673,9 @@ struct GamePicker: View {
         }
         .fullScreenCover(isPresented: $solitaire) {
             CosmicSolitaireGame()
+        }
+        .fullScreenCover(isPresented: $sudoku) {
+            StarSudokuGame()
         }
     }
 
@@ -2418,6 +2436,200 @@ struct CosmicSolitaireGame: View {
     private func leave() {
         if moves > 0 {
             session.finishGame(points: min(12, moves / 4), gameID: MiniGame.cosmicSolitaire.rawValue, title: "Cosmic Solitaire")
+        }
+        closed = true
+        dismiss()
+    }
+}
+
+struct StarSudokuGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var difficulty: SudokuDifficulty?
+    @State private var puzzle = SudokuPuzzle(given: Array(repeating: 0, count: 81), solution: Array(repeating: 0, count: 81))
+    @State private var cells = Array(repeating: 0, count: 81)
+    @State private var notes: [Int: Set<Int>] = [:]
+    @State private var selected: Int?
+    @State private var noteMode = false
+    @State private var mistakes = 0
+    @State private var hints = 0
+    @State private var history: [[Int]] = []
+    @State private var started = Date()
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.sudoku")
+    @State private var askingLeave = false
+    @State private var closed = false
+
+    var body: some View {
+        ZStack {
+            PocketBackground(theme: "bg_match").ignoresSafeArea()
+            if difficulty == nil {
+                menu
+            } else {
+                board
+            }
+            if askingLeave {
+                LeaveGamePrompt(onStay: { askingLeave = false }, onLeave: leave)
+            }
+            if showHowTo {
+                HowToOverlay(
+                    title: "Star Sudoku",
+                    pages: [
+                        "Each row, column, and box holds the digits 1 through 9 once.",
+                        "Tap a cell, then a number. Notes mode pencils in guesses.",
+                        "A hint fills one cell. A clean board with no hints earns three stars."
+                    ],
+                    onDone: {
+                        UserDefaults.standard.set(true, forKey: "howto.sudoku")
+                        showHowTo = false
+                    }
+                )
+            }
+        }
+    }
+
+    private var menu: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                CosmicCloseButton(label: "Leave Star Sudoku") { dismiss() }
+                Text("Star Sudoku").font(.system(.title2, design: .rounded).weight(.bold))
+                Spacer()
+                Button("?") { showHowTo = true }.font(.system(.headline, design: .rounded).weight(.bold))
+            }
+            ForEach(SudokuDifficulty.allCases, id: \.self) { level in
+                let open = StarSudoku.isOpen(level, petLevel: session.level, cleared: cleared)
+                Button {
+                    guard open else { return }
+                    let made = SudokuPuzzle.generate(seed: UInt64.random(in: 1...9_000), difficulty: level)
+                    puzzle = made
+                    cells = made.given
+                    notes = [:]
+                    mistakes = 0
+                    hints = 0
+                    history = []
+                    started = Date()
+                    difficulty = level
+                } label: {
+                    HStack {
+                        Text(level.rawValue.capitalized).font(.system(.headline, design: .rounded))
+                        Spacer()
+                        Text(open ? "Lv \(level.unlockLevel)" : "Locked Lv \(level.unlockLevel)")
+                            .font(.system(.caption, design: .rounded).weight(.bold))
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(open ? 0.62 : 0.28)))
+                }
+                .buttonStyle(.plain)
+                .disabled(!open)
+            }
+        }
+        .padding(16)
+    }
+
+    private var board: some View {
+        VStack(spacing: 10) {
+            HStack {
+                CosmicCloseButton(label: "Leave Star Sudoku") { askingLeave = true }
+                Text(difficulty?.rawValue.capitalized ?? "")
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                Spacer()
+                Text("\(mistakes) slips")
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 9), spacing: 2) {
+                ForEach(0..<81, id: \.self) { index in
+                    let given = puzzle.given[index] != 0
+                    let wrong = cells[index] != 0 && cells[index] != puzzle.solution[index]
+                    Button {
+                        selected = index
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(selected == index ? Color(red: 1, green: 0.9, blue: 0.6) : Color.white.opacity(0.8))
+                            if cells[index] != 0 {
+                                Text("\(cells[index])")
+                                    .font(.system(.title3, design: .rounded).weight(given ? .bold : .regular))
+                                    .foregroundStyle(wrong ? Color.red : Color(red: 0.25, green: 0.18, blue: 0.4))
+                            } else if let marks = notes[index], !marks.isEmpty {
+                                Text(marks.sorted().map(String.init).joined(separator: " "))
+                                    .font(.system(size: 8, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(height: 34)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white, lineWidth: index % 3 == 0 ? 2 : 0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(given)
+                }
+            }
+            HStack {
+                ForEach(1...9, id: \.self) { number in
+                    Button("\(number)") { enter(number) }
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(Circle().fill(Color.white.opacity(0.7)))
+                }
+            }
+            HStack {
+                Button(noteMode ? "Notes on" : "Notes") { noteMode.toggle() }
+                Button("Erase") { enter(0) }
+                Button("Undo") { undo() }.disabled(history.isEmpty)
+                Button("Hint") { hint() }
+            }
+            .font(.system(.caption, design: .rounded).weight(.bold))
+            Button("Difficulties") { difficulty = nil }
+                .font(.system(.caption, design: .rounded).weight(.bold))
+        }
+        .padding(12)
+    }
+
+    private var cleared: Set<String> {
+        var set: Set<String> = []
+        for level in SudokuDifficulty.allCases where (session.record?.progress.bestScores["sudoku.\(level.rawValue)"] ?? 0) > 0 {
+            set.insert(level.rawValue)
+        }
+        return set
+    }
+
+    private func enter(_ number: Int) {
+        guard let selected, puzzle.given[selected] == 0 else { return }
+        history.append(cells)
+        if noteMode, number != 0 {
+            var marks = notes[selected] ?? []
+            if marks.contains(number) { marks.remove(number) } else { marks.insert(number) }
+            notes[selected] = marks
+            return
+        }
+        cells[selected] = number
+        notes[selected] = nil
+        if number != 0, number != puzzle.solution[selected] {
+            mistakes += 1
+        }
+        if cells == puzzle.solution, let difficulty {
+            let stars = StarSudoku.stars(mistakes: mistakes, hints: hints, solved: true)
+            session.recordStars(id: "sudoku.\(difficulty.rawValue)", stars: stars)
+            session.finishGame(points: stars * 30 + max(0, 40 - mistakes * 5), gameID: MiniGame.starSudoku.rawValue, title: "Star Sudoku")
+            dismiss()
+        }
+    }
+
+    private func undo() {
+        guard let previous = history.popLast() else { return }
+        cells = previous
+    }
+
+    private func hint() {
+        guard let index = cells.indices.first(where: { cells[$0] == 0 }) else { return }
+        history.append(cells)
+        cells[index] = puzzle.solution[index]
+        hints += 1
+        notes[index] = nil
+    }
+
+    private func leave() {
+        let filled = cells.filter { $0 != 0 }.count - puzzle.given.filter { $0 != 0 }.count
+        if filled > 0 {
+            session.finishGame(points: min(10, filled / 3), gameID: MiniGame.starSudoku.rawValue, title: "Star Sudoku")
         }
         closed = true
         dismiss()
