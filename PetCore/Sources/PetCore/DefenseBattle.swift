@@ -456,7 +456,8 @@ public enum DefensePlay {
         let pace = battle.difficulty.pace
         battle.heroCooldown = max(0, battle.heroCooldown - dt)
         battle.spawnIn -= dt
-        if battle.spawnIn <= 0, !battle.queue.isEmpty {
+        let crowded = battle.blobs.contains { $0.distance < 0.03 }
+        if battle.spawnIn <= 0, !battle.queue.isEmpty, !crowded {
             var blob = battle.queue.removeFirst()
             blob.id = battle.nextID
             battle.nextID += 1
@@ -581,8 +582,35 @@ public enum DefensePlay {
         return best
     }
 
+    /// Smooth designer knots into one polyline. The scene draws this same list.
+    public static func smooth(_ knots: [DefensePoint], samplesPerSpan: Int = 24) -> [DefensePoint] {
+        guard knots.count >= 2 else { return knots }
+        var result: [DefensePoint] = []
+        for index in 0..<(knots.count - 1) {
+            let p0 = knots[max(0, index - 1)]
+            let p1 = knots[index]
+            let p2 = knots[index + 1]
+            let p3 = knots[min(knots.count - 1, index + 2)]
+            for step in 0..<samplesPerSpan {
+                let t = Double(step) / Double(samplesPerSpan)
+                result.append(catmull(p0, p1, p2, p3, t))
+            }
+        }
+        result.append(knots[knots.count - 1])
+        return result
+    }
+
+    public static func catmull(_ p0: DefensePoint, _ p1: DefensePoint, _ p2: DefensePoint, _ p3: DefensePoint, _ t: Double) -> DefensePoint {
+        let t2 = t * t
+        let t3 = t2 * t
+        func mix(_ a: Double, _ b: Double, _ c: Double, _ d: Double) -> Double {
+            0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3)
+        }
+        return DefensePoint(x: mix(p0.x, p1.x, p2.x, p3.x), y: mix(p0.y, p1.y, p2.y, p3.y))
+    }
+
     private static func curve(_ spots: [(Double, Double)]) -> [DefensePoint] {
-        spots.map { DefensePoint(x: $0.0, y: $0.1) }
+        smooth(spots.map { DefensePoint(x: $0.0, y: $0.1) })
     }
 
     private static func segmentLengths(_ path: [DefensePoint]) -> [Double] {

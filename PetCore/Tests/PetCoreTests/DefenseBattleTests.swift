@@ -82,6 +82,23 @@ final class DefenseBattleTests: XCTestCase {
         XCTAssertEqual(DefenseBattle.roundCount, 42)
     }
 
+    func testABlobAtEveryDistanceSitsOnTheDrawnPath() {
+        let path = DefensePlay.map(1).path
+        let start = DefensePlay.point(on: path, distance: 0)
+        XCTAssertEqual(start.x, path[0].x, accuracy: 0.000_1)
+        XCTAssertEqual(start.y, path[0].y, accuracy: 0.000_1)
+        for distance in [0.1, 0.35, 0.55, 0.8, 1.0] {
+            let spot = DefensePlay.point(on: path, distance: distance)
+            XCTAssertLessThan(DefensePlay.distance(spot, to: path), 0.02, "distance \(distance)")
+        }
+        let mid = DefensePlay.point(on: path, distance: 0.5)
+        let straight = DefensePoint(
+            x: (path[0].x + path[path.count - 1].x) / 2,
+            y: (path[0].y + path[path.count - 1].y) / 2
+        )
+        XCTAssertGreaterThan(hypot(mid.x - straight.x, mid.y - straight.y), 0.04)
+    }
+
     func testTheHeroBlastPopsAndThenWaits() {
         var battle = DefensePlay.start(map: 1, difficulty: .easy)
         battle.running = true

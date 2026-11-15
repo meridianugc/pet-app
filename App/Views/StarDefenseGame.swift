@@ -74,7 +74,7 @@ struct StarDefenseGame: View {
             }
         }
         .onAppear {
-            scene.scaleMode = .resizeFill
+            scene.scaleMode = .aspectFit
             scene.petTexture = PetStamp.texture(session: session, mood: .joyful)
         }
         .onReceive(Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()) { _ in
@@ -385,6 +385,8 @@ final class DefenseStage: SKScene {
         return value
     }
 
+    private let board = SKNode()
+    private let boardSize = CGSize(width: 1000, height: 700)
     private var road: [DefensePoint] = []
     private var blobs: [Int: SKNode] = [:]
     private var guns: [Int: SKNode] = [:]
@@ -397,36 +399,51 @@ final class DefenseStage: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .clear
         anchorPoint = .zero
+        if board.parent == nil { addChild(board) }
         rangeRing.strokeColor = .white
         rangeRing.lineWidth = 2
         rangeRing.alpha = 0
         rangeRing.zPosition = 8
         ghost.zPosition = 9
         ghost.alpha = 0
-        addChild(rangeRing)
-        addChild(ghost)
+        fitBoard()
         if road.isEmpty {
             load(DefensePlay.map(1))
         }
     }
 
+    override func didChangeSize(_ oldSize: CGSize) {
+        fitBoard()
+    }
+
     func load(_ map: DefenseMap) {
         road = map.path
-        removeChildren(in: children.filter { $0.name == "ground" || $0.name == "hero" })
+        board.removeAllChildren()
         blobs.removeAll()
         guns.removeAll()
         shots.removeAll()
-        enumerateChildNodes(withName: "blob") { node, _ in node.removeFromParent() }
-        enumerateChildNodes(withName: "gun") { node, _ in node.removeFromParent() }
-        enumerateChildNodes(withName: "shot") { node, _ in node.removeFromParent() }
+        fitBoard()
         drawGround(map)
+        board.addChild(rangeRing)
+        board.addChild(ghost)
         let hero = SKSpriteNode(texture: petTexture, color: UIColor(red: 0.73, green: 0.64, blue: 0.98, alpha: 1), size: CGSize(width: 64, height: 64))
         hero.name = "hero"
         let end = DefensePlay.point(on: map.path, distance: 1)
         hero.position = place(end)
         hero.position.y += 36
         hero.zPosition = 6
-        addChild(hero)
+        board.addChild(hero)
+    }
+
+    private func fitBoard() {
+        if board.parent == nil { addChild(board) }
+        let sceneSize = size.width > 2 ? size : CGSize(width: 1000, height: 700)
+        let scale = min(sceneSize.width / boardSize.width, sceneSize.height / boardSize.height)
+        board.setScale(scale)
+        board.position = CGPoint(
+            x: (sceneSize.width - boardSize.width * scale) / 2,
+            y: (sceneSize.height - boardSize.height * scale) / 2
+        )
     }
 
     func arm(_ kind: DefenseGunKind?) {
@@ -435,7 +452,7 @@ final class DefenseStage: SKScene {
         rangeRing.alpha = kind == nil ? 0 : 0.9
         if let kind {
             ghost.fillColor = towerColor(kind)
-            let reach = CGFloat(DefensePlay.range(of: DefenseGun(id: 0, kind: kind, x: 0, y: 0))) * max(size.width, 1)
+            let reach = CGFloat(DefensePlay.range(of: DefenseGun(id: 0, kind: kind, x: 0, y: 0))) * boardSize.width
             rangeRing.path = CGPath(ellipseIn: CGRect(x: -reach, y: -reach, width: reach * 2, height: reach * 2), transform: nil)
         }
     }
@@ -443,7 +460,15 @@ final class DefenseStage: SKScene {
     func apply(_ battle: DefenseBattle, events: [DefenseEvent], selected: Int?) {
         let aliveBlobs = Set(battle.blobs.map(\.id))
         for id in blobs.keys where !aliveBlobs.contains(id) {
-            blobs[id]?.removeFromParent()
+            if let node = blobs[id] {
+                node.removeAllActions()
+                let bits = node.position
+                node.run(.sequence([
+                    .group([.scale(to: 1.35, duration: 0.08), .fadeOut(withDuration: 0.16)]),
+                    .removeFromParent()
+                ]))
+                spark(at: bits, color: UIColor(red: 1, green: 0.7, blue: 0.8, alpha: 1))
+            }
             blobs[id] = nil
         }
         for blob in battle.blobs {
@@ -505,8 +530,9 @@ final class DefenseStage: SKScene {
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard armedKind != nil, let point = touches.first?.location(in: self) else { return }
-        ghost.position = point
-        rangeRing.position = point
+        let local = board.convert(point, from: self)
+        ghost.position = local
+        rangeRing.position = local
         let spot = normalized(point)
         let ok = allows?(spot) ?? false
         ghost.fillColor = (ok ? UIColor(red: 0.55, green: 0.9, blue: 0.7, alpha: 0.9) : UIColor(red: 1, green: 0.45, blue: 0.5, alpha: 0.9))
@@ -532,11 +558,11 @@ final class DefenseStage: SKScene {
     }
 
     private func drawGround(_ map: DefenseMap) {
-        let wash = SKSpriteNode(color: themeColor(map.id), size: size == .zero ? CGSize(width: 390, height: 760) : size)
+        let wash = SKSpriteNode(color: themeColor(map.id), size: boardSize)
         wash.anchorPoint = .zero
         wash.zPosition = 0
         wash.name = "ground"
-        addChild(wash)
+        board.addChild(wash)
         guard map.path.count >= 2 else { return }
         let path = CGMutablePath()
         let first = place(map.path[0])
@@ -550,14 +576,14 @@ final class DefenseStage: SKScene {
         outer.lineCap = .round
         outer.name = "ground"
         outer.zPosition = 1
-        addChild(outer)
+        board.addChild(outer)
         let inner = SKShapeNode(path: path)
         inner.strokeColor = themeColor(map.id).withAlphaComponent(0.85)
         inner.lineWidth = 16
         inner.lineCap = .round
         inner.name = "ground"
         inner.zPosition = 2
-        addChild(inner)
+        board.addChild(inner)
         for index in 0..<8 {
             let dot = SKShapeNode(circleOfRadius: index.isMultiple(of: 2) ? 7 : 4)
             dot.fillColor = .white
@@ -566,7 +592,7 @@ final class DefenseStage: SKScene {
             dot.position = CGPoint(x: CGFloat(index) * 48 + 20, y: CGFloat((index * 37) % 180) + 40)
             dot.name = "ground"
             dot.zPosition = 1
-            addChild(dot)
+            board.addChild(dot)
             dot.run(.repeatForever(.sequence([
                 .fadeAlpha(to: 0.3, duration: 0.8),
                 .fadeAlpha(to: 0.8, duration: 0.8)
@@ -594,7 +620,7 @@ final class DefenseStage: SKScene {
             eye.position = CGPoint(x: 4, y: 3)
             node.addChild(eye)
         }
-        addChild(node)
+        board.addChild(node)
         return node
     }
 
@@ -625,7 +651,7 @@ final class DefenseStage: SKScene {
         badge.fontColor = UIColor(red: 0.25, green: 0.15, blue: 0.35, alpha: 1)
         badge.position = CGPoint(x: 0, y: -24)
         node.addChild(badge)
-        addChild(node)
+        board.addChild(node)
         return node
     }
 
@@ -635,7 +661,7 @@ final class DefenseStage: SKScene {
         node.fillColor = kind == .laser ? UIColor(red: 0.6, green: 0.9, blue: 1, alpha: 1) : towerColor(kind)
         node.strokeColor = .white
         node.zPosition = 7
-        addChild(node)
+        board.addChild(node)
         return node
     }
 
@@ -645,7 +671,7 @@ final class DefenseStage: SKScene {
         star.strokeColor = .clear
         star.position = point
         star.zPosition = 8
-        addChild(star)
+        board.addChild(star)
         star.run(.sequence([
             .group([.scale(to: 1.8, duration: 0.18), .fadeOut(withDuration: 0.18)]),
             .removeFromParent()
@@ -653,11 +679,12 @@ final class DefenseStage: SKScene {
     }
 
     private func place(_ point: DefensePoint) -> CGPoint {
-        CGPoint(x: point.x * max(size.width, 1), y: point.y * max(size.height, 1))
+        CGPoint(x: point.x * boardSize.width, y: point.y * boardSize.height)
     }
 
     private func normalized(_ point: CGPoint) -> DefensePoint {
-        DefensePoint(x: Double(point.x / max(size.width, 1)), y: Double(point.y / max(size.height, 1)))
+        let local = board.convert(point, from: self)
+        return DefensePoint(x: Double(local.x / boardSize.width), y: Double(local.y / boardSize.height))
     }
 
     private func themeColor(_ id: Int) -> UIColor {
