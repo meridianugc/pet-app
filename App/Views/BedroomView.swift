@@ -21,6 +21,8 @@ struct BedroomView: View {
                     .ignoresSafeArea()
                 HStack(spacing: 0) {
                     Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(petGesture())
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(lookGesture())
@@ -43,6 +45,17 @@ struct BedroomView: View {
                 .padding(16)
                 if closet {
                     hangerBar
+                }
+                if !session.speech.isEmpty {
+                    Text(session.speech)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.white.opacity(0.92)))
+                        .padding(.top, 88)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .allowsHitTesting(false)
                 }
                 if hint {
                     RoomHintCard {
@@ -143,6 +156,23 @@ struct BedroomView: View {
             outfitID: record.progress.outfitID,
             ownedIDs: record.progress.ownedIDs
         )
+    }
+
+    private func petGesture() -> some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onEnded { value in
+                guard abs(value.translation.width) > 24 else { return }
+                session.react(to: .pet)
+                world.nudge()
+            }
+            .exclusively(before: TapGesture(count: 2).onEnded {
+                session.react(to: .tickle)
+                world.nudge()
+            })
+            .exclusively(before: TapGesture(count: 1).onEnded {
+                session.react(to: .poke)
+                world.nudge()
+            })
     }
 
     private func lookGesture() -> some Gesture {
@@ -348,6 +378,11 @@ final class BedroomWorld: ObservableObject {
     var pitch = 0.42
     var closetOpen = false
     var onSave: ((PlayRoom, Int) -> Void)?
+    private var touchUntil = 0.0
+
+    func nudge() {
+        touchUntil = CACurrentMediaTime() + 0.45
+    }
 
     private let pet = SCNNode()
     private let carry = SCNNode()
@@ -482,15 +517,22 @@ final class BedroomWorld: ObservableObject {
     private func placePet(at floor: FloorPoint, yaw: Double, moving: Bool, time: Double) {
         pet.position = SCNVector3(Float(floor.x), 0, Float(floor.z))
         pet.eulerAngles.y = Float(yaw)
-        let bob = moving ? abs(sin(time * 10)) * 0.045 : sin(time * 2) * 0.012
-        let squash: Float = moving ? Float(1 - sin(time * 10) * 0.04) : Float(1 + sin(time * 2) * 0.015)
+        let touched = time < touchUntil
+        let swing = moving ? Float(sin(time * 10)) : (touched ? Float(sin(time * 18)) : Float(sin(time * 2) * 0.2))
+        let bob = moving ? abs(sin(time * 10)) * 0.06 : sin(time * 2) * 0.012
+        let squash: Float = touched ? 0.82 : (moving ? Float(1 - sin(time * 10) * 0.06) : Float(1 + sin(time * 2) * 0.02))
         if let body = pet.childNode(withName: "body", recursively: false) {
             body.position.y = 0.46 + Float(bob)
-            body.scale = SCNVector3(1, squash, 1)
-            body.eulerAngles.z = moving ? Float(sin(time * 10) * 0.06) : 0
+            body.scale = SCNVector3(touched ? 1.12 : 1, squash, touched ? 1.12 : 1)
+            body.eulerAngles.z = moving ? Float(sin(time * 10) * 0.08) : (touched ? swing * 0.2 : 0)
         }
-        pet.childNode(withName: "footL", recursively: false)?.position.z = moving ? Float(sin(time * 10) * 0.06) : 0.04
-        pet.childNode(withName: "footR", recursively: false)?.position.z = moving ? Float(-sin(time * 10) * 0.06) : 0.04
+        pet.childNode(withName: "footL", recursively: false)?.eulerAngles.x = swing * 0.9
+        pet.childNode(withName: "footR", recursively: false)?.eulerAngles.x = -swing * 0.9
+        pet.childNode(withName: "handL", recursively: false)?.eulerAngles.x = -swing
+        pet.childNode(withName: "handR", recursively: false)?.eulerAngles.x = swing
+        if let antenna = pet.childNode(withName: "antenna", recursively: true) {
+            antenna.eulerAngles.z = swing * 0.25
+        }
     }
 
     private func followCamera(pet floor: FloorPoint, dt: Double) {
@@ -503,7 +545,7 @@ final class BedroomWorld: ObservableObject {
             height,
             Float(floor.z) - Float(lookZ) * Float(distance)
         )
-        desired = clip(desired)
+        desired = pullInside(desired, around: floor)
         let t: Float = min(1, Float(dt) * 6)
         cam = SCNVector3(cam.x + (desired.x - cam.x) * t, cam.y + (desired.y - cam.y) * t, cam.z + (desired.z - cam.z) * t)
         camera.position = cam
@@ -517,8 +559,28 @@ final class BedroomWorld: ObservableObject {
         camera.look(at: look, up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
     }
 
-    private func clip(_ point: SCNVector3) -> SCNVector3 {
-        SCNVector3(min(2.2, max(-2.2, point.x)), min(2.5, max(0.45, point.y)), min(2.2, max(-2.2, point.z)))
+    /// Keeps the camera on the pet's side of the walls instead of sliding through them.
+    private func pullInside(_ point: SCNVector3, around floor: FloorPoint) -> SCNVector3 {
+        let limit: Float = 1.7
+        let origin = SCNVector3(Float(floor.x), point.y, Float(floor.z))
+        var dx = point.x - origin.x
+        var dz = point.z - origin.z
+        var scale: Float = 1
+        if abs(origin.x + dx) > limit, abs(dx) > 0.01 {
+            scale = min(scale, (limit * (dx > 0 ? 1 : -1) - origin.x) / dx)
+        }
+        if abs(origin.z + dz) > limit, abs(dz) > 0.01 {
+            let allowed = (limit * (dz > 0 ? 1 : -1) - origin.z) / dz
+            scale = min(scale, allowed)
+        }
+        scale = min(1, max(0.25, scale))
+        dx *= scale
+        dz *= scale
+        return SCNVector3(
+            min(limit, max(-limit, origin.x + dx)),
+            min(2.2, max(0.7, point.y)),
+            min(limit, max(-limit, origin.z + dz))
+        )
     }
 
     private func setDoors(open: Bool) {
@@ -686,13 +748,13 @@ final class BedroomWorld: ObservableObject {
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.intensity = 260
+        ambient.light?.intensity = 180
         ambient.light?.color = color(1, 0.93, 0.98)
         scene.rootNode.addChildNode(ambient)
         let sun = SCNNode()
         sun.light = SCNLight()
         sun.light?.type = .directional
-        sun.light?.intensity = 780
+        sun.light?.intensity = 420
         sun.light?.color = color(1, 0.96, 0.9)
         sun.light?.castsShadow = true
         sun.light?.shadowMode = .deferred
@@ -751,15 +813,24 @@ final class BedroomWorld: ObservableObject {
         let pupil2 = pupil.clone()
         pupil2.position = SCNVector3(0.1, 0.08, 0.32)
         body.addChildNode(pupil2)
+        let antenna = SCNNode()
+        antenna.name = "antenna"
         for side: Float in [-1, 1] {
             let stalk = capsule(0.03, 0.22, colors.antenna)
             stalk.position = SCNVector3(side * 0.12, 0.38, 0)
-            body.addChildNode(stalk)
+            antenna.addChildNode(stalk)
             let tip = sphere(0.06, colors.antenna)
             tip.position = SCNVector3(side * 0.12, 0.52, 0)
-            body.addChildNode(tip)
+            antenna.addChildNode(tip)
         }
+        body.addChildNode(antenna)
         pet.addChildNode(body)
+        for (name, x) in [("handL", Float(-0.32)), ("handR", Float(0.32))] {
+            let hand = sphere(0.07, colors.body)
+            hand.name = name
+            hand.position = SCNVector3(x, 0.42, 0.12)
+            pet.addChildNode(hand)
+        }
         let foot = sphere(0.09, colors.body)
         foot.name = "footL"
         foot.position = SCNVector3(-0.12, 0.08, 0.04)
