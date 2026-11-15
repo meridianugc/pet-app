@@ -19,7 +19,7 @@ public enum PetMood: String, Codable, Equatable, Sendable {
         case .hungry: return "Getting hungry."
         case .sad: return "Would like some play."
         case .tired: return "Getting sleepy."
-        case .sleepy: return "Sleeping."
+        case .sleepy: return "zZz napping..."
         case .critical: return "Needs you now."
         case .gone: return "Flying home."
         }

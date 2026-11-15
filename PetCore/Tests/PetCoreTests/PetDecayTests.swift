@@ -105,6 +105,16 @@ final class PetDecayTests: XCTestCase {
         XCTAssertFalse(engine.perform(.play, on: egg, at: EngineFixture.start).applied)
     }
 
+    func testANapRefillsEnergyInAboutAnHour() {
+        let rules = PetRules()
+        let engine = PetEngine(rules: rules)
+        var pet = EngineFixture.baby(rules: rules, energy: 0)
+        pet.isSleeping = true
+        pet.sleepStartedAt = pet.lastSimulatedAt
+        let hour = engine.advance(pet, to: pet.lastSimulatedAt.addingTimeInterval(3600))
+        XCTAssertGreaterThanOrEqual(hour.energy, 95)
+    }
+
     func testSleepRestoresEnergySlowsHungerAndWakesWhenFull() {
         var rules = EngineFixture.rules(hunger: 10, happiness: 6, energy: 10, sleepEnergy: 30, sleepHunger: 4, sleepHappiness: 0)
         rules.statMax = 100

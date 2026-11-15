@@ -53,7 +53,7 @@ public struct PetRules: Equatable, Sendable {
         happinessDecayPerHour = 7
         energyDecayPerHour = 12
 
-        sleepEnergyPerHour = 30
+        sleepEnergyPerHour = 110
         sleepHungerPerHour = 4
         sleepHappinessPerHour = 0
 
