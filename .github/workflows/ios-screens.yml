@@ -61,10 +61,6 @@ jobs:
           APP=$(find build/Build/Products -name 'PocketPet.app' -type d | head -1)
           echo "App $APP"
           xcrun simctl install booted "$APP"
-          open -a Simulator --args -CurrentDeviceUDID "$(cat /tmp/sim-udid)" || true
-          sleep 3
-          osascript -e 'tell application "Simulator" to activate' -e 'delay 0.4' -e 'tell application "System Events" to key code 123 using command down' || true
-          sleep 1
           mkdir -p "$RUNNER_TEMP/screens"
           for name in map green red upgrade; do
             xcrun simctl terminate booted com.example.petapp || true
