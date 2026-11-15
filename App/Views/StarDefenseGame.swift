@@ -1097,39 +1097,47 @@ final class DefenseStage: SKScene {
         node.zPosition = 5
         if let texture = SpriteArt.texture(towerArt(gun.kind)) {
             let sprite = SKSpriteNode(texture: texture)
-            sprite.size = CGSize(width: 48, height: 48)
+            sprite.size = CGSize(width: 46, height: 46)
             node.addChild(sprite)
         } else {
             let tone = towerColor(gun.kind)
             let deep = gun.pathA >= 4 || gun.pathB >= 4
-            let shadow = SKShapeNode(ellipseOf: CGSize(width: 28, height: 10))
-            shadow.fillColor = UIColor(white: 0, alpha: 0.18)
+            let shadow = SKShapeNode(ellipseOf: CGSize(width: 40, height: 14))
+            shadow.fillColor = UIColor(white: 0, alpha: 0.22)
             shadow.strokeColor = .clear
-            shadow.position = CGPoint(x: 0, y: -16)
+            shadow.position = CGPoint(x: 0, y: -20)
             node.addChild(shadow)
-            let pad = SKShapeNode(circleOfRadius: deep ? 20 : 16)
+            let pad = SKShapeNode(circleOfRadius: deep ? 26 : 22)
             pad.fillColor = tone.withAlphaComponent(0.45)
             pad.strokeColor = tone
             pad.lineWidth = 2
             node.addChild(pad)
             if gun.pathA >= 3 || gun.pathB >= 3 {
-                let glow = SKShapeNode(circleOfRadius: deep ? 24 : 20)
+                let glow = SKShapeNode(circleOfRadius: deep ? 30 : 26)
                 glow.strokeColor = gun.pathB >= 3 ? UIColor(red: 1, green: 0.44, blue: 0.75, alpha: 0.9) : UIColor(red: 0.35, green: 0.85, blue: 1, alpha: 0.9)
                 glow.fillColor = .clear
                 glow.lineWidth = 3
                 node.addChild(glow)
             }
-            let body = SKShapeNode(circleOfRadius: deep ? 16 : 12)
+            let body = SKShapeNode(circleOfRadius: deep ? 20 : 18)
             body.fillColor = tone
-            body.strokeColor = UIColor(white: 1, alpha: 0.85)
-            body.lineWidth = 2
-            body.position = CGPoint(x: 0, y: 6)
+            body.strokeColor = UIColor(white: 1, alpha: 0.9)
+            body.lineWidth = 3
+            body.position = CGPoint(x: 0, y: 8)
             node.addChild(body)
+            for side in [-1, 1] as [CGFloat] {
+                let ear = SKShapeNode(circleOfRadius: 6)
+                ear.fillColor = tone
+                ear.strokeColor = .white
+                ear.lineWidth = 1.5
+                ear.position = CGPoint(x: side * 14, y: 22)
+                node.addChild(ear)
+            }
             if gun.pathA >= 1 {
                 let hat = SKShapeNode(circleOfRadius: 5)
                 hat.fillColor = UIColor(red: 0.35, green: 0.85, blue: 1, alpha: 1)
                 hat.strokeColor = .clear
-                hat.position = CGPoint(x: 0, y: deep ? 24 : 18)
+                hat.position = CGPoint(x: 0, y: deep ? 32 : 28)
                 node.addChild(hat)
             }
             if gun.pathB >= 1 {
@@ -1137,7 +1145,7 @@ final class DefenseStage: SKScene {
                     let goggle = SKShapeNode(circleOfRadius: 3)
                     goggle.fillColor = UIColor(red: 1, green: 0.44, blue: 0.75, alpha: 1)
                     goggle.strokeColor = .white
-                    goggle.position = CGPoint(x: side * 5, y: 9)
+                    goggle.position = CGPoint(x: side * 7, y: 12)
                     node.addChild(goggle)
                 }
             }
@@ -1150,12 +1158,13 @@ final class DefenseStage: SKScene {
             }
             let aim = SKNode()
             aim.name = "aim"
-            let barrel = SKShapeNode(rectOf: CGSize(width: 16 + CGFloat(gun.pathA) * 3, height: deep ? 7 : 5), cornerRadius: 2)
+            let barrel = SKShapeNode(rectOf: CGSize(width: 26 + CGFloat(gun.pathA) * 3, height: deep ? 8 : 6), cornerRadius: 3)
             barrel.fillColor = gun.pathB > gun.pathA ? UIColor(red: 1, green: 0.45, blue: 0.75, alpha: 1) : UIColor(red: 0.35, green: 0.82, blue: 1, alpha: 1)
-            barrel.strokeColor = .clear
-            barrel.position = CGPoint(x: 16, y: 0)
+            barrel.strokeColor = .white
+            barrel.lineWidth = 1
+            barrel.position = CGPoint(x: 22, y: 0)
             aim.addChild(barrel)
-            aim.position = CGPoint(x: 0, y: 6)
+            aim.position = CGPoint(x: 0, y: 8)
             node.addChild(aim)
             let eye = SKShapeNode(circleOfRadius: 2)
             eye.fillColor = .white
