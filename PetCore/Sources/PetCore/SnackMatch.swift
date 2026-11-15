@@ -218,9 +218,10 @@ public enum SnackMatch {
         guard areNeighbors(a, b, width: width), cells.indices.contains(a), cells.indices.contains(b) else { return nil }
         var board = cells
         board.swapAt(a, b)
-        guard !matchedIndexes(in: board, width: width, height: height).isEmpty else { return nil }
-        let resolved = cascade(board, width: width, height: height, clearing: [], refill: refill)
-        return resolved
+        if matchedIndexes(in: board, width: width, height: height).isEmpty {
+            return Outcome(cells: board, points: 0, cascades: 0, madeStripe: false, madeBomb: false, steps: [])
+        }
+        return cascade(board, width: width, height: height, clearing: [], refill: refill)
     }
 
     private static func swapMatches(_ cells: [Int], width: Int, height: Int, a: Int, b: Int) -> Bool {

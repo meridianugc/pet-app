@@ -1656,6 +1656,7 @@ struct GameFinale: Equatable {
 
 struct GameEndCard: View {
     var finale: GameFinale
+    var celebrate: Bool = false
     var onAgain: () -> Void
     var onNext: () -> Void
     var onShop: () -> Void
@@ -1664,6 +1665,27 @@ struct GameEndCard: View {
     var body: some View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
+            if celebrate {
+                VStack {
+                    if let cheer = GameArt.image(GameArt.alienBabyHappy) {
+                        cheer.resizable().scaledToFit().frame(width: 120, height: 120)
+                    }
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    Canvas { context, size in
+                        for index in 0..<28 {
+                            let x = CGFloat((index * 47) % 100) / 100 * size.width
+                            let y = CGFloat((time * 80 + Double(index * 30)).truncatingRemainder(dividingBy: Double(size.height)))
+                            let rect = CGRect(x: x, y: y, width: 8, height: 8)
+                            context.fill(Path(ellipseIn: rect), with: .color(Color(red: 1, green: 0.8, blue: 0.4).opacity(0.85)))
+                        }
+                    }
+                }
+                .allowsHitTesting(false)
+            }
             VStack(spacing: 12) {
                 Text(finale.title)
                     .font(.system(.title, design: .rounded).weight(.bold))
@@ -1876,7 +1898,7 @@ final class SnackBoardScene: SKScene {
         for index in cells.indices {
             let gem = makeGem(cells[index], at: index)
             let landing = gem.position
-            gem.position.y = landing.y + cellSize * CGFloat(rows - index / columns)
+            gem.position.y = landing.y + cellSize * 1.4
             gem.setScale(0.8)
             addChild(gem)
             let fall = SKAction.move(to: landing, duration: 0.22 + Double(index / columns) * 0.02)
@@ -1977,7 +1999,7 @@ final class SnackBoardScene: SKScene {
 final class SnackTable: ObservableObject {
     @Published var cells: [Int]
     @Published var score = 0
-    @Published var moves = 28
+    @Published var moves = 22
     @Published var banner = ""
     @Published var finished = false
     @Published var armed: PowerUpKind?
@@ -2003,7 +2025,7 @@ final class SnackTable: ObservableObject {
 
     func restart() {
         score = 0
-        moves = 28
+        moves = 22
         finished = false
         banner = ""
         armed = nil
@@ -2096,7 +2118,7 @@ final class SnackTable: ObservableObject {
         }
         UIImpactFeedbackGenerator(style: outcome.cascades > 1 ? .medium : .light).impactOccurred()
         idle = Date()
-        if score >= goal || moves <= 0 { finished = true }
+        if score >= 220 || moves <= 0 { finished = true }
     }
 }
 
@@ -2108,8 +2130,9 @@ struct SnackMatchGame: View {
     @State private var closed = false
     @State private var askingLeave = false
     @State private var finale: GameFinale?
+    @State private var celebrate = false
 
-    private let goal = 500
+    private let goal = 220
 
     var body: some View {
         VStack(spacing: 10) {
@@ -2170,8 +2193,9 @@ struct SnackMatchGame: View {
                 })
             }
             if let finale {
-                GameEndCard(finale: finale, onAgain: {
+                GameEndCard(finale: finale, celebrate: celebrate, onAgain: {
                     self.finale = nil
+                    celebrate = false
                     closed = false
                     table.restart()
                 }, onNext: {
@@ -2187,7 +2211,7 @@ struct SnackMatchGame: View {
                 HowToOverlay(
                     title: "Snack Match",
                     pages: [
-                        "Drag a gem into a neighbor. A bad swap slides back.",
+                        "Drag a gem into a neighbor. The swap stays, even with no match.",
                         "Matches pop and fly up. The gems above fall in with a bounce.",
                         "Fill the star meter before your moves run out."
                     ],
@@ -2224,6 +2248,7 @@ struct SnackMatchGame: View {
         closed = true
         table.board.isPaused = true
         finale = bankedFinale(session: session, title: "Snack Match", score: table.score, detail: detail, gameID: MiniGame.snackMatch.rawValue)
+        celebrate = table.score >= goal
     }
 }
 

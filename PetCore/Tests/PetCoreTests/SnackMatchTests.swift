@@ -42,7 +42,9 @@ final class SnackMatchTests: XCTestCase {
             1, 2, 0
         ]
         let outcome = SnackMatch.swapAndResolve(cells: cells, width: 3, height: 3, a: 0, b: 1) { 4 }
-        XCTAssertNil(outcome)
+        XCTAssertEqual(outcome?.points, 0)
+        XCTAssertEqual(outcome?.cells[0], cells[1])
+        XCTAssertEqual(outcome?.cells[1], cells[0])
     }
 
     func testABoardWithNoSwapHasNoHintAndASmashDropsTheColumn() {
