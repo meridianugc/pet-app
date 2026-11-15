@@ -100,6 +100,10 @@ struct StarDefenseGame: View {
             }
             scene.allows = { DefensePlay.canPlace($0, in: battle) }
             guard playing, !paused, finale == nil, pickedMap != nil else { return }
+            if scene.bossFreeze > 0 {
+                scene.bossFreeze -= 1
+                return
+            }
             let wasRunning = battle.running
             let stepped = DefensePlay.step(battle, dt: (1.0 / 60.0) * Double(rate))
             battle = stepped.0
@@ -191,6 +195,7 @@ struct StarDefenseGame: View {
                 SpriteView(scene: scene)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
+                    .overlay(alignment: .top) { bossBar }
                 if let selected, let gun = battle.guns.first(where: { $0.id == selected }) {
                     upgradePanel(gun)
                 }
@@ -226,6 +231,35 @@ struct StarDefenseGame: View {
             .padding(10)
             shopRail
         }
+    }
+
+    private var bossBar: some View {
+        let boss = battle.blobs.first { $0.sort == .boss }
+        let name = (boss?.layers ?? 0) > 18 ? "Nebula Queen" : "Moon Mothership"
+        let full = max(1, boss?.cap ?? 1)
+        return VStack(spacing: 4) {
+            if boss != nil {
+                Text(name)
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(height: 8)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(Color(red: 1, green: 0.45, blue: 0.55))
+                            .frame(width: 180 * CGFloat(boss?.layers ?? 0) / CGFloat(full))
+                    }
+                    .frame(width: 180)
+            } else if battle.bossSoon {
+                Text("Boss on the way")
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color(red: 1, green: 0.55, blue: 0.62)))
+            }
+        }
+        .padding(.top, 8)
+        .allowsHitTesting(false)
     }
 
     private var shopRail: some View {
@@ -438,6 +472,49 @@ struct StarDefenseGame: View {
     }
 }
 
+struct GlorbStyle {
+    var key: String
+    var wide: CGFloat
+    var fill: UIColor
+    var eyes: UIColor
+    var nub: Bool
+}
+
+enum DefenseBake {
+    static var cache: [String: SKTexture] = [:]
+
+    static func texture(_ key: String, draw: (CGContext, CGSize) -> Void) -> SKTexture {
+        if let cached = cache[key] { return cached }
+        let side = CGSize(width: 96, height: 96)
+        let image = UIGraphicsImageRenderer(size: side).image { renderer in
+            draw(renderer.cgContext, side)
+        }
+        let texture = SKTexture(image: image)
+        cache[key] = texture
+        return texture
+    }
+
+    static func glorb(_ ctx: CGContext, side: CGSize, style: GlorbStyle) {
+        let rect = CGRect(x: 18, y: 22, width: 60, height: 52)
+        ctx.setFillColor(UIColor(white: 0, alpha: 0.16).cgColor)
+        ctx.fillEllipse(in: CGRect(x: 24, y: 10, width: 48, height: 14))
+        ctx.setFillColor(style.fill.cgColor)
+        ctx.fillEllipse(in: rect)
+        ctx.setStrokeColor(style.fill.withAlphaComponent(0.65).cgColor)
+        ctx.setLineWidth(3)
+        ctx.strokeEllipse(in: rect)
+        ctx.setFillColor(UIColor(white: 1, alpha: 0.55).cgColor)
+        ctx.fillEllipse(in: CGRect(x: 28, y: 52, width: 18, height: 10))
+        ctx.setFillColor(style.eyes.cgColor)
+        ctx.fillEllipse(in: CGRect(x: 36, y: 42, width: 7, height: 7))
+        ctx.fillEllipse(in: CGRect(x: 52, y: 42, width: 7, height: 7))
+        if style.nub {
+            ctx.setFillColor(style.fill.cgColor)
+            ctx.fillEllipse(in: CGRect(x: 44, y: 72, width: 8, height: 8))
+        }
+    }
+}
+
 struct TowerGlyph: View {
     var kind: DefenseGunKind
 
@@ -490,6 +567,7 @@ final class DefenseStage: SKScene {
     private let rangeRing = SKShapeNode(circleOfRadius: 40)
     private let ghost = SKShapeNode(circleOfRadius: 16)
     private var shake = 0
+    var bossFreeze = 0
 
     override func didMove(to view: SKView) {
         backgroundColor = .clear
@@ -571,8 +649,24 @@ final class DefenseStage: SKScene {
             blobs[blob.id] = node
             let spot = DefensePlay.point(on: road, distance: blob.distance)
             node.position = place(spot)
-            let hop = CGFloat(1 + 0.06 * sin(CACurrentMediaTime() * 8 + Double(blob.id)))
-            node.setScale((0.75 + CGFloat(blob.layers) * 0.08) * hop)
+            node.zPosition = 20 + (boardSize.height - node.position.y) * 0.01
+            let hop = CGFloat(1 + 0.04 * sin(CACurrentMediaTime() * 8 + Double(blob.id)))
+            node.setScale(hop)
+            if blob.sort == .fast {
+                for index in 0..<3 {
+                    node.childNode(withName: "trail\(index)")?.position = CGPoint(x: CGFloat(index + 1) * -6, y: 0)
+                }
+            }
+            if blob.sort == .armored, let plate = node.childNode(withName: "plate") {
+                let cracked = blob.cap > 0 ? CGFloat(blob.layers) / CGFloat(blob.cap) : 1
+                plate.setScale(max(0.4, cracked))
+            }
+            if blob.sort == .camo, let stripe = node.childNode(withName: "stripe") {
+                stripe.alpha = 0.45 + 0.25 * abs(sin(CACurrentMediaTime() * 2))
+            }
+            if blob.sort == .regen, let heart = node.childNode(withName: "heart") {
+                heart.setScale(1 + 0.15 * abs(sin(CACurrentMediaTime() * 3)))
+            }
         }
         let aliveGuns = Set(battle.guns.map(\.id))
         for id in guns.keys where !aliveGuns.contains(id) {
@@ -610,8 +704,17 @@ final class DefenseStage: SKScene {
                 )
             }
         }
-        for event in events where event.kind == .pop {
-            spark(at: place(DefensePoint(x: event.x, y: event.y)), color: .white)
+        let pops = events.filter { $0.kind == .pop }
+        for event in pops {
+            spark(at: place(DefensePoint(x: event.x, y: event.y)), color: UIColor(red: 1, green: 0.7, blue: 0.82, alpha: 1))
+        }
+        let coins = events.filter { $0.kind == .coin && $0.amount > 0 }
+        if let first = coins.first {
+            let sum = coins.reduce(0) { $0 + $1.amount }
+            floatCash(sum, at: place(DefensePoint(x: first.x, y: first.y)))
+        }
+        if events.contains(where: { $0.kind == .boss }) {
+            bossFreeze = 3
         }
         if events.contains(where: { $0.kind == .shake }) {
             shake = 8
@@ -665,20 +768,39 @@ final class DefenseStage: SKScene {
         for point in map.path.dropFirst() {
             path.addLine(to: place(point))
         }
-        let outer = SKShapeNode(path: path)
-        outer.strokeColor = .white
-        outer.lineWidth = 28
-        outer.lineCap = .round
-        outer.name = "ground"
-        outer.zPosition = 1
-        board.addChild(outer)
-        let inner = SKShapeNode(path: path)
-        inner.strokeColor = themeColor(map.id).withAlphaComponent(0.85)
-        inner.lineWidth = 16
-        inner.lineCap = .round
-        inner.name = "ground"
-        inner.zPosition = 2
-        board.addChild(inner)
+        let shadow = SKShapeNode(path: path)
+        shadow.strokeColor = UIColor(white: 0, alpha: 0.16)
+        shadow.lineWidth = 70
+        shadow.lineCap = .round
+        shadow.lineJoin = .round
+        shadow.position = CGPoint(x: 0, y: -4)
+        shadow.name = "ground"
+        shadow.zPosition = 1
+        board.addChild(shadow)
+        let border = SKShapeNode(path: path)
+        border.strokeColor = pathBorder(map.id)
+        border.lineWidth = 64
+        border.lineCap = .round
+        border.lineJoin = .round
+        border.name = "ground"
+        border.zPosition = 1
+        board.addChild(border)
+        let fill = SKShapeNode(path: path)
+        fill.strokeColor = pathFill(map.id)
+        fill.lineWidth = 56
+        fill.lineCap = .round
+        fill.lineJoin = .round
+        fill.name = "ground"
+        fill.zPosition = 2
+        board.addChild(fill)
+        let highlight = SKShapeNode(path: path)
+        highlight.strokeColor = UIColor(white: 1, alpha: 0.22)
+        highlight.lineWidth = 18
+        highlight.lineCap = .round
+        highlight.name = "ground"
+        highlight.zPosition = 2
+        board.addChild(highlight)
+        addDecor(map.id)
         for index in 0..<8 {
             let dot = SKShapeNode(circleOfRadius: index.isMultiple(of: 2) ? 7 : 4)
             dot.fillColor = .white
@@ -698,43 +820,98 @@ final class DefenseStage: SKScene {
     private func makeBlob(_ blob: Blob) -> SKNode {
         let node = SKNode()
         node.name = "blob"
-        node.zPosition = 4
-        if let texture = SpriteArt.texture(blobArt(blob.sort)) {
-            let sprite = SKSpriteNode(texture: texture)
-            sprite.size = CGSize(width: 36, height: 36)
-            node.addChild(sprite)
-        } else {
-            let tone = blobColor(blob.sort)
-            let shadow = SKShapeNode(ellipseOf: CGSize(width: 22, height: 8))
-            shadow.fillColor = UIColor(white: 0, alpha: 0.18)
-            shadow.strokeColor = .clear
-            shadow.position = CGPoint(x: 0, y: -10)
-            node.addChild(shadow)
-            let body = SKShapeNode(ellipseOf: CGSize(width: 18 + CGFloat(min(blob.layers, 6)) * 2, height: 16 + CGFloat(min(blob.layers, 6)) * 1.6))
-            body.fillColor = tone
-            body.strokeColor = tone.withAlphaComponent(0.65)
-            body.lineWidth = 2
-            node.addChild(body)
-            let shine = SKShapeNode(ellipseOf: CGSize(width: 7, height: 4))
-            shine.fillColor = UIColor(white: 1, alpha: 0.55)
-            shine.strokeColor = .clear
-            shine.position = CGPoint(x: -4, y: 4)
-            node.addChild(shine)
-            for side in [-1, 1] as [CGFloat] {
-                let eye = SKShapeNode(circleOfRadius: 2.2)
-                eye.fillColor = UIColor(red: 0.2, green: 0.12, blue: 0.28, alpha: 1)
-                eye.strokeColor = .clear
-                eye.position = CGPoint(x: side * 4, y: 1)
-                node.addChild(eye)
+        let style = glorbStyle(blob)
+        let texture = DefenseBake.texture(style.key) { ctx, side in
+            DefenseBake.glorb(ctx, side: side, style: style)
+        }
+        let sprite = SKSpriteNode(texture: texture)
+        sprite.size = CGSize(width: style.wide, height: style.wide * 0.92)
+        node.addChild(sprite)
+        if blob.sort == .fast {
+            for index in 0..<3 {
+                let ghost = SKSpriteNode(texture: texture)
+                ghost.size = sprite.size
+                ghost.alpha = 0.28 - CGFloat(index) * 0.08
+                ghost.name = "trail\(index)"
+                ghost.zPosition = -1
+                node.addChild(ghost)
             }
-            let nub = SKShapeNode(circleOfRadius: 2)
-            nub.fillColor = tone
-            nub.strokeColor = .clear
-            nub.position = CGPoint(x: 0, y: 12)
-            node.addChild(nub)
+        }
+        if blob.sort == .armored {
+            let plate = SKShapeNode(circleOfRadius: style.wide * 0.28)
+            plate.fillColor = UIColor(red: 0.78, green: 0.81, blue: 0.86, alpha: 0.9)
+            plate.strokeColor = UIColor(red: 0.53, green: 0.56, blue: 0.64, alpha: 1)
+            plate.lineWidth = 2
+            plate.name = "plate"
+            plate.zPosition = 2
+            node.addChild(plate)
+        }
+        if blob.sort == .camo {
+            let stripe = SKShapeNode(rectOf: CGSize(width: style.wide * 0.7, height: 3))
+            stripe.fillColor = UIColor(white: 0, alpha: 0.35)
+            stripe.strokeColor = .clear
+            stripe.zRotation = -0.6
+            stripe.name = "stripe"
+            node.addChild(stripe)
+        }
+        if blob.sort == .regen {
+            let heart = SKLabelNode(text: "+")
+            heart.fontName = "AvenirNext-Bold"
+            heart.fontSize = 11
+            heart.fontColor = UIColor(red: 0.3, green: 0.75, blue: 0.45, alpha: 1)
+            heart.position = CGPoint(x: style.wide * 0.28, y: style.wide * 0.2)
+            heart.name = "heart"
+            node.addChild(heart)
         }
         board.addChild(node)
         return node
+    }
+
+    private func glorbStyle(_ blob: Blob) -> GlorbStyle {
+        if blob.sort == .boss {
+            let queen = blob.cap > 18
+            return GlorbStyle(key: queen ? "queen" : "moth", wide: queen ? 120 : 96, fill: queen ? UIColor(red: 0.55, green: 0.28, blue: 0.7, alpha: 1) : UIColor(red: 0.45, green: 0.55, blue: 0.85, alpha: 1), eyes: .white, nub: true)
+        }
+        let tier = min(10, max(1, blob.layers))
+        let row: (String, UIColor) = switch tier {
+        case 1: ("pip", UIColor(red: 0.49, green: 0.88, blue: 0.71, alpha: 1))
+        case 2: ("bloop", UIColor(red: 0.43, green: 0.76, blue: 1, alpha: 1))
+        case 3: ("zib", UIColor(red: 1, green: 0.83, blue: 0.36, alpha: 1))
+        case 4: ("zoom", UIColor(red: 1, green: 0.54, blue: 0.48, alpha: 1))
+        case 5: ("dash", UIColor(red: 1, green: 0.48, blue: 0.82, alpha: 1))
+        case 6: ("twin", UIColor(red: 0.72, green: 0.61, blue: 1, alpha: 1))
+        case 7: ("shade", UIColor(red: 0.24, green: 0.18, blue: 0.36, alpha: 1))
+        case 8: ("glint", UIColor(red: 0.97, green: 0.97, blue: 1, alpha: 1))
+        case 9: ("prism", UIColor(red: 0.95, green: 0.55, blue: 0.7, alpha: 1))
+        default: ("rock", UIColor(red: 0.56, green: 0.61, blue: 0.71, alpha: 1))
+        }
+        let wide: CGFloat = blob.sort == .boss ? 100 : 22 + CGFloat(min(tier, 5)) * 2
+        return GlorbStyle(key: "\(row.0)-\(blob.sort.rawValue)", wide: wide, fill: row.1, eyes: tier == 7 ? .white : UIColor(red: 0.18, green: 0.1, blue: 0.25, alpha: 1), nub: tier != 10)
+    }
+
+    private func addDecor(_ mapID: Int) {
+        let spots: [(CGFloat, CGFloat, CGFloat)] = switch mapID {
+        case 2: [(140, 520, 34), (820, 180, 28), (700, 540, 22)]
+        case 3: [(160, 200, 26), (780, 480, 30), (420, 120, 18)]
+        case 4: [(200, 560, 24), (760, 200, 32), (500, 400, 16)]
+        case 5: [(180, 160, 20), (800, 520, 26), (640, 140, 18)]
+        default: [(150, 500, 30), (840, 220, 24), (620, 560, 18)]
+        }
+        for (x, y, r) in spots {
+            let decor = SKShapeNode(ellipseOf: CGSize(width: r * 2, height: r * 1.4))
+            decor.fillColor = themeColor(mapID).withAlphaComponent(0.55)
+            decor.strokeColor = .white
+            decor.lineWidth = 2
+            decor.position = CGPoint(x: x, y: y)
+            decor.zPosition = 3
+            decor.name = "ground"
+            let shine = SKShapeNode(ellipseOf: CGSize(width: r, height: r * 0.4))
+            shine.fillColor = UIColor(white: 1, alpha: 0.35)
+            shine.strokeColor = .clear
+            shine.position = CGPoint(x: -r * 0.2, y: r * 0.2)
+            decor.addChild(shine)
+            board.addChild(decor)
+        }
     }
 
     private func makeGun(_ gun: DefenseGun) -> SKNode {
@@ -799,6 +976,40 @@ final class DefenseStage: SKScene {
         return node
     }
 
+    private func pathFill(_ id: Int) -> UIColor {
+        switch id {
+        case 2: return UIColor(red: 1, green: 0.89, blue: 0.95, alpha: 1)
+        case 3: return UIColor(white: 1, alpha: 1)
+        case 4: return UIColor(red: 1, green: 0.95, blue: 0.84, alpha: 1)
+        case 5: return UIColor(red: 0.3, green: 0.27, blue: 0.5, alpha: 1)
+        default: return UIColor(red: 0.96, green: 0.91, blue: 0.76, alpha: 1)
+        }
+    }
+
+    private func pathBorder(_ id: Int) -> UIColor {
+        switch id {
+        case 2: return UIColor(red: 0.91, green: 0.7, blue: 0.81, alpha: 1)
+        case 3: return UIColor(red: 0.73, green: 0.84, blue: 0.92, alpha: 1)
+        case 4: return UIColor(red: 0.91, green: 0.75, blue: 0.6, alpha: 1)
+        case 5: return UIColor(red: 0.16, green: 0.15, blue: 0.28, alpha: 1)
+        default: return UIColor(red: 0.85, green: 0.75, blue: 0.56, alpha: 1)
+        }
+    }
+
+    private func floatCash(_ amount: Int, at point: CGPoint) {
+        let label = SKLabelNode(text: "+\(amount)")
+        label.fontName = "AvenirNext-Bold"
+        label.fontSize = 16
+        label.fontColor = UIColor(red: 0.95, green: 0.75, blue: 0.2, alpha: 1)
+        label.position = point
+        label.zPosition = 40
+        board.addChild(label)
+        label.run(.sequence([
+            .group([.moveBy(x: 0, y: 24, duration: 0.7), .fadeOut(withDuration: 0.7)]),
+            .removeFromParent()
+        ]))
+    }
+
     private func spark(at point: CGPoint, color: UIColor) {
         let star = SKShapeNode(circleOfRadius: 5)
         star.fillColor = color
@@ -810,6 +1021,22 @@ final class DefenseStage: SKScene {
             .group([.scale(to: 1.8, duration: 0.18), .fadeOut(withDuration: 0.18)]),
             .removeFromParent()
         ]))
+        for index in 0..<7 {
+            let bit = SKShapeNode(circleOfRadius: 3)
+            bit.fillColor = color
+            bit.strokeColor = .clear
+            bit.position = point
+            bit.zPosition = 8
+            board.addChild(bit)
+            let angle = CGFloat(index) / 7 * .pi * 2
+            bit.run(.sequence([
+                .group([
+                    .moveBy(x: cos(angle) * 28, y: sin(angle) * 28, duration: 0.28),
+                    .fadeOut(withDuration: 0.28)
+                ]),
+                .removeFromParent()
+            ]))
+        }
     }
 
     private func place(_ point: DefensePoint) -> CGPoint {
