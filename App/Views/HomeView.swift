@@ -1770,6 +1770,23 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
         run(.sequence([.wait(forDuration: 0.4), .run { [weak self] in self?.ready = true }]))
     }
 
+    func wearMascot(_ texture: SKTexture) {
+        childNode(withName: "mascot")?.removeFromParent()
+        let node = SKSpriteNode(texture: texture)
+        node.name = "mascot"
+        node.size = CGSize(width: 72, height: 72)
+        node.position = CGPoint(x: size.width / 2, y: size.height - 86)
+        node.zPosition = 30
+        addChild(node)
+    }
+
+    private func cheerMascot() {
+        childNode(withName: "mascot")?.run(.sequence([
+            .scale(to: 1.18, duration: 0.08),
+            .scale(to: 1, duration: 0.12)
+        ]))
+    }
+
     func restart() {
         children.filter { $0.name == "planet" }.forEach { $0.removeFromParent() }
         score = 0
@@ -1844,6 +1861,7 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
         lastMerge = now
         score += PlanetMerge.points(forMerging: first, combo: combo)
         onScore?(score)
+        cheerMascot()
         UIImpactFeedbackGenerator(style: combo > 1 ? .medium : .light).impactOccurred()
         let pop = SKLabelNode(text: combo > 1 ? "Combo \(combo)" : "+\(PlanetMerge.points(forMerging: first, combo: 1))")
         pop.fontName = "AvenirNext-Bold"
@@ -1981,6 +1999,7 @@ struct PlanetMergeGame: View {
             }
         }
         .onAppear {
+            scene.wearMascot(PetStamp.texture(session: session, mood: .joyful))
             scene.onScore = { value in
                 Task { @MainActor in score = value }
             }
@@ -2169,6 +2188,16 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
         addChild(starfield)
         isPaused = true
         launchIfReady()
+    }
+
+    func wearJumper(_ texture: SKTexture) {
+        player.fillColor = .clear
+        player.strokeColor = .clear
+        player.childNode(withName: "face")?.removeFromParent()
+        let face = SKSpriteNode(texture: texture)
+        face.name = "face"
+        face.size = CGSize(width: 46, height: 46)
+        player.addChild(face)
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -2367,6 +2396,7 @@ struct StarHopperGame: View {
             }
         }
         .onAppear {
+            scene.wearJumper(PetStamp.texture(session: session, mood: .joyful))
             scene.onScore = { value in Task { @MainActor in score = value } }
             scene.onEnd = { final in
                 Task { @MainActor in
@@ -2538,6 +2568,88 @@ struct GameFinale: Equatable {
     var detail: String
 }
 
+struct GuestPet: View {
+    var name: String
+    var form: String
+
+    var body: some View {
+        PetCreatureView(
+            stage: form == "egg" ? .egg : (AdultForm(rawValue: form) == nil ? .baby : .adult),
+            mood: .joyful,
+            form: AdultForm(rawValue: form),
+            animates: true,
+            accessibilityLabel: "\(name) is riding along"
+        )
+    }
+}
+
+struct RaisedPet: View {
+    @EnvironmentObject private var session: PetSession
+    var mood: PetMood = .joyful
+    var side: CGFloat = 72
+    var bounce: Bool = false
+
+    var body: some View {
+        if let pet = session.record?.pet {
+            PetCreatureView(
+                stage: pet.stage,
+                mood: mood,
+                form: pet.displayForm,
+                tint: pet.trait?.tint,
+                outfit: session.record?.progress.outfitID,
+                shell: session.record?.progress.wardrobe.shell ?? "shell.plain",
+                eyes: session.record?.progress.wardrobe.eyes ?? "eyes.round",
+                antenna: session.record?.progress.wardrobe.antenna ?? "antenna.ball",
+                marking: session.record?.progress.wardrobe.marking ?? "marking.none",
+                level: session.level,
+                animates: true,
+                accessibilityLabel: pet.name
+            )
+            .frame(width: side, height: side)
+            .scaleEffect(bounce ? 1.12 : 1)
+            .offset(y: bounce ? -6 : 0)
+            .animation(.spring(duration: 0.28), value: bounce)
+        }
+    }
+}
+
+enum PetStamp {
+    @MainActor
+    static func texture(session: PetSession, mood: PetMood) -> SKTexture {
+        guard let pet = session.record?.pet else { return blank() }
+        let progress = session.record?.progress
+        let view = PetCreatureView(
+            stage: pet.stage,
+            mood: mood,
+            form: pet.displayForm,
+            tint: pet.trait?.tint,
+            outfit: progress?.outfitID,
+            shell: progress?.wardrobe.shell ?? "shell.plain",
+            eyes: progress?.wardrobe.eyes ?? "eyes.round",
+            antenna: progress?.wardrobe.antenna ?? "antenna.ball",
+            marking: progress?.wardrobe.marking ?? "marking.none",
+            level: LevelTable.level(for: progress?.xp ?? 0),
+            animates: false,
+            accessibilityLabel: pet.name
+        )
+        .frame(width: 120, height: 120)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        if let image = renderer.uiImage {
+            return SKTexture(image: image)
+        }
+        return blank()
+    }
+
+    private static func blank() -> SKTexture {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { ctx in
+            UIColor(red: 0.73, green: 0.64, blue: 0.98, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 8, y: 8, width: 48, height: 48))
+        }
+        return SKTexture(image: image)
+    }
+}
+
 struct GameEndCard: View {
     var finale: GameFinale
     var celebrate: Bool = false
@@ -2550,13 +2662,6 @@ struct GameEndCard: View {
         ZStack {
             Color.black.opacity(0.45).ignoresSafeArea()
             if celebrate {
-                VStack {
-                    if let cheer = GameArt.image(GameArt.alienBabyHappy) {
-                        cheer.resizable().scaledToFit().frame(width: 120, height: 120)
-                    }
-                    Spacer()
-                }
-                .allowsHitTesting(false)
                 TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
                     let time = timeline.date.timeIntervalSinceReferenceDate
                     Canvas { context, size in
@@ -2571,6 +2676,7 @@ struct GameEndCard: View {
                 .allowsHitTesting(false)
             }
             VStack(spacing: 12) {
+                RaisedPet(mood: .joyful, side: 88, bounce: celebrate)
                 Text(finale.title)
                     .font(.system(.title, design: .rounded).weight(.bold))
                 Text(finale.detail)
@@ -3037,10 +3143,18 @@ struct SnackMatchGame: View {
                     .accessibilityLabel("\(table.moves) moves left")
             }
             GoalMeter(title: "\(min(table.score, goal))/\(goal)", fraction: Double(table.score) / Double(goal), ink: .primary)
-            if !table.banner.isEmpty {
-                Text(table.banner)
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .foregroundStyle(Color(red: 0.45, green: 0.3, blue: 0.75))
+            HStack(spacing: 8) {
+                RaisedPet(
+                    mood: table.banner.contains("Combo") ? .joyful : .content,
+                    side: 64,
+                    bounce: table.banner.contains("Combo") || table.banner == "Star bomb"
+                )
+                if !table.banner.isEmpty {
+                    Text(table.banner)
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(Color(red: 0.45, green: 0.3, blue: 0.75))
+                }
+                Spacer()
             }
             SpriteView(scene: table.board, options: [.allowsTransparency])
                 .frame(maxWidth: .infinity)
@@ -3274,7 +3388,7 @@ struct StarDefenseGame: View {
                             }
                         } label: {
                             Circle()
-                                .fill(field.towers.contains { $0.slot == slot } ? Color(red: 1, green: 0.84, blue: 0.4) : Color.white.opacity(0.45))
+                                .fill(towerFill(slot))
                                 .frame(width: 36, height: 36)
                                 .overlay(Text(towerMark(slot)).font(.system(size: 11, weight: .bold, design: .rounded)))
                         }
@@ -3287,6 +3401,8 @@ struct StarDefenseGame: View {
                             .overlay(Text("\(critter.layers)").font(.system(size: 10, weight: .bold, design: .rounded)))
                             .position(pointAlong(distance: critter.distance, size: geo.size))
                     }
+                    RaisedPet(mood: field.lives < field.livesAtStart ? .sad : .joyful, side: 58)
+                        .position(x: geo.size.width * 0.84, y: geo.size.height * 0.78)
                 }
             }
             .frame(height: 280)
@@ -3381,6 +3497,19 @@ struct StarDefenseGame: View {
         return String(tower.kind.title.prefix(1))
     }
 
+    private func towerFill(_ slot: Int) -> Color {
+        guard let tower = field.towers.first(where: { $0.slot == slot }) else {
+            return Color.white.opacity(0.45)
+        }
+        switch tower.kind {
+        case .dart: return Color(red: 0.98, green: 0.72, blue: 0.45)
+        case .laser: return Color(red: 0.55, green: 0.75, blue: 1)
+        case .frost: return Color(red: 0.7, green: 0.9, blue: 0.98)
+        case .bomb: return Color(red: 0.95, green: 0.45, blue: 0.55)
+        case .farm: return Color(red: 0.98, green: 0.86, blue: 0.4)
+        }
+    }
+
     private func finish(won: Bool) {
         guard finale == nil, let map else { return }
         closed = true
@@ -3435,6 +3564,15 @@ struct CosmicSolitaireGame: View {
             } else {
                 levelList
             }
+            VStack {
+                Spacer()
+                HStack {
+                    RaisedPet(mood: moves > 0 ? .joyful : .content, side: 64, bounce: moves > 0)
+                    Spacer()
+                }
+            }
+            .padding()
+            .allowsHitTesting(false)
             if askingLeave {
                 LeaveGamePrompt(onStay: { askingLeave = false }, onLeave: leave)
             }
@@ -3710,6 +3848,15 @@ struct StarSudokuGame: View {
             } else {
                 board
             }
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    RaisedPet(mood: mistakes > 0 ? .sad : .joyful, side: 64, bounce: mistakes == 0 && selected != nil)
+                }
+            }
+            .padding()
+            .allowsHitTesting(false)
             if askingLeave {
                 LeaveGamePrompt(onStay: { askingLeave = false }, onLeave: leave)
             }
@@ -4046,7 +4193,16 @@ struct ShipDuoGame: View {
                 )
             }
         }
-        .onAppear { last = Date() }
+        .onAppear {
+            last = Date()
+            if let pet = session.record?.pet {
+                link.greet(PetCard.text(name: pet.name, form: pet.displayForm?.rawValue ?? pet.stage.rawValue, level: session.level))
+            }
+        }
+        .onChange(of: link.status) { _, status in
+            guard status == "Together", let pet = session.record?.pet else { return }
+            link.greet(PetCard.text(name: pet.name, form: pet.displayForm?.rawValue ?? pet.stage.rawValue, level: session.level))
+        }
         .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { date in
             guard finale == nil else { return }
             let dt = min(0.05, date.timeIntervalSince(last))
@@ -4080,6 +4236,17 @@ struct ShipDuoGame: View {
             context.fill(Path(roundedRect: CGRect(x: size.width / 2 - 28, y: door.y, width: 56, height: 70), cornerRadius: 12), with: .color(Color(red: 0.55, green: 0.85, blue: 0.7)))
             context.fill(Path(ellipseIn: CGRect(x: center.x + run.x - 18, y: center.y - 14, width: 36, height: 28)), with: .color(Color(red: 0.75, green: 0.65, blue: 0.98)))
         }
+        .overlay {
+            HStack(spacing: 2) {
+                RaisedPet(side: 46, bounce: stick != .zero)
+                if !link.remoteName.isEmpty {
+                    GuestPet(name: link.remoteName, form: link.remoteForm)
+                        .frame(width: 46, height: 46)
+                }
+            }
+            .offset(y: 70)
+            .allowsHitTesting(false)
+        }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
@@ -4089,7 +4256,7 @@ struct ShipDuoGame: View {
         let score = (run.level - 1) * 100 + Int(run.y / 40)
         if !banked {
             banked = true
-            finale = bankedFinale(session: session, title: "Ship Duo", score: score, detail: detail, gameID: "shipDuo")
+            finale = bankedFinale(session: session, title: "Ship Duo", score: score, detail: detail, gameID: MiniGame.shipDuo.rawValue)
         }
     }
 

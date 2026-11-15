@@ -903,6 +903,8 @@ final class ShipLink: NSObject, ObservableObject {
     static let service = "pocketpet"
     @Published var remote = CGSize.zero
     @Published var status = "Practice"
+    @Published var remoteName = ""
+    @Published var remoteForm = ""
     private let me: MCPeerID
     private var session: MCSession?
     private var advertiser: MCNearbyServiceAdvertiser?
@@ -948,6 +950,12 @@ final class ShipLink: NSObject, ObservableObject {
         status = "Practice"
     }
 
+    func greet(_ card: String) {
+        guard let session, !session.connectedPeers.isEmpty else { return }
+        let data = Data("card|\(card)".utf8)
+        try? session.send(data, toPeers: session.connectedPeers, with: .reliable)
+    }
+
     func send(x: Double, y: Double) {
         guard let session, !session.connectedPeers.isEmpty else { return }
         let data = Data("\(x),\(y)".utf8)
@@ -965,6 +973,13 @@ extension ShipLink: MCSessionDelegate {
 
     nonisolated func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         let text = String(decoding: data, as: UTF8.self)
+        if text.hasPrefix("card|"), let parsed = PetCard.parse(String(text.dropFirst(5))) {
+            Task { @MainActor in
+                self.remoteName = parsed.name
+                self.remoteForm = parsed.form
+            }
+            return
+        }
         let parts = text.split(separator: ",")
         guard parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) else { return }
         Task { @MainActor in
