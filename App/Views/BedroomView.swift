@@ -592,16 +592,42 @@ final class BedroomWorld: ObservableObject {
     }
 
     private func buildRoom() {
-        let floor = box(5.4, 0.16, 5.4, 0.02, color(0.95, 0.9, 0.98))
+        scene.background.contents = color(0.55, 0.62, 0.86)
+        let floor = box(5.4, 0.16, 5.4, 0.02, color(0.86, 0.72, 0.52))
         floor.position = SCNVector3(0, -0.08, 0)
+        if let material = floor.geometry?.firstMaterial {
+            material.diffuse.contents = woodImage()
+            material.diffuse.wrapS = .repeat
+            material.diffuse.wrapT = .repeat
+            material.diffuse.contentsTransform = SCNMatrix4MakeScale(4, 4, 1)
+        }
         scene.rootNode.addChildNode(floor)
-        let rug = box(2.2, 0.03, 1.5, 0.2, color(1, 0.78, 0.86))
-        rug.position = SCNVector3(0.2, 0.02, 0.15)
-        scene.rootNode.addChildNode(rug)
+        if let rug = furniture("rugRectangle") {
+            rug.position = SCNVector3(0.15, 0.02, 0.2)
+            rug.scale = SCNVector3(1.4, 1.4, 1.4)
+            scene.rootNode.addChildNode(rug)
+        }
         addWalls()
         scene.rootNode.addChildNode(makeBed())
         scene.rootNode.addChildNode(makeCloset())
         scene.rootNode.addChildNode(makeShelf())
+        if let desk = furniture("desk") {
+            desk.position = SCNVector3(1.35, 0, 0.15)
+            desk.eulerAngles.y = -.pi / 2
+            scene.rootNode.addChildNode(desk)
+        }
+        if let lamp = furniture("lampRoundFloor") {
+            lamp.position = SCNVector3(-1.85, 0, 1.15)
+            scene.rootNode.addChildNode(lamp)
+        }
+        if let plant = furniture("plantSmall1") {
+            plant.position = SCNVector3(1.7, 0, -1.15)
+            scene.rootNode.addChildNode(plant)
+        }
+        if let plant = furniture("plantSmall2") {
+            plant.position = SCNVector3(-0.2, 0, 1.7)
+            scene.rootNode.addChildNode(plant)
+        }
         scene.rootNode.addChildNode(makeBin())
         scene.rootNode.addChildNode(makeWindow())
         addLights()
@@ -615,8 +641,15 @@ final class BedroomWorld: ObservableObject {
     private func addWalls() {
         let paint = color(0.93, 0.86, 0.98)
         let trim = color(1, 0.95, 0.98)
+        let paper = wallpaperImage()
         for (x, z, w, l) in [(Float(0), Float(-2.6), Float(5.2), Float(0.12)), (0, 2.6, 5.2, 0.12), (-2.6, 0, 0.12, 5.2), (2.6, 0, 0.12, 5.2)] {
             let wall = box(CGFloat(w), 2.7, CGFloat(l), 0.04, paint)
+            if let material = wall.geometry?.firstMaterial {
+                material.diffuse.contents = paper
+                material.diffuse.wrapS = .repeat
+                material.diffuse.wrapT = .repeat
+                material.diffuse.contentsTransform = SCNMatrix4MakeScale(3, 2, 1)
+            }
             wall.position = SCNVector3(x, 1.35, z)
             scene.rootNode.addChildNode(wall)
             let board = box(CGFloat(w * 0.96), 0.16, CGFloat(max(l, 0.18)), 0.04, trim)
@@ -636,6 +669,11 @@ final class BedroomWorld: ObservableObject {
     }
 
     private func makeBed() -> SCNNode {
+        if let bed = furniture("bedSingle") {
+            bed.position = SCNVector3(-1.15, 0, -1.35)
+            bed.eulerAngles.y = .pi
+            return bed
+        }
         let bed = SCNNode()
         bed.position = SCNVector3(-1.1, 0, -1.55)
         bed.addChildNode(shifted(box(1.7, 0.28, 1.05, 0.08, color(0.62, 0.72, 0.95)), y: 0.22))
@@ -684,6 +722,11 @@ final class BedroomWorld: ObservableObject {
     }
 
     private func makeShelf() -> SCNNode {
+        if let shelf = furniture("bookcaseOpen") {
+            shelf.position = SCNVector3(-1.95, 0, 0.15)
+            shelf.eulerAngles.y = .pi / 2
+            return shelf
+        }
         let shelf = SCNNode()
         shelf.position = SCNVector3(-1.95, 0, 0.1)
         shelf.addChildNode(shifted(box(0.18, 1.5, 1.4, 0.03, color(0.98, 0.9, 0.7)), y: 0.85))
@@ -956,6 +999,71 @@ final class BedroomWorld: ObservableObject {
         let geo = SCNCapsule(capRadius: radius, height: height)
         geo.materials = [paint(ui)]
         return SCNNode(geometry: geo)
+    }
+
+    private func furniture(_ name: String) -> SCNNode? {
+        let candidates = [
+            Bundle.main.url(forResource: name, withExtension: "dae", subdirectory: "Furniture"),
+            Bundle.main.url(forResource: name, withExtension: "dae")
+        ]
+        for url in candidates.compactMap({ $0 }) {
+            guard let loaded = try? SCNScene(url: url, options: nil) else { continue }
+            let root = SCNNode()
+            for child in loaded.rootNode.childNodes {
+                root.addChildNode(child.clone())
+            }
+            root.enumerateChildNodes { node, _ in
+                guard let materials = node.geometry?.materials else { return }
+                for material in materials {
+                    let title = (material.name ?? "").lowercased()
+                    let tone: UIColor
+                    if title.contains("wood") {
+                        tone = color(0.84, 0.68, 0.48)
+                    } else if title.contains("carpet") || title.contains("fabric") {
+                        tone = color(0.96, 0.72, 0.82)
+                    } else if title.contains("metal") {
+                        tone = color(0.78, 0.8, 0.86)
+                    } else if title.contains("plant") || title.contains("leaf") {
+                        tone = color(0.42, 0.72, 0.46)
+                    } else if title.contains("lamp") {
+                        tone = color(1, 0.94, 0.7)
+                        material.emission.contents = color(1, 0.9, 0.55)
+                    } else {
+                        tone = color(0.94, 0.9, 0.98)
+                    }
+                    material.lightingModel = .physicallyBased
+                    material.diffuse.contents = tone
+                    material.roughness.contents = NSNumber(value: 0.55)
+                }
+            }
+            return root
+        }
+        return nil
+    }
+
+    private func woodImage() -> UIImage {
+        let side = CGSize(width: 128, height: 128)
+        return UIGraphicsImageRenderer(size: side).image { ctx in
+            UIColor(red: 0.86, green: 0.7, blue: 0.48, alpha: 1).setFill()
+            ctx.fill(CGRect(origin: .zero, size: side))
+            for row in 0..<6 {
+                UIColor(red: 0.62, green: 0.44, blue: 0.26, alpha: 0.45).setFill()
+                ctx.fill(CGRect(x: 0, y: CGFloat(row) * 22, width: 128, height: 2))
+            }
+        }
+    }
+
+    private func wallpaperImage() -> UIImage {
+        let side = CGSize(width: 128, height: 128)
+        return UIGraphicsImageRenderer(size: side).image { ctx in
+            UIColor(red: 0.93, green: 0.86, blue: 0.97, alpha: 1).setFill()
+            ctx.fill(CGRect(origin: .zero, size: side))
+            let stars = [(12, 20), (40, 48), (70, 18), (96, 60), (24, 88), (80, 100), (54, 72)]
+            UIColor(red: 1, green: 0.95, blue: 0.7, alpha: 0.9).setFill()
+            for (x, y) in stars {
+                ctx.cgContext.fillEllipse(in: CGRect(x: x, y: y, width: 4, height: 4))
+            }
+        }
     }
 
     private func paint(_ ui: UIColor) -> SCNMaterial {
