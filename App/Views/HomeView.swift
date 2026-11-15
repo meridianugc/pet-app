@@ -113,7 +113,10 @@ struct HomeView: View {
                     )
                 }
             }
-            .onAppear { PocketSound.shared.startTune() }
+            .onAppear {
+                PocketSound.shared.startTune()
+                if ScreenshotDemo.isOn { showGames = true }
+            }
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -769,6 +772,7 @@ struct GamePicker: View {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                 appeared = true
             }
+            if ScreenshotDemo.isOn { defense = true }
         }
         .fullScreenCover(isPresented: $planet) {
             PlanetMergeGame()

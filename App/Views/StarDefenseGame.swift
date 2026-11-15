@@ -3,6 +3,12 @@ import SpriteKit
 import SwiftUI
 import UIKit
 
+enum ScreenshotDemo {
+    static var isOn: Bool {
+        ProcessInfo.processInfo.arguments.contains("-starDefenseShot")
+    }
+}
+
 struct StarDefenseGame: View {
     @EnvironmentObject private var session: PetSession
     @Environment(\.dismiss) private var dismiss
@@ -21,7 +27,7 @@ struct StarDefenseGame: View {
     @State private var playing = false
     @State private var paused = false
     @State private var bossBanner = false
-    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starDefense")
+    @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starDefense") && !ScreenshotDemo.isOn
     @State private var askingLeave = false
     @State private var finale: GameFinale?
 
@@ -83,6 +89,7 @@ struct StarDefenseGame: View {
             scene.backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
             scene.petTexture = PetStamp.texture(session: session, mood: .joyful)
         }
+        .task { await runScreenshotDemo() }
         .onReceive(Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()) { _ in
             if let drop = scene.takeDrop(), let armed {
                 if let next = DefensePlay.place(armed, at: drop, petLevel: session.level, in: battle) {
@@ -133,6 +140,29 @@ struct StarDefenseGame: View {
             if battle.won || battle.lost {
                 playing = false
                 finish(won: battle.won)
+            }
+        }
+    }
+
+    private func runScreenshotDemo() async {
+        guard ScreenshotDemo.isOn else { return }
+        showHowTo = false
+        battle = DefensePlay.start(map: 1, difficulty: .easy)
+        pickedMap = 1
+        scene.load(DefensePlay.map(1))
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        battle = DefensePlay.beginRound(battle)
+        playing = true
+        let level = max(session.level, 1)
+        for x in stride(from: 0.14, through: 0.86, by: 0.12) {
+            for y in stride(from: 0.16, through: 0.84, by: 0.12) {
+                let spot = DefensePoint(x: x, y: y)
+                if let next = DefensePlay.place(.dart, at: spot, petLevel: level, in: battle) {
+                    battle = next
+                    selected = battle.guns.last?.id
+                    scene.apply(battle, events: [], selected: selected)
+                    return
+                }
             }
         }
     }

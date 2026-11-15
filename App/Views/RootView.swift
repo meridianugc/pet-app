@@ -18,6 +18,11 @@ struct RootView: View {
             }
             screen
         }
+        .onAppear {
+            if ScreenshotDemo.isOn, session.record?.pet == nil {
+                session.createPet(named: "Pip")
+            }
+        }
     }
 
     @ViewBuilder
