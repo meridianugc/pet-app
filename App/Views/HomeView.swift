@@ -1525,78 +1525,12 @@ struct GamePicker: View {
                     CosmicCloseButton(label: "Close games") { dismiss() }
                 }
                 ScrollView {
-                VStack(spacing: 14) {
-                gameCard(
-                    title: "Planet Merge",
-                    blurb: "Drop planets. Twins become one bigger world.",
-                    score: best[MiniGame.planetMerge.rawValue] ?? 0,
-                    colors: [Color(red: 0.98, green: 0.75, blue: 0.55), Color(red: 0.62, green: 0.55, blue: 0.95)]
-                ) {
-                    planet = true
-                }
-                .offset(y: appeared ? 0 : 40)
-                .opacity(appeared ? 1 : 0)
-                gameCard(
-                    title: "Star Hopper",
-                    blurb: "Bounce upward. Steer, grab gems, don't fall.",
-                    score: best[MiniGame.starHopper.rawValue] ?? 0,
-                    colors: [Color(red: 0.55, green: 0.75, blue: 1), Color(red: 0.95, green: 0.9, blue: 1)]
-                ) {
-                    hopper = true
-                }
-                .offset(y: appeared ? 0 : 70)
-                .opacity(appeared ? 1 : 0)
-                gameCard(
-                    title: "Snack Match",
-                    blurb: "Swap snacks. Lines of three pop and tumble.",
-                    score: best[MiniGame.snackMatch.rawValue] ?? 0,
-                    colors: [Color(red: 1, green: 0.64, blue: 0.74), Color(red: 0.98, green: 0.84, blue: 0.45)]
-                ) {
-                    snacks = true
-                }
-                .offset(y: appeared ? 0 : 100)
-                .opacity(appeared ? 1 : 0)
-                gameCard(
-                    title: "Star Defense",
-                    blurb: "Place towers. Pop the blobs before they land.",
-                    score: best[MiniGame.starDefense.rawValue] ?? 0,
-                    colors: [Color(red: 0.55, green: 0.85, blue: 0.7), Color(red: 0.95, green: 0.55, blue: 0.5)]
-                ) {
-                    defense = true
-                }
-                .offset(y: appeared ? 0 : 120)
-                .opacity(appeared ? 1 : 0)
-                gameCard(
-                    title: "Cosmic Solitaire",
-                    blurb: "Stack the stars. Draw one or three.",
-                    score: best[MiniGame.cosmicSolitaire.rawValue] ?? 0,
-                    colors: [Color(red: 0.95, green: 0.78, blue: 0.45), Color(red: 0.55, green: 0.45, blue: 0.85)]
-                ) {
-                    solitaire = true
-                }
-                .offset(y: appeared ? 0 : 140)
-                .opacity(appeared ? 1 : 0)
-                gameCard(
-                    title: "Star Sudoku",
-                    blurb: "Fill the sky. One answer, four difficulties.",
-                    score: best[MiniGame.starSudoku.rawValue] ?? 0,
-                    colors: [Color(red: 0.55, green: 0.72, blue: 1), Color(red: 0.85, green: 0.7, blue: 1)]
-                ) {
-                    sudoku = true
-                }
-                .offset(y: appeared ? 0 : 160)
-                .opacity(appeared ? 1 : 0)
-                gameCard(
-                    title: "Ship Duo",
-                    blurb: "Two sticks, one ship. Practice alone or fly with a friend.",
-                    score: best["shipDuo"] ?? 0,
-                    colors: [Color(red: 0.65, green: 0.55, blue: 0.95), Color(red: 0.55, green: 0.85, blue: 0.95)]
-                ) {
-                    ship = true
-                }
-                .offset(y: appeared ? 0 : 180)
-                .opacity(appeared ? 1 : 0)
-                }
+                    VStack(alignment: .leading, spacing: 22) {
+                        galleryRow("Big Games", games: GameLibrary.big)
+                        galleryRow("Mini Games", games: GameLibrary.mini)
+                    }
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 24)
                 }
             }
             .padding(20)
@@ -1629,34 +1563,171 @@ struct GamePicker: View {
         }
     }
 
-    private func gameCard(title: String, blurb: String, score: Int, colors: [Color], play: @escaping () -> Void) -> some View {
-        Button(action: play) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle().fill(colors[0]).frame(width: 54, height: 54)
-                    Circle().fill(colors[1]).frame(width: 34, height: 34).offset(x: 16, y: 10)
+    private func galleryRow(_ title: String, games: [MiniGame]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(games) { game in
+                        galleryTile(game)
+                    }
                 }
-                .frame(width: 84, height: 72)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                    Text(blurb)
-                        .font(.system(.subheadline, design: .rounded))
-                        .foregroundStyle(.secondary)
-                    Text(score > 0 ? "Best \(score)" : "No score yet")
-                        .font(.system(.caption, design: .rounded).weight(.semibold))
-                }
-                Spacer()
+                .padding(.vertical, 4)
             }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white.opacity(0.55))
-                    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white, lineWidth: 2))
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(title). \(score > 0 ? "Best score \(score)" : "No score yet")")
+    }
+
+    private func galleryTile(_ game: MiniGame) -> some View {
+        let score = best[game.rawValue] ?? 0
+        let stars = starCount(game)
+        return VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                GamePreview(game: game)
+                    .frame(width: 230, height: 148)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                if howToKey(game) != nil {
+                    Button {
+                        if let key = howToKey(game) {
+                            UserDefaults.standard.set(false, forKey: key)
+                        }
+                        open(game)
+                    } label: {
+                        Text("?")
+                            .font(.system(.headline, design: .rounded).weight(.bold))
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(Color.white.opacity(0.92)))
+                    }
+                    .padding(8)
+                    .accessibilityLabel("How to play \(game.title)")
+                }
+            }
+            Text(game.title)
+                .font(.system(.headline, design: .rounded).weight(.bold))
+            Text(score > 0 ? "Best \(score)" : "No score yet")
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(.secondary)
+            if stars > 0 {
+                Text(String(repeating: "★", count: min(5, stars)))
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(Color(red: 1, green: 0.78, blue: 0.3))
+            }
+        }
+        .padding(10)
+        .frame(width: 250, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.62))
+                .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white, lineWidth: 2))
+        )
+        .onTapGesture { open(game) }
+        .accessibilityLabel("\(game.title). \(score > 0 ? "Best score \(score)" : "No score yet")")
+    }
+
+    private func open(_ game: MiniGame) {
+        switch game {
+        case .planetMerge: planet = true
+        case .starHopper: hopper = true
+        case .snackMatch: snacks = true
+        case .starDefense: defense = true
+        case .cosmicSolitaire: solitaire = true
+        case .starSudoku: sudoku = true
+        case .shipDuo: ship = true
+        case .starCatch, .memoryMatch, .hideAndSeek: break
+        }
+    }
+
+    private func howToKey(_ game: MiniGame) -> String? {
+        switch game {
+        case .planetMerge: return "howto.planetMerge"
+        case .starHopper: return "howto.starHopper"
+        case .snackMatch: return "howto.snackMatch"
+        case .starDefense: return "howto.starDefense"
+        case .cosmicSolitaire: return "howto.solitaire"
+        case .starSudoku: return "howto.sudoku"
+        default: return nil
+        }
+    }
+
+    private func starCount(_ game: MiniGame) -> Int {
+        switch game {
+        case .starDefense:
+            return (1...8).reduce(0) { $0 + (best["starDefense.level.\($1)"] ?? 0) }
+        case .cosmicSolitaire:
+            return (1...8).reduce(0) { $0 + (best["solitaire.level.\($1)"] ?? 0) }
+        case .starSudoku:
+            return SudokuDifficulty.allCases.reduce(0) { $0 + (best["sudoku.\($1.rawValue)"] ?? 0) }
+        default:
+            return 0
+        }
+    }
+}
+
+struct GamePreview: View {
+    var game: MiniGame
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            Canvas { context, size in
+                let sky = Path(CGRect(origin: .zero, size: size))
+                context.fill(sky, with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.55, green: 0.45, blue: 0.9),
+                        Color(red: 0.95, green: 0.78, blue: 0.9)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: size.width, y: size.height)
+                ))
+                switch game {
+                case .starHopper:
+                    for index in 0..<4 {
+                        let y = size.height * (0.28 + CGFloat(index) * 0.16)
+                        let rect = CGRect(x: 24 + CGFloat(index) * 8, y: y, width: size.width * 0.42, height: 10)
+                        context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(.white.opacity(0.85)))
+                    }
+                case .planetMerge:
+                    let pulse = CGFloat(sin(time * 2)) * 6
+                    context.fill(Path(ellipseIn: CGRect(x: 40, y: 40, width: 36 + pulse, height: 36 + pulse)), with: .color(Color(red: 1, green: 0.7, blue: 0.45)))
+                    context.fill(Path(ellipseIn: CGRect(x: 70, y: 58, width: 48, height: 48)), with: .color(Color(red: 0.65, green: 0.55, blue: 0.95)))
+                case .snackMatch:
+                    for index in 0..<6 {
+                        let x = 18 + CGFloat(index % 3) * 36
+                        let y = 28 + CGFloat(index / 3) * 36 + CGFloat(sin(time * 3 + Double(index))) * 3
+                        context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 26, height: 26)), with: .color(index % 2 == 0 ? Color(red: 1, green: 0.55, blue: 0.7) : Color(red: 0.45, green: 0.75, blue: 1)))
+                    }
+                case .starDefense:
+                    var path = Path()
+                    path.move(to: CGPoint(x: 16, y: 20))
+                    path.addCurve(to: CGPoint(x: size.width - 20, y: size.height - 24), control1: CGPoint(x: size.width * 0.2, y: size.height * 0.7), control2: CGPoint(x: size.width * 0.8, y: 30))
+                    context.stroke(path, with: .color(.white.opacity(0.8)), lineWidth: 10)
+                    let blobX = 20 + CGFloat((time * 30).truncatingRemainder(dividingBy: Double(size.width - 40)))
+                    context.fill(Path(ellipseIn: CGRect(x: blobX, y: 48, width: 16, height: 16)), with: .color(Color(red: 0.95, green: 0.45, blue: 0.55)))
+                case .cosmicSolitaire:
+                    for index in 0..<4 {
+                        let rect = CGRect(x: 16 + CGFloat(index) * 28, y: 36 + CGFloat(sin(time + Double(index))) * 4, width: 22, height: 32)
+                        context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.white.opacity(0.9)))
+                    }
+                case .starSudoku:
+                    for row in 0..<3 {
+                        for column in 0..<3 {
+                            let rect = CGRect(x: 20 + CGFloat(column) * 28, y: 24 + CGFloat(row) * 28, width: 24, height: 24)
+                            context.stroke(Path(rect), with: .color(.white.opacity(0.8)), lineWidth: 1)
+                        }
+                    }
+                case .shipDuo:
+                    let sway = CGFloat(sin(time * 1.5)) * 16
+                    context.fill(Path(ellipseIn: CGRect(x: size.width * 0.35 + sway, y: size.height * 0.45, width: 54, height: 22)), with: .color(Color(red: 0.75, green: 0.65, blue: 0.98)))
+                    context.fill(Path(ellipseIn: CGRect(x: 30, y: 30, width: 22, height: 22)), with: .color(Color(red: 0.95, green: 0.55, blue: 0.45)))
+                case .starCatch, .memoryMatch, .hideAndSeek:
+                    break
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                RaisedPet(side: 48, bounce: true)
+                    .padding(6)
+            }
+        }
     }
 }
 
