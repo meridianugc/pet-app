@@ -40,6 +40,19 @@ enum GameArt {
     static let furnitureCloset = "furniture_closet"
     static let furnitureBed = "furniture_bed"
     static let furnitureShelf = "furniture_shelf"
+    static let blobPlain = "blob_plain"
+    static let blobFast = "blob_fast"
+    static let blobArmor = "blob_armor"
+    static let blobCamo = "blob_camo"
+    static let blobRegen = "blob_regen"
+    static let blobBoss = "blob_boss"
+    static let towerDart = "tower_dart"
+    static let towerLaser = "tower_laser"
+    static let towerBomb = "tower_bomb"
+    static let towerFrost = "tower_frost"
+    static let towerTack = "tower_tack"
+    static let towerSniper = "tower_sniper"
+    static let towerFarm = "tower_farm"
 
     static func planet(_ index: Int) -> String { "planet_\(min(8, max(1, index)))" }
 
