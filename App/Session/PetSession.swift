@@ -345,6 +345,16 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: false)
     }
 
+    func putToyAway() {
+        guard var record else { return }
+        guard let (world, gems) = AwayLife.putAway(record.world) else { return }
+        record.world = world
+        record.progress.coins += gems
+        flash([CareChip(stat: .gems, amount: gems)])
+        note = nil
+        persist(record, includeAlreadyLow: false)
+    }
+
     func dismissAway() {
         awayReport = nil
     }

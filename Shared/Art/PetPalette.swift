@@ -34,6 +34,8 @@ enum GameArt {
     static let bgHopper = "bg_hopper"
     static let bgMerge = "bg_merge"
     static let bgShop = "bg_shop"
+    static let toyComet = "toy_comet"
+    static let toyBin = "toy_bin"
 
     static func planet(_ index: Int) -> String { "planet_\(min(8, max(1, index)))" }
 

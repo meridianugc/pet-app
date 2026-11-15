@@ -10,6 +10,8 @@ struct HomeView: View {
     @State private var showShop = false
     @State private var showToday = false
     @State private var showDressing = false
+    @State private var inRoom = false
+    @AppStorage("room.decor") private var roomDecor = 0
     @State private var showAway = false
 #if DEBUG
     @State private var showDebug = false
@@ -124,6 +126,25 @@ struct HomeView: View {
                     showShop = true
                 }
             }
+            .overlay {
+                if inRoom, let pet = session.record?.pet {
+                    ToyRoomView(
+                        pet: pet,
+                        outfit: session.record?.progress.outfitID,
+                        shell: session.record?.progress.wardrobe.shell ?? "shell.plain",
+                        eyes: session.record?.progress.wardrobe.eyes ?? "eyes.round",
+                        antenna: session.record?.progress.wardrobe.antenna ?? "antenna.ball",
+                        marking: session.record?.progress.wardrobe.marking ?? "marking.none",
+                        decor: roomDecor,
+                        looseToy: session.record?.world.looseToy ?? "",
+                        onPickup: { session.putToyAway() },
+                        onCloset: { showDressing = true },
+                        onDecor: { roomDecor = (roomDecor + 1) % 4 },
+                        onExit: { withAnimation(.spring(duration: 0.45)) { inRoom = false } }
+                    )
+                    .transition(.scale(scale: 0.72, anchor: .center).combined(with: .opacity))
+                }
+            }
             .fullScreenCover(isPresented: $showGames) {
                 GamePicker(best: session.record?.progress.bestScores ?? [:])
             }
@@ -184,7 +205,21 @@ struct HomeView: View {
         )
             .frame(maxWidth: 260)
             .frame(height: 260)
+            .overlay(alignment: .bottomLeading) {
+                if !(session.record?.world.looseToy.isEmpty ?? true) {
+                    LooseToy()
+                        .frame(width: 54, height: 54)
+                        .offset(x: 8, y: 8)
+                        .onTapGesture { session.putToyAway() }
+                        .accessibilityLabel("Toy outside the bin")
+                }
+            }
         .frame(maxWidth: .infinity)
+        .onTapGesture {
+            withAnimation(.spring(duration: 0.45)) { inRoom = true }
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the room")
     }
 
     private func actions(_ pet: Pet) -> some View {
@@ -511,6 +546,111 @@ struct CollectionBookView: View {
             CareGlyph(stat: entry.id.hasPrefix("outfit") ? .look : (entry.id.hasPrefix("look") ? .happy : .gems), side: 36)
                 .grayscale(found ? 0 : 1)
         }
+    }
+}
+
+struct LooseToy: View {
+    var body: some View {
+        CatalogImage(name: GameArt.toyComet) {
+            ZStack {
+                Circle().fill(Color(red: 0.98, green: 0.72, blue: 0.45))
+                Circle().fill(Color.white.opacity(0.7)).frame(width: 10, height: 10).offset(x: -6, y: -6)
+            }
+        }
+    }
+}
+
+struct ToyBin: View {
+    var body: some View {
+        CatalogImage(name: GameArt.toyBin) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(red: 0.55, green: 0.42, blue: 0.86))
+                .overlay(alignment: .top) {
+                    Capsule().fill(Color(red: 0.4, green: 0.28, blue: 0.7)).frame(height: 10).padding(.horizontal, 8).offset(y: -4)
+                }
+        }
+    }
+}
+
+struct ToyRoomView: View {
+    var pet: Pet
+    var outfit: String?
+    var shell: String
+    var eyes: String
+    var antenna: String
+    var marking: String
+    var decor: Int
+    var looseToy: String
+    var onPickup: () -> Void
+    var onCloset: () -> Void
+    var onDecor: () -> Void
+    var onExit: () -> Void
+
+    @State private var drag = CGSize.zero
+
+    private var floor: Color {
+        switch decor % 4 {
+        case 1: return Color(red: 0.75, green: 0.88, blue: 0.98)
+        case 2: return Color(red: 0.98, green: 0.82, blue: 0.88)
+        case 3: return Color(red: 0.86, green: 0.95, blue: 0.78)
+        default: return Color(red: 0.90, green: 0.84, blue: 0.98)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            floor.ignoresSafeArea()
+            VStack(spacing: 16) {
+                HStack {
+                    Button("Exit", action: onExit)
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                    Spacer()
+                    Button("Closet", action: onCloset)
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                    Button("Decorate", action: onDecor)
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                }
+                .padding(.horizontal, 16)
+                PetCreatureView(
+                    stage: pet.stage,
+                    mood: PetMood.resolve(pet),
+                    form: pet.displayForm,
+                    tint: pet.trait?.tint,
+                    outfit: outfit,
+                    shell: shell,
+                    eyes: eyes,
+                    antenna: antenna,
+                    marking: marking,
+                    accessibilityLabel: pet.name
+                )
+                .frame(height: 280)
+                HStack(spacing: 28) {
+                    ToyBin()
+                        .frame(width: 72, height: 56)
+                        .accessibilityLabel("Toy bin")
+                    if !looseToy.isEmpty {
+                        LooseToy()
+                            .frame(width: 64, height: 64)
+                            .offset(drag)
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { drag = $0.translation }
+                                    .onEnded { value in
+                                        if hypot(value.translation.width + 90, value.translation.height) < 120 {
+                                            onPickup()
+                                        }
+                                        drag = .zero
+                                    }
+                            )
+                            .onTapGesture(perform: onPickup)
+                            .accessibilityLabel("Put the toy in the bin")
+                    }
+                }
+                Text(looseToy.isEmpty ? "The floor is tidy." : "Drag the toy into the bin.")
+                    .font(.system(.body, design: .rounded))
+            }
+        }
+        .accessibilityAddTraits(.isModal)
     }
 }
 
