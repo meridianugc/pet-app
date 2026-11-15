@@ -38,6 +38,7 @@ public enum RoomSpace {
     public static let bin = FloorPoint(x: 1.7, z: 1.45)
     public static let shelf = FloorPoint(x: -1.85, z: 0.15)
     public static let closet = FloorPoint(x: 0, z: -1.85)
+    public static let bed = FloorPoint(x: -1.1, z: -0.75)
 
     public static let solids: [FloorBox] = [
         FloorBox(minX: -2.05, maxX: -0.15, minZ: -2.15, maxZ: -1.05),
@@ -126,7 +127,8 @@ public enum RoomSpace {
         guard let held = carried(in: room), let index = room.things.firstIndex(where: { $0.id == held.id }) else { return nil }
         let atBin = point.distance(to: bin) <= reach && held.kind == .toy
         let atShelf = point.distance(to: shelf) <= reach && held.kind == .decor
-        guard atBin || atShelf else { return nil }
+        let atBed = point.distance(to: bed) <= reach && held.kind == .snack
+        guard atBin || atShelf || atBed else { return nil }
         var room = room
         room.things[index].carried = false
         let anchor = room.furniture.first { $0.id == held.home }?.anchor ?? held.spot
