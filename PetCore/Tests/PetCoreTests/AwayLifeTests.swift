@@ -58,6 +58,15 @@ final class AwayLifeTests: XCTestCase {
         XCTAssertEqual(world.looseToy, "")
     }
 
+    func testADailyRequestPaysOnceWhenTheSnackMatches() {
+        let caught = AwayLife.catchUp(AwayWorld.fresh(at: start), at: start.addingTimeInterval(60))
+        XCTAssertFalse(caught.0.requestText.isEmpty)
+        let paid = AwayLife.claimRequest(caught.0, itemID: caught.0.requestItem)
+        XCTAssertEqual(paid?.1, 8)
+        XCTAssertEqual(paid?.0.requestItem, "")
+        XCTAssertNil(AwayLife.claimRequest(paid!.0, itemID: "food.starBerry"))
+    }
+
     func testNeedsDecayMoreSlowlyOnATrip() {
         let rules = EngineFixture.rules(hunger: 10)
         let engine = PetEngine(rules: rules)

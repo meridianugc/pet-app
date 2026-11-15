@@ -66,6 +66,10 @@ public struct AwayWorld: Codable, Equatable, Sendable {
     public var doodle: String
     /// A toy id sitting outside the bin, or empty when the floor is clear.
     public var looseToy: String
+    public var diary: [String]
+    public var requestText: String
+    public var requestItem: String
+    public var requestStamp: String
 
     public init(
         seeds: [StarSeed] = [],
@@ -74,7 +78,11 @@ public struct AwayWorld: Codable, Equatable, Sendable {
         seenAt: Date,
         postcards: [Postcard] = [],
         doodle: String = "",
-        looseToy: String = ""
+        looseToy: String = "",
+        diary: [String] = [],
+        requestText: String = "",
+        requestItem: String = "",
+        requestStamp: String = ""
     ) {
         self.seeds = seeds
         self.trip = trip
@@ -83,10 +91,15 @@ public struct AwayWorld: Codable, Equatable, Sendable {
         self.postcards = postcards
         self.doodle = doodle
         self.looseToy = looseToy
+        self.diary = diary
+        self.requestText = requestText
+        self.requestItem = requestItem
+        self.requestStamp = requestStamp
     }
 
     private enum CodingKeys: String, CodingKey {
         case seeds, trip, treeAt, seenAt, postcards, doodle, looseToy
+        case diary, requestText, requestItem, requestStamp
     }
 
     public init(from decoder: Decoder) throws {
@@ -98,6 +111,10 @@ public struct AwayWorld: Codable, Equatable, Sendable {
         postcards = try c.decode([Postcard].self, forKey: .postcards)
         doodle = try c.decode(String.self, forKey: .doodle)
         looseToy = try c.decodeIfPresent(String.self, forKey: .looseToy) ?? ""
+        diary = try c.decodeIfPresent([String].self, forKey: .diary) ?? []
+        requestText = try c.decodeIfPresent(String.self, forKey: .requestText) ?? ""
+        requestItem = try c.decodeIfPresent(String.self, forKey: .requestItem) ?? ""
+        requestStamp = try c.decodeIfPresent(String.self, forKey: .requestStamp) ?? ""
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -109,6 +126,10 @@ public struct AwayWorld: Codable, Equatable, Sendable {
         try c.encode(postcards, forKey: .postcards)
         try c.encode(doodle, forKey: .doodle)
         try c.encode(looseToy, forKey: .looseToy)
+        try c.encode(diary, forKey: .diary)
+        try c.encode(requestText, forKey: .requestText)
+        try c.encode(requestItem, forKey: .requestItem)
+        try c.encode(requestStamp, forKey: .requestStamp)
     }
 
     public static func fresh(at date: Date) -> AwayWorld {
@@ -187,6 +208,14 @@ public enum AwayLife {
         let away = now.timeIntervalSince(world.seenAt)
         var lines: [String] = []
         var gift = 0
+        let stamp = Self.dayStamp(now)
+        if world.requestStamp != stamp {
+            let day = Int(now.timeIntervalSince1970 / 86_400)
+            let ask = PetVoice.request(forDay: day)
+            world.requestText = ask.text
+            world.requestItem = ask.itemID
+            world.requestStamp = stamp
+        }
         if away >= 30 * 60 {
             let roll = Int(world.seenAt.timeIntervalSince1970) % 3
             switch roll {
@@ -212,9 +241,27 @@ public enum AwayLife {
             if pendingGems(world, at: now) > 0 {
                 lines.append("The gem tree has fruit.")
             }
+            let note = PetVoice.diaryLine(seed: Int(world.seenAt.timeIntervalSince1970))
+            world.diary.insert(note, at: 0)
+            if world.diary.count > 6 { world.diary = Array(world.diary.prefix(6)) }
+            lines.append(note)
         }
         world.seenAt = now
         return (world, AwayReport(lines: lines, gift: gift))
+    }
+
+    public static func dayStamp(_ date: Date) -> String {
+        let parts = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+    }
+
+    /// Extra happiness when the snack they asked for is the one they get.
+    public static func claimRequest(_ world: AwayWorld, itemID: String) -> (AwayWorld, Int)? {
+        guard world.requestItem == itemID, !itemID.isEmpty else { return nil }
+        var world = world
+        world.requestItem = ""
+        world.requestText = "You brought it!"
+        return (world, 8)
     }
 
     /// Tuck a loose toy back in the bin. Pays a few gems.
