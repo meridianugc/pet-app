@@ -916,15 +916,19 @@ final class DefenseStage: SKScene {
 
     func noteView(_ viewSize: CGSize) {
         guard viewSize.width > 2, viewSize.height > 2 else { return }
-        let fit = min(viewSize.width / Self.boardPixelSize.width, viewSize.height / Self.boardPixelSize.height)
-        let next: CGFloat = fit > 0.05 ? 1 / fit : 1
-        guard abs(next - unit) > 0.04 else { return }
+        let changed = abs(size.width - viewSize.width) > 1 || abs(size.height - viewSize.height) > 1
+        if changed {
+            size = viewSize
+        }
+        boardSize = size
+        let next: CGFloat = 1
+        let scaleChanged = abs(next - unit) > 0.01
         unit = next
-        guard let shownMap else { return }
+        guard changed || scaleChanged, let shownMap else { return }
         board.children.filter { $0.name == "ground" }.forEach { $0.removeFromParent() }
         drawGround(shownMap)
         if let hero = board.childNode(withName: "hero") as? SKSpriteNode {
-            hero.size = CGSize(width: 48 * unit, height: 48 * unit)
+            hero.size = CGSize(width: 48, height: 48)
         }
     }
 

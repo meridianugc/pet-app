@@ -863,7 +863,9 @@ struct GamePicker: View {
         case .planetMerge: planet = true
         case .starHopper: hopper = true
         case .snackMatch: snacks = true
-        case .starDefense: defense = true
+        case .starDefense:
+            PlayOrientation.mask = .landscape
+            defense = true
         case .cosmicSolitaire: solitaire = true
         case .starSudoku: sudoku = true
         case .shipDuo: ship = true
