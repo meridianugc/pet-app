@@ -837,13 +837,21 @@ final class PocketSound {
         engine.attach(tune)
         engine.connect(player, to: engine.mainMixerNode, format: format)
         engine.connect(tune, to: engine.mainMixerNode, format: format)
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
-            try engine.start()
-            ready = true
-        } catch {
-            ready = false
+        // Start audio off the main thread so the UI never waits on the audio session.
+        nonisolated(unsafe) let audioEngine = engine
+        DispatchQueue.global(qos: .userInitiated).async {
+            let started: Bool
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+                try AVAudioSession.sharedInstance().setActive(true)
+                try audioEngine.start()
+                started = true
+            } catch {
+                started = false
+            }
+            Task { @MainActor in
+                PocketSound.shared.ready = started
+            }
         }
     }
 
