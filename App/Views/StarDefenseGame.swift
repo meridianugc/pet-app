@@ -4,9 +4,17 @@ import SwiftUI
 import UIKit
 
 enum ScreenshotDemo {
-    static var isOn: Bool {
-        ProcessInfo.processInfo.arguments.contains("-starDefenseShot")
+    static var shot: String {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-starDefenseShot") else { return "" }
+        let next = index + 1
+        if args.indices.contains(next), !args[next].hasPrefix("-") {
+            return args[next]
+        }
+        return "map"
     }
+
+    static var isOn: Bool { !shot.isEmpty }
 }
 
 struct StarDefenseGame: View {
@@ -154,35 +162,57 @@ struct StarDefenseGame: View {
         battle = DefensePlay.start(map: 1, difficulty: .easy)
         pickedMap = 1
         scene.load(DefensePlay.map(1))
-        try? await Task.sleep(nanoseconds: 1_200_000_000)
-        battle = DefensePlay.beginRound(battle)
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
         let level = max(session.level, 1)
         let path = DefensePlay.map(1).path
-        for x in stride(from: 0.18, through: 0.82, by: 0.04) {
-            for y in stride(from: 0.18, through: 0.82, by: 0.04) {
-                let spot = DefensePoint(x: x, y: y)
-                let gap = DefensePlay.distance(spot, to: path)
-                guard gap > 0.08, gap < 0.15 else { continue }
-                if let next = DefensePlay.place(.dart, at: spot, petLevel: level, in: battle) {
-                    battle = next
-                    selected = battle.guns.last?.id
-                    break
-                }
+        switch ScreenshotDemo.shot {
+        case "green":
+            let choices = [
+                DefensePoint(x: 0.2, y: 0.9),
+                DefensePoint(x: 0.55, y: 0.9),
+                DefensePoint(x: 0.8, y: 0.12)
+            ]
+            let grass = choices.first { DefensePlay.canPlace($0, in: battle) } ?? choices[0]
+            scene.showPlacementGhost(.dart, at: grass, valid: true)
+        case "red":
+            let onRoad = DefensePlay.point(on: path, distance: 0.45)
+            scene.showPlacementGhost(.dart, at: onRoad, valid: false)
+        case "upgrade":
+            battle = placeNear(0.4, path: path, level: level, in: battle) ?? battle
+            selected = battle.guns.last?.id
+            scene.apply(battle, events: [], selected: selected)
+        default:
+            battle = DefensePlay.beginRound(battle)
+            battle = placeNear(0.32, path: path, level: level, in: battle) ?? battle
+            battle = placeNear(0.62, path: path, level: level, in: battle) ?? battle
+            var frame = battle
+            for _ in 0..<360 {
+                let next = DefensePlay.step(frame, dt: 1.0 / 60.0).0
+                if next.round != battle.round { break }
+                frame = next
+                let visible = frame.blobs.contains { $0.distance > 0.18 && $0.distance < 0.8 }
+                if visible, !frame.shots.isEmpty, frame.guns.count >= 2 { break }
             }
-            if selected != nil { break }
+            battle = frame
+            selected = nil
+            scene.apply(battle, events: [], selected: nil)
         }
-        var frozen = battle
-        for _ in 0..<600 {
-            let stepped = DefensePlay.step(frozen, dt: 1.0 / 60.0)
-            frozen = stepped.0
-            let mid = frozen.blobs.contains { $0.distance > 0.22 && $0.distance < 0.55 }
-            if mid, !frozen.shots.isEmpty { break }
+    }
+
+    private func placeNear(_ distance: Double, path: [DefensePoint], level: Int, in battle: DefenseBattle) -> DefenseBattle? {
+        let mid = DefensePlay.point(on: path, distance: distance)
+        let seats = [
+            DefensePoint(x: mid.x + 0.12, y: mid.y + 0.1),
+            DefensePoint(x: mid.x - 0.12, y: mid.y - 0.08),
+            DefensePoint(x: mid.x + 0.08, y: mid.y - 0.12),
+            DefensePoint(x: mid.x - 0.08, y: mid.y + 0.12)
+        ]
+        for spot in seats {
+            if let next = DefensePlay.place(.dart, at: spot, petLevel: level, in: battle) {
+                return next
+            }
         }
-        battle = frozen
-        playing = false
-        scene.apply(battle, events: [], selected: selected)
-        let onRoad = DefensePlay.point(on: path, distance: 0.08)
-        scene.showPlacementGhost(.dart, at: onRoad, valid: false)
+        return nil
     }
 
     private var mapList: some View {
