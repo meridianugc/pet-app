@@ -17,7 +17,7 @@ struct StarDefenseGame: View {
     @State private var battle = DefensePlay.start(map: 1, difficulty: .medium)
     @State private var pickedMap: Int?
     @State private var difficulty: DefenseDifficulty = .medium
-    @State private var scene = DefenseStage(size: CGSize(width: 390, height: 760))
+    @State private var scene = DefenseStage(size: DefenseStage.boardPixelSize)
     @State private var armed: DefenseGunKind?
     @State private var selected: Int?
     @State private var rate = 1
@@ -86,7 +86,7 @@ struct StarDefenseGame: View {
             }
         }
         .onAppear {
-            scene.scaleMode = .resizeFill
+            scene.scaleMode = .aspectFit
             scene.backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
             scene.petTexture = PetStamp.texture(session: session, mood: .joyful)
         }
@@ -236,108 +236,123 @@ struct StarDefenseGame: View {
 
     private var match: some View {
         GeometryReader { geo in
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    CosmicCloseButton(label: "Leave Star Defense") {
-                        playing = false
-                        askingLeave = true
-                    }
-                    Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color(red: 0.16, green: 0.08, blue: 0.24))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 44)
-                        .background(Capsule().fill(Color.white))
-                    Spacer(minLength: 4)
-                    Button {
-                        paused = true
-                        playing = false
-                    } label: {
-                        Image(systemName: "pause.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(Color(red: 0.2, green: 0.1, blue: 0.28))
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(Color.white))
-                    }
-                    .accessibilityLabel("Pause")
-                }
-                HStack(spacing: 0) {
+            let side = max(windowInsets.left, windowInsets.right, windowInsets.top)
+            let railWidth = max(176, (geo.size.width - side * 2) * 0.25)
+            HStack(spacing: 0) {
+                ZStack(alignment: .topLeading) {
                     DefenseCanvas(scene: scene)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
-                        .overlay(alignment: .top) { bossBar }
                         .background(
                             GeometryReader { field in
                                 Color.clear.preference(key: FieldFrameKey.self, value: field.frame(in: .named("field")))
                             }
                         )
                         .onPreferenceChange(FieldFrameKey.self) { fieldFrame = $0 }
-                    shopRail
-                        .frame(maxHeight: .infinity)
+                    VStack {
+                        HStack(spacing: 8) {
+                            CosmicCloseButton(label: "Leave Star Defense") {
+                                playing = false
+                                askingLeave = true
+                            }
+                            Text(roundTitle)
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color(red: 0.16, green: 0.08, blue: 0.24))
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 40)
+                                .background(Capsule().fill(Color.white))
+                            Spacer(minLength: 4)
+                            Button {
+                                paused = true
+                                playing = false
+                            } label: {
+                                Image(systemName: "pause.fill")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.2, green: 0.1, blue: 0.28))
+                                    .frame(width: 44, height: 44)
+                                    .background(Circle().fill(Color.white))
+                            }
+                            .accessibilityLabel("Pause")
+                        }
+                        Spacer()
+                        HStack(spacing: 8) {
+                            Spacer()
+                            Button {
+                                if battle.running {
+                                    rate = rate == 1 ? 2 : 1
+                                } else {
+                                    battle = DefensePlay.beginRound(battle)
+                                    playing = battle.running
+                                }
+                                PocketSound.shared.tap()
+                            } label: {
+                                Image(systemName: battle.running ? (rate == 1 ? "forward.fill" : "forward.end.fill") : "play.fill")
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.12, green: 0.28, blue: 0.16))
+                                    .frame(width: 64, height: 64)
+                                    .background(Circle().fill(Color(red: 0.55, green: 0.9, blue: 0.45)))
+                            }
+                            .accessibilityLabel(battle.running ? "Fast forward" : "Play")
+                            Button {
+                                autoPlay.toggle()
+                            } label: {
+                                Text(autoPlay ? "Auto" : "Auto")
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(autoPlay ? Color(red: 0.12, green: 0.28, blue: 0.16) : .white)
+                                    .frame(minWidth: 64, minHeight: 44)
+                                    .background(Capsule().fill(autoPlay ? Color(red: 0.55, green: 0.9, blue: 0.45) : Color.black.opacity(0.35)))
+                            }
+                            iconButton("Pet blast", system: "sparkles") {
+                                if let blasted = DefensePlay.heroBlast(battle) {
+                                    battle = blasted.0
+                                    scene.apply(battle, events: blasted.1, selected: selected)
+                                    react(blasted.1)
+                                }
+                            }
+                            .disabled(battle.heroCooldown > 0 || !battle.running)
+                            iconButton("Maps", system: "map") {
+                                playing = false
+                                pickedMap = nil
+                                armed = nil
+                                selected = nil
+                            }
+                        }
+                    }
+                    .padding(10)
+                    bossBar
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 56)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                controlBar
+                shopRail
+                    .frame(width: railWidth)
+                    .frame(maxHeight: .infinity)
             }
-            .padding(.top, windowInsets.top + 8)
-            .padding(.bottom, windowInsets.bottom + 8)
-            .padding(.horizontal, 8)
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .padding(.leading, windowInsets.left)
+            .padding(.trailing, windowInsets.right)
+            .frame(width: geo.size.width, height: geo.size.height)
             .background(WindowInsetReader { insets in
                 if insets != windowInsets { windowInsets = insets }
             })
         }
         .ignoresSafeArea()
-        .background(Color(red: 0.11, green: 0.14, blue: 0.28).ignoresSafeArea())
+        .background(Color(red: 0.36, green: 0.62, blue: 0.34).ignoresSafeArea())
         .coordinateSpace(name: "field")
     }
 
-    private var controlBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-            mapButton(battle.running ? "In wave" : "Start round") {
-                battle = DefensePlay.beginRound(battle)
-                playing = battle.running
-                PocketSound.shared.tap()
-            }
-            .disabled(battle.running || battle.won || battle.lost)
-            mapButton(rate == 1 ? "1x" : "\(rate)x") {
-                rate = rate == 1 ? 2 : (rate == 2 ? 3 : 1)
-            }
-            mapButton(autoPlay ? "Auto on" : "Auto") { autoPlay.toggle() }
-            mapButton(battle.heroCooldown <= 0 ? "Pet blast" : "Pet \(Int(battle.heroCooldown.rounded()))") {
-                if let blasted = DefensePlay.heroBlast(battle) {
-                    battle = blasted.0
-                    scene.apply(battle, events: blasted.1, selected: selected)
-                    react(blasted.1)
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-            }
-            .disabled(battle.heroCooldown > 0 || !battle.running)
-            mapButton("Maps") {
-                playing = false
-                pickedMap = nil
-                armed = nil
-                selected = nil
-            }
-            }
-        }
-        .frame(height: 48)
+    private var roundTitle: String {
+        battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)"
     }
 
-    private func mapButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ title: String, system: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 0.18, green: 0.08, blue: 0.28))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(minWidth: 44, minHeight: 44)
-                .padding(.horizontal, 10)
-                .background(Capsule().fill(Color.white))
+            Image(systemName: system)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.black.opacity(0.4)))
         }
+        .accessibilityLabel(title)
         .buttonStyle(.plain)
     }
 
@@ -709,22 +724,36 @@ final class InsetProbe: UIView {
 struct DefenseCanvas: UIViewRepresentable {
     var scene: DefenseStage
 
-    func makeUIView(context: Context) -> SKView {
-        let view = SKView()
+    func makeUIView(context: Context) -> DefenseScreen {
+        let view = DefenseScreen()
         view.presentScene(scene)
         view.preferredFramesPerSecond = 60
         view.ignoresSiblingOrder = true
-        scene.scaleMode = .resizeFill
-        scene.backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
+        scene.scaleMode = .aspectFit
+        scene.size = DefenseStage.boardPixelSize
+        scene.backgroundColor = UIColor(red: 0.46, green: 0.74, blue: 0.42, alpha: 1)
+        view.onLayout = { [weak view] in
+            guard let view else { return }
+            scene.noteView(view.bounds.size)
+        }
         return view
     }
 
-    func updateUIView(_ view: SKView, context: Context) {
-        let bounds = view.bounds.size
-        guard bounds.width > 2, bounds.height > 2 else { return }
-        if abs(scene.size.width - bounds.width) > 1 || abs(scene.size.height - bounds.height) > 1 {
-            scene.size = bounds
+    func updateUIView(_ view: DefenseScreen, context: Context) {
+        scene.scaleMode = .aspectFit
+        if scene.size != DefenseStage.boardPixelSize {
+            scene.size = DefenseStage.boardPixelSize
         }
+        scene.noteView(view.bounds.size)
+    }
+}
+
+final class DefenseScreen: SKView {
+    var onLayout: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
     }
 }
 
@@ -779,6 +808,7 @@ struct TowerGlyph: View {
 }
 
 final class DefenseStage: SKScene {
+    static let boardPixelSize = CGSize(width: 1024, height: 576)
     var allows: ((DefensePoint) -> Bool)?
     var petTexture: SKTexture?
     private var pendingDrop: DefensePoint?
@@ -797,7 +827,8 @@ final class DefenseStage: SKScene {
     }
 
     private let board = SKNode()
-    private var boardSize = CGSize(width: 390, height: 700)
+    private var boardSize = DefenseStage.boardPixelSize
+    private var unit: CGFloat = 1
     private var shownMap: DefenseMap?
     private var road: [DefensePoint] = []
     private var blobs: [Int: SKNode] = [:]
@@ -856,21 +887,31 @@ final class DefenseStage: SKScene {
         board.addChild(hero)
     }
 
+    func noteView(_ viewSize: CGSize) {
+        guard viewSize.width > 2, viewSize.height > 2 else { return }
+        let fit = min(viewSize.width / Self.boardPixelSize.width, viewSize.height / Self.boardPixelSize.height)
+        let next: CGFloat = fit > 0.05 ? 1 / fit : 1
+        guard abs(next - unit) > 0.04 else { return }
+        unit = next
+        guard let shownMap else { return }
+        board.children.filter { $0.name == "ground" }.forEach { $0.removeFromParent() }
+        drawGround(shownMap)
+        if let hero = board.childNode(withName: "hero") as? SKSpriteNode {
+            hero.size = CGSize(width: 48 * unit, height: 48 * unit)
+        }
+    }
+
     private func adoptSceneSize() {
         if board.parent == nil { addChild(board) }
-        let sceneSize = size.width > 2 ? size : CGSize(width: 390, height: 700)
-        boardSize = sceneSize
+        size = Self.boardPixelSize
+        boardSize = Self.boardPixelSize
         board.setScale(1)
         board.position = .zero
-        backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
+        backgroundColor = UIColor(red: 0.46, green: 0.74, blue: 0.42, alpha: 1)
     }
 
     private func fitBoard() {
-        let previous = boardSize
         adoptSceneSize()
-        guard let shownMap, abs(previous.width - boardSize.width) > 1 || abs(previous.height - boardSize.height) > 1 else { return }
-        board.children.filter { $0.name == "ground" }.forEach { $0.removeFromParent() }
-        drawGround(shownMap)
     }
 
     func takeReject() -> Bool {
@@ -941,9 +982,8 @@ final class DefenseStage: SKScene {
             preview.childNode(withName: "rank")?.removeFromParent()
             ghost.addChild(preview)
             let reach = DefensePlay.range(of: DefenseGun(id: 0, kind: kind, x: 0, y: 0))
-            let reachX = CGFloat(reach) * boardSize.width
-            let reachY = CGFloat(reach) * boardSize.height
-            rangeRing.path = CGPath(ellipseIn: CGRect(x: -reachX, y: -reachY, width: reachX * 2, height: reachY * 2), transform: nil)
+            let radius = CGFloat(reach) * boardSize.width
+            rangeRing.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
         }
     }
 
@@ -985,7 +1025,7 @@ final class DefenseStage: SKScene {
             node.position = place(spot)
             node.zPosition = 20 + (boardSize.height - node.position.y) * 0.01
             let hop = CGFloat(1 + 0.04 * sin(CACurrentMediaTime() * 8 + Double(blob.id)))
-            node.setScale(hop)
+            node.setScale(unit * hop)
             if blob.sort == .fast {
                 for index in 0..<3 {
                     node.childNode(withName: "trail\(index)")?.position = CGPoint(x: CGFloat(index + 1) * -6, y: 0)
@@ -1017,6 +1057,7 @@ final class DefenseStage: SKScene {
             }
             guard let node = guns[gun.id] else { continue }
             node.position = place(DefensePoint(x: gun.x, y: gun.y))
+            node.setScale(unit)
             node.zPosition = 12 + (boardSize.height - node.position.y) * 0.01
             node.alpha = selected == gun.id ? 1 : 0.95
             if let target = battle.blobs.max(by: { $0.distance < $1.distance }), let aim = node.childNode(withName: "aim") {
@@ -1046,6 +1087,7 @@ final class DefenseStage: SKScene {
         for shot in battle.shots {
             let node = shots[shot.id] ?? makeShot(shot.kind)
             shots[shot.id] = node
+            node.setScale(unit)
             if let blob = battle.blobs.first(where: { $0.id == shot.target }) {
                 let spot = place(DefensePlay.point(on: road, distance: blob.distance))
                 let origin = place(DefensePoint(x: shot.x, y: shot.y))
@@ -1110,22 +1152,7 @@ final class DefenseStage: SKScene {
     }
 
     private func drawGround(_ map: DefenseMap) {
-        let meadow = DefenseBake.texture("meadow-\(map.id)", pixels: 256) { ctx, side in
-            let base = self.meadowColor(map.id)
-            ctx.setFillColor(base.cgColor)
-            ctx.fill(CGRect(origin: .zero, size: side))
-            for index in 0..<28 {
-                let x = CGFloat((index * 47) % 240) + 8
-                let y = CGFloat((index * 29) % 240) + 8
-                ctx.setFillColor(base.withAlphaComponent(0.35).cgColor)
-                ctx.fillEllipse(in: CGRect(x: x, y: y, width: 18, height: 10))
-                ctx.setFillColor(UIColor(red: 1, green: 0.82, blue: 0.88, alpha: 0.8).cgColor)
-                if index.isMultiple(of: 4) {
-                    ctx.fillEllipse(in: CGRect(x: x + 4, y: y + 6, width: 5, height: 5))
-                }
-            }
-        }
-        let wash = SKSpriteNode(texture: meadow, size: boardSize)
+        let wash = SKSpriteNode(color: meadowColor(map.id), size: boardSize)
         wash.anchorPoint = .zero
         wash.zPosition = 0
         wash.name = "ground"
@@ -1139,7 +1166,7 @@ final class DefenseStage: SKScene {
         }
         let shadow = SKShapeNode(path: path)
         shadow.strokeColor = UIColor(white: 0, alpha: 0.16)
-        shadow.lineWidth = 58
+        shadow.lineWidth = 58 * unit
         shadow.lineCap = .round
         shadow.lineJoin = .round
         shadow.position = CGPoint(x: 0, y: -4)
@@ -1148,7 +1175,7 @@ final class DefenseStage: SKScene {
         board.addChild(shadow)
         let border = SKShapeNode(path: path)
         border.strokeColor = pathBorder(map.id)
-        border.lineWidth = 50
+        border.lineWidth = 50 * unit
         border.lineCap = .round
         border.lineJoin = .round
         border.name = "ground"
@@ -1156,7 +1183,7 @@ final class DefenseStage: SKScene {
         board.addChild(border)
         let fill = SKShapeNode(path: path)
         fill.strokeColor = pathFill(map.id)
-        fill.lineWidth = 40
+        fill.lineWidth = 40 * unit
         fill.lineCap = .round
         fill.lineJoin = .round
         fill.name = "ground"
@@ -1164,26 +1191,12 @@ final class DefenseStage: SKScene {
         board.addChild(fill)
         let highlight = SKShapeNode(path: path)
         highlight.strokeColor = UIColor(white: 1, alpha: 0.22)
-        highlight.lineWidth = 14
+        highlight.lineWidth = 14 * unit
         highlight.lineCap = .round
         highlight.name = "ground"
         highlight.zPosition = 2
         board.addChild(highlight)
         addDecor(map.id)
-        for index in 0..<8 {
-            let dot = SKShapeNode(circleOfRadius: index.isMultiple(of: 2) ? 7 : 4)
-            dot.fillColor = .white
-            dot.strokeColor = .clear
-            dot.alpha = 0.7
-            dot.position = CGPoint(x: CGFloat(index) * 48 + 20, y: CGFloat((index * 37) % 180) + 40)
-            dot.name = "ground"
-            dot.zPosition = 1
-            board.addChild(dot)
-            dot.run(.repeatForever(.sequence([
-                .fadeAlpha(to: 0.3, duration: 0.8),
-                .fadeAlpha(to: 0.8, duration: 0.8)
-            ])))
-        }
     }
 
     private func makeBlob(_ blob: Blob) -> SKNode {
@@ -1259,28 +1272,65 @@ final class DefenseStage: SKScene {
     }
 
     private func addDecor(_ mapID: Int) {
-        let spots: [(CGFloat, CGFloat, CGFloat)] = switch mapID {
-        case 2: [(140, 520, 34), (820, 180, 28), (700, 540, 22)]
-        case 3: [(160, 200, 26), (780, 480, 30), (420, 120, 18)]
-        case 4: [(200, 560, 24), (760, 200, 32), (500, 400, 16)]
-        case 5: [(180, 160, 20), (800, 520, 26), (640, 140, 18)]
-        default: [(150, 500, 30), (840, 220, 24), (620, 560, 18)]
+        let pond = SKShapeNode(ellipseOf: CGSize(width: 90 * unit, height: 52 * unit))
+        pond.fillColor = UIColor(red: 0.45, green: 0.72, blue: 0.9, alpha: 1)
+        pond.strokeColor = UIColor(red: 0.25, green: 0.5, blue: 0.7, alpha: 1)
+        pond.lineWidth = 3 * unit
+        pond.position = spot(0.22, 0.28)
+        pond.zPosition = 3
+        pond.name = "ground"
+        board.addChild(pond)
+        for (x, y) in [(0.12, 0.42), (0.78, 0.72), (0.58, 0.72)] as [(CGFloat, CGFloat)] {
+            board.addChild(tree(at: spot(x, y)))
         }
-        for (x, y, r) in spots {
-            let decor = SKShapeNode(ellipseOf: CGSize(width: r * 0.35, height: r * 0.24))
-            decor.fillColor = themeColor(mapID).withAlphaComponent(0.55)
-            decor.strokeColor = .white
-            decor.lineWidth = 2
-            decor.position = CGPoint(x: x / 1000 * boardSize.width, y: y / 700 * boardSize.height)
-            decor.zPosition = 3
-            decor.name = "ground"
-            let shine = SKShapeNode(ellipseOf: CGSize(width: r, height: r * 0.4))
-            shine.fillColor = UIColor(white: 1, alpha: 0.35)
-            shine.strokeColor = .clear
-            shine.position = CGPoint(x: -r * 0.2, y: r * 0.2)
-            decor.addChild(shine)
-            board.addChild(decor)
+        for (x, y) in [(0.40, 0.74), (0.86, 0.22)] as [(CGFloat, CGFloat)] {
+            let rock = SKShapeNode(ellipseOf: CGSize(width: 28 * unit, height: 18 * unit))
+            rock.fillColor = UIColor(red: 0.62, green: 0.64, blue: 0.68, alpha: 1)
+            rock.strokeColor = UIColor(red: 0.35, green: 0.36, blue: 0.4, alpha: 1)
+            rock.lineWidth = 2 * unit
+            rock.position = spot(x, y)
+            rock.zPosition = 3
+            rock.name = "ground"
+            board.addChild(rock)
         }
+        for (x, y) in [(0.30, 0.62), (0.48, 0.58), (0.70, 0.22), (0.16, 0.18)] as [(CGFloat, CGFloat)] {
+            let flower = SKShapeNode(circleOfRadius: 6 * unit)
+            flower.fillColor = UIColor(red: 1, green: 0.55, blue: 0.7, alpha: 1)
+            flower.strokeColor = .white
+            flower.lineWidth = 1.5 * unit
+            flower.position = spot(x, y)
+            flower.zPosition = 3
+            flower.name = "ground"
+            let dot = SKShapeNode(circleOfRadius: 2 * unit)
+            dot.fillColor = UIColor(red: 1, green: 0.9, blue: 0.4, alpha: 1)
+            dot.strokeColor = .clear
+            flower.addChild(dot)
+            board.addChild(flower)
+        }
+        _ = mapID
+    }
+
+    private func tree(at point: CGPoint) -> SKNode {
+        let node = SKNode()
+        node.position = point
+        node.zPosition = 3
+        node.name = "ground"
+        let trunk = SKShapeNode(rectOf: CGSize(width: 8 * unit, height: 16 * unit), cornerRadius: 2)
+        trunk.fillColor = UIColor(red: 0.55, green: 0.36, blue: 0.22, alpha: 1)
+        trunk.strokeColor = .clear
+        trunk.position = CGPoint(x: 0, y: 4 * unit)
+        node.addChild(trunk)
+        let crown = SKShapeNode(circleOfRadius: 16 * unit)
+        crown.fillColor = UIColor(red: 0.28, green: 0.62, blue: 0.32, alpha: 1)
+        crown.strokeColor = UIColor(red: 0.16, green: 0.4, blue: 0.2, alpha: 1)
+        crown.lineWidth = 2 * unit
+        crown.position = CGPoint(x: 0, y: 20 * unit)
+        node.addChild(crown)
+        return node
+    }
+
+    private func spot(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+        CGPoint(x: x * boardSize.width, y: y * boardSize.height)
     }
 
     private func makeGun(_ gun: DefenseGun) -> SKNode {

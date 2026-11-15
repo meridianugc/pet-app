@@ -301,7 +301,7 @@ public enum DefensePlay {
 
     public static let maps: [DefenseMap] = [
         DefenseMap(id: 1, name: "Moon garden", theme: "Soft moons and flower craters", unlockLevel: 1, path: curve([
-            (0.02, 0.18), (0.28, 0.18), (0.48, 0.42), (0.3, 0.68), (0.62, 0.78), (0.92, 0.55)
+            (0.0, 0.70), (0.18, 0.76), (0.36, 0.46), (0.52, 0.28), (0.68, 0.50), (0.84, 0.34), (1.0, 0.58)
         ])),
         DefenseMap(id: 2, name: "Nebula river", theme: "A glowing river of dust", unlockLevel: 3, path: curve([
             (0.08, 0.9), (0.12, 0.55), (0.4, 0.48), (0.42, 0.18), (0.7, 0.28), (0.78, 0.7), (0.96, 0.62)
