@@ -10,6 +10,7 @@ public enum MiniGame: String, Codable, Equatable, Sendable, CaseIterable {
     case starDefense
     case cosmicSolitaire
     case starSudoku
+    case shipDuo
 
     public var title: String {
         switch self {
@@ -22,7 +23,20 @@ public enum MiniGame: String, Codable, Equatable, Sendable, CaseIterable {
         case .starDefense: return "Star Defense"
         case .cosmicSolitaire: return "Cosmic Solitaire"
         case .starSudoku: return "Star Sudoku"
+        case .shipDuo: return "Ship Duo"
         }
+    }
+}
+
+/// Which games belong on the play gallery. Unfinished cases stay off both shelves.
+public enum GameLibrary {
+    public static let big: [MiniGame] = [.starDefense, .shipDuo, .cosmicSolitaire, .starSudoku]
+    public static let mini: [MiniGame] = [.snackMatch, .planetMerge, .starHopper]
+
+    public static func shelf(of game: MiniGame) -> String? {
+        if big.contains(game) { return "Big Games" }
+        if mini.contains(game) { return "Mini Games" }
+        return nil
     }
 }
 
