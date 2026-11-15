@@ -148,26 +148,39 @@ struct StarDefenseGame: View {
     private func runScreenshotDemo() async {
         guard ScreenshotDemo.isOn else { return }
         showHowTo = false
+        playing = false
         battle = DefensePlay.start(map: 1, difficulty: .easy)
         pickedMap = 1
         scene.load(DefensePlay.map(1))
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         battle = DefensePlay.beginRound(battle)
-        playing = true
         let level = max(session.level, 1)
-        for x in stride(from: 0.14, through: 0.86, by: 0.12) {
-            for y in stride(from: 0.16, through: 0.84, by: 0.12) {
+        let path = DefensePlay.map(1).path
+        for x in stride(from: 0.18, through: 0.82, by: 0.04) {
+            for y in stride(from: 0.18, through: 0.82, by: 0.04) {
                 let spot = DefensePoint(x: x, y: y)
+                let gap = DefensePlay.distance(spot, to: path)
+                guard gap > 0.08, gap < 0.15 else { continue }
                 if let next = DefensePlay.place(.dart, at: spot, petLevel: level, in: battle) {
                     battle = next
                     selected = battle.guns.last?.id
-                    scene.apply(battle, events: [], selected: selected)
-                    try? await Task.sleep(nanoseconds: 700_000_000)
-                    playing = false
-                    return
+                    break
                 }
             }
+            if selected != nil { break }
         }
+        var frozen = battle
+        for _ in 0..<600 {
+            let stepped = DefensePlay.step(frozen, dt: 1.0 / 60.0)
+            frozen = stepped.0
+            let mid = frozen.blobs.contains { $0.distance > 0.22 && $0.distance < 0.55 }
+            if mid, !frozen.shots.isEmpty { break }
+        }
+        battle = frozen
+        playing = false
+        scene.apply(battle, events: [], selected: selected)
+        let onRoad = DefensePlay.point(on: path, distance: 0.08)
+        scene.showPlacementGhost(.dart, at: onRoad, valid: false)
     }
 
     private var mapList: some View {
@@ -930,6 +943,23 @@ final class DefenseStage: SKScene {
             let reachY = CGFloat(reach) * boardSize.height
             rangeRing.path = CGPath(ellipseIn: CGRect(x: -reachX, y: -reachY, width: reachX * 2, height: reachY * 2), transform: nil)
         }
+    }
+
+    /// Holds the same drag ghost the finger uses, so a screenshot can show the red or green range.
+    func showPlacementGhost(_ kind: DefenseGunKind, at spot: DefensePoint, valid: Bool) {
+        arm(kind)
+        let boardPoint = CGPoint(x: CGFloat(spot.x) * boardSize.width, y: CGFloat(spot.y) * boardSize.height)
+        ghost.position = boardPoint
+        ghost.alpha = 0.95
+        ghost.zPosition = 80
+        rangeRing.position = boardPoint
+        rangeRing.alpha = 0.95
+        rangeRing.zPosition = 70
+        let tint = valid
+            ? UIColor(red: 0.25, green: 0.82, blue: 0.38, alpha: 1)
+            : UIColor(red: 0.95, green: 0.22, blue: 0.28, alpha: 1)
+        rangeRing.strokeColor = tint
+        rangeRing.fillColor = tint.withAlphaComponent(0.22)
     }
 
     func apply(_ battle: DefenseBattle, events: [DefenseEvent], selected: Int?) {
