@@ -74,7 +74,7 @@ struct BedroomView: View {
                 )
                 .frame(width: 48, height: 48)
                 .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
-                .offset(x: world.knob.x, y: world.knob.y)
+                .offset(x: world.knob.width, y: world.knob.height)
         }
         .frame(width: 140, height: 140)
         .contentShape(Rectangle())
