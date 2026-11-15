@@ -61,15 +61,19 @@ jobs:
           APP=$(find build/Build/Products -name 'PocketPet.app' -type d | head -1)
           echo "App $APP"
           xcrun simctl install booted "$APP"
-          xcrun simctl ui booted orientation landscapeRight || true
           mkdir -p "$RUNNER_TEMP/screens"
           for name in map green red upgrade; do
             xcrun simctl terminate booted com.example.petapp || true
-            xcrun simctl launch booted com.example.petapp -starDefenseShot "$name"
+            xcrun simctl launch --console booted com.example.petapp -starDefenseShot "$name" > "$RUNNER_TEMP/screens/console-$name.txt" 2>&1 &
             sleep 8
-            xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/star-defense-$name.png"
+            xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/star-defense-$name.png" || true
+            xcrun simctl terminate booted com.example.petapp || true
+            sleep 1
           done
-          ls -l "$RUNNER_TEMP/screens"
+          mkdir -p "$RUNNER_TEMP/screens/reports"
+          cp "$HOME/Library/Logs/DiagnosticReports/"*Pocket* "$RUNNER_TEMP/screens/reports/" 2>/dev/null || true
+          cp "$HOME/Library/Logs/DiagnosticReports/"*petapp* "$RUNNER_TEMP/screens/reports/" 2>/dev/null || true
+          ls -l "$RUNNER_TEMP/screens" "$RUNNER_TEMP/screens/reports" || true
 
       - uses: actions/upload-artifact@v4
         if: always()

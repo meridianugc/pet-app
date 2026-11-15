@@ -8,12 +8,16 @@ enum PlayOrientation {
 
     static func landscape() {
         mask = .landscape
-        apply(.landscapeRight)
+        DispatchQueue.main.async {
+            apply(.landscapeRight)
+        }
     }
 
     static func portrait() {
         mask = .portrait
-        apply(.portrait)
+        DispatchQueue.main.async {
+            apply(.portrait)
+        }
     }
 
     private static func apply(_ orientations: UIInterfaceOrientationMask) {
