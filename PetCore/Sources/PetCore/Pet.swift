@@ -60,8 +60,14 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
     public var adultForm: AdultForm?
     /// Gift from the previous alien, carried by the egg and the hatchling.
     public var trait: InheritedTrait?
+    /// Nil on an older save. `likes` fills that in from the pet id.
+    public var taste: PetTaste?
 
     public var hasGoneHome: Bool { wentHomeAt != nil }
+
+    public var likes: PetTaste {
+        taste ?? PetTaste.roll(seed: abs(id.hashValue))
+    }
 
     /// What to draw once they have grown up. Older saves with no form use the star.
     public var displayForm: AdultForm? {
@@ -88,7 +94,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         lastSimulatedAt: Date,
         care: CareHistory = CareHistory(),
         adultForm: AdultForm? = nil,
-        trait: InheritedTrait? = nil
+        trait: InheritedTrait? = nil,
+        taste: PetTaste? = nil
     ) {
         self.id = id
         self.name = name
@@ -109,6 +116,7 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         self.care = care
         self.adultForm = adultForm
         self.trait = trait
+        self.taste = taste
     }
 
     public init(from decoder: Decoder) throws {
@@ -140,6 +148,7 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         care = try c.decodeIfPresent(CareHistory.self, forKey: .care) ?? CareHistory()
         adultForm = try c.decodeIfPresent(AdultForm.self, forKey: .adultForm)
         trait = try c.decodeIfPresent(InheritedTrait.self, forKey: .trait)
+        taste = try c.decodeIfPresent(PetTaste.self, forKey: .taste)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -163,13 +172,14 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
         try c.encode(care, forKey: .care)
         try c.encodeIfPresent(adultForm, forKey: .adultForm)
         try c.encodeIfPresent(trait, forKey: .trait)
+        try c.encodeIfPresent(taste, forKey: .taste)
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, stage, stageStartedAt, createdAt, bornAt
         case hunger, happiness, energy
         case isSleeping, sleepStartedAt, passedOut, criticalSince
-        case diedAt, deathReason, wentHomeAt, homeReason, lastSimulatedAt, care, adultForm, trait
+        case diedAt, deathReason, wentHomeAt, homeReason, lastSimulatedAt, care, adultForm, trait, taste
     }
 
     public static func freshEgg(
@@ -197,7 +207,8 @@ public struct Pet: Codable, Equatable, Identifiable, Sendable {
             wentHomeAt: nil,
             homeReason: nil,
             lastSimulatedAt: now,
-            trait: trait
+            trait: trait,
+            taste: PetTaste.roll(seed: abs(id.hashValue))
         )
     }
 }
