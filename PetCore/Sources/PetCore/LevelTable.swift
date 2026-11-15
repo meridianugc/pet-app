@@ -6,7 +6,7 @@ public enum LevelTable {
         var level = 1
         var remaining = max(0, xp)
         var step = 40
-        while remaining >= step, level < 20 {
+        while remaining >= step, level < 40 {
             remaining -= step
             level += 1
             step += 20

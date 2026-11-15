@@ -42,7 +42,7 @@ final class PetGrowthTests: XCTestCase {
         XCTAssertEqual(engine.advance(egg, to: EngineFixture.start.addingTimeInterval(babyAt)).stage, .baby)
         let adult = engine.advance(egg, to: EngineFixture.start.addingTimeInterval(adultAt))
         XCTAssertEqual(adult.stage, .adult)
-        XCTAssertEqual(adult.adultForm, .spiky)
+        XCTAssertEqual(adult.adultForm, .meteor)
         XCTAssertEqual(adult.stageStartedAt, EngineFixture.start.addingTimeInterval(adultAt))
         let still = engine.advance(egg, to: EngineFixture.start.addingTimeInterval(adultAt + 50_000))
         XCTAssertEqual(still.stage, .adult)
@@ -60,7 +60,7 @@ final class PetGrowthTests: XCTestCase {
         pet = engine.perform(.play, on: pet, at: pet.lastSimulatedAt).pet
         let adult = engine.advance(pet, to: pet.lastSimulatedAt.addingTimeInterval(100))
         XCTAssertEqual(adult.stage, .adult)
-        XCTAssertEqual(adult.adultForm, .star)
+        XCTAssertEqual(adult.adultForm, .constellation)
         XCTAssertEqual(adult.care.properFeeds, 2)
         XCTAssertEqual(adult.care.plays, 1)
     }

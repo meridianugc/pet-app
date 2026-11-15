@@ -15,8 +15,9 @@ final class StarDexTests: XCTestCase {
         var collection = PetCollection.empty
         collection.sawEgg = true
         collection.sawBaby = true
-        collection.raisedForms = [.star, .cloud, .spiky]
+        collection.raisedForms = Array(AdultForm.allCases)
         var progress = PlayerProgress(ownedIDs: ["outfit.scarf", "outfit.bow", "outfit.helmet"], gamesFinished: 1)
+        progress.xp = LevelTable.xpToReach(8)
         for option in LookBook.options where !progress.wardrobe.owned.contains(option.id) {
             progress.wardrobe.owned.append(option.id)
         }
