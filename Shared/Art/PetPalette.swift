@@ -36,6 +36,10 @@ enum GameArt {
     static let bgShop = "bg_shop"
     static let toyComet = "toy_comet"
     static let toyBin = "toy_bin"
+    static let furnitureBin = "furniture_bin"
+    static let furnitureCloset = "furniture_closet"
+    static let furnitureBed = "furniture_bed"
+    static let furnitureShelf = "furniture_shelf"
 
     static func planet(_ index: Int) -> String { "planet_\(min(8, max(1, index)))" }
 
