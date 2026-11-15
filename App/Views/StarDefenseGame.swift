@@ -168,59 +168,33 @@ struct StarDefenseGame: View {
     }
 
     private var match: some View {
-        VStack(spacing: 8) {
-            HStack {
-                CosmicCloseButton(label: "Leave Star Defense") {
-                    playing = false
-                    askingLeave = true
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Lives \(battle.lives)")
-                    Text("Cash \(battle.cash)")
-                }
-                .font(.system(.caption, design: .rounded).weight(.bold))
-                Spacer()
-                Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
-                    .font(.system(.headline, design: .rounded).weight(.bold))
-                Button {
-                    paused = true
-                    playing = false
-                } label: {
-                    Image(systemName: "pause.fill")
-                        .padding(8)
-                        .background(Circle().fill(Color.white.opacity(0.85)))
-                }
-                .accessibilityLabel("Pause")
-            }
-            SpriteView(scene: scene)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(DefensePlay.guns(forPetLevel: session.level), id: \.self) { kind in
-                        Button {
-                            armed = kind
-                            selected = nil
-                            scene.arm(kind)
-                            PocketSound.shared.tap()
-                        } label: {
-                            VStack(spacing: 2) {
-                                Text(kind.title)
-                                Text("\(kind.cost)")
-                            }
-                            .font(.system(.caption2, design: .rounded).weight(.bold))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(armed == kind ? Color(red: 1, green: 0.8, blue: 0.45) : Color.white.opacity(0.72)))
-                        }
-                        .buttonStyle(.plain)
+        HStack(spacing: 0) {
+            VStack(spacing: 8) {
+                HStack {
+                    CosmicCloseButton(label: "Leave Star Defense") {
+                        playing = false
+                        askingLeave = true
                     }
+                    Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                    Spacer()
+                    Button {
+                        paused = true
+                        playing = false
+                    } label: {
+                        Image(systemName: "pause.fill")
+                            .padding(8)
+                            .background(Circle().fill(Color.white.opacity(0.85)))
+                    }
+                    .accessibilityLabel("Pause")
                 }
-            }
-            if let selected, let gun = battle.guns.first(where: { $0.id == selected }) {
-                upgradePanel(gun)
-            }
-            HStack {
+                SpriteView(scene: scene)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
+                if let selected, let gun = battle.guns.first(where: { $0.id == selected }) {
+                    upgradePanel(gun)
+                }
+                HStack {
                 Button(battle.running ? "In wave" : "Start round") {
                     battle = DefensePlay.beginRound(battle)
                     playing = battle.running
@@ -241,36 +215,87 @@ struct StarDefenseGame: View {
                 }
                 .disabled(battle.heroCooldown > 0 || !battle.running)
             }
-            .font(.system(.caption, design: .rounded).weight(.bold))
-            Button("Maps") {
-                playing = false
-                pickedMap = nil
-                armed = nil
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                Button("Maps") {
+                    playing = false
+                    pickedMap = nil
+                    armed = nil
+                }
+                .font(.system(.caption, design: .rounded).weight(.bold))
             }
-            .font(.system(.caption, design: .rounded).weight(.bold))
+            .padding(10)
+            shopRail
         }
-        .padding(12)
+    }
+
+    private var shopRail: some View {
+        VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("★ \(battle.cash)")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text("♥ \(battle.lives)")
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(DefenseGunKind.allCases, id: \.self) { kind in
+                        let open = session.level >= kind.unlockLevel
+                        let affordable = battle.cash >= kind.cost
+                        Button {
+                            guard open else { return }
+                            armed = kind
+                            selected = nil
+                            scene.arm(kind)
+                            PocketSound.shared.tap()
+                        } label: {
+                            VStack(spacing: 4) {
+                                TowerGlyph(kind: kind)
+                                    .frame(width: 36, height: 36)
+                                    .opacity(open ? 1 : 0.35)
+                                Text(open ? "\(kind.cost)" : "Lock")
+                                    .font(.system(.caption2, design: .rounded).weight(.bold))
+                                    .foregroundStyle(affordable || !open ? Color(red: 0.28, green: 0.16, blue: 0.42) : Color(red: 0.85, green: 0.25, blue: 0.35))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 74)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(armed == kind ? Color(red: 1, green: 0.86, blue: 0.55) : Color.white.opacity(open ? 0.9 : 0.45))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!open)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(width: 168)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 0, topTrailingRadius: 0)
+                .fill(.ultraThinMaterial)
+        )
     }
 
     private func upgradePanel(_ gun: DefenseGun) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(gun.kind.title) · \(gun.aim.rawValue)")
-                .font(.system(.caption, design: .rounded).weight(.bold))
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Button(trainTitle(gun, pathA: true)) {
-                    if let next = DefensePlay.train(gun.id, pathA: true, in: battle) {
+                TowerGlyph(kind: gun.kind).frame(width: 28, height: 28)
+                Text(gun.kind.title)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                Spacer()
+                Button("Sell \(Int(Double(gun.spent) * 0.7))") {
+                    if let next = DefensePlay.sell(gun.id, in: battle) {
                         battle = next
-                        PocketSound.shared.match()
+                        selected = nil
+                        PocketSound.shared.tap()
                     }
                 }
-                .disabled(!DefensePlay.canTrain(gun, pathA: true))
-                Button(trainTitle(gun, pathA: false)) {
-                    if let next = DefensePlay.train(gun.id, pathA: false, in: battle) {
-                        battle = next
-                        PocketSound.shared.match()
-                    }
-                }
-                .disabled(!DefensePlay.canTrain(gun, pathA: false))
+                .font(.system(.caption, design: .rounded).weight(.bold))
+            }
+            HStack {
+                pathColumn(gun, pathA: true, tint: Color(red: 0.35, green: 0.82, blue: 1))
+                pathColumn(gun, pathA: false, tint: Color(red: 1, green: 0.45, blue: 0.75))
             }
             HStack {
                 ForEach(TowerAim.allCases, id: \.self) { aim in
@@ -278,20 +303,40 @@ struct StarDefenseGame: View {
                         battle = DefensePlay.aim(gun.id, aim, in: battle)
                     }
                     .font(.system(.caption2, design: .rounded).weight(.bold))
-                }
-                Spacer()
-                Button("Sell") {
-                    if let next = DefensePlay.sell(gun.id, in: battle) {
-                        battle = next
-                        selected = nil
-                        PocketSound.shared.tap()
-                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(gun.aim == aim ? Color(red: 1, green: 0.86, blue: 0.55) : Color.white.opacity(0.7)))
                 }
             }
         }
-        .font(.system(.caption2, design: .rounded).weight(.bold))
         .padding(8)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.78)))
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.ultraThinMaterial))
+    }
+
+    private func pathColumn(_ gun: DefenseGun, pathA: Bool, tint: Color) -> some View {
+        let rank = pathA ? gun.pathA : gun.pathB
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(pathA ? "Cyan path" : "Pink path")
+                .font(.system(.caption2, design: .rounded).weight(.bold))
+            HStack(spacing: 4) {
+                ForEach(1..<5, id: \.self) { tier in
+                    Circle()
+                        .fill(tier <= rank ? tint : Color.white.opacity(0.45))
+                        .frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 1))
+                }
+            }
+            Button(trainTitle(gun, pathA: pathA)) {
+                if let next = DefensePlay.train(gun.id, pathA: pathA, in: battle) {
+                    battle = next
+                    PocketSound.shared.match()
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            }
+            .font(.system(.caption2, design: .rounded).weight(.bold))
+            .disabled(!DefensePlay.canTrain(gun, pathA: pathA))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var pauseCard: some View {
@@ -390,6 +435,30 @@ struct StarDefenseGame: View {
         rate = 1
         finale = nil
         scene.load(DefensePlay.map(following))
+    }
+}
+
+struct TowerGlyph: View {
+    var kind: DefenseGunKind
+
+    var body: some View {
+        ZStack {
+            Circle().fill(color.opacity(0.35))
+            Circle().fill(color).frame(width: 18, height: 18).offset(y: -2)
+            Capsule().fill(Color.white).frame(width: 12, height: 4).offset(x: 8)
+        }
+    }
+
+    private var color: Color {
+        switch kind {
+        case .dart: return Color(red: 0.45, green: 0.82, blue: 0.55)
+        case .laser: return Color(red: 0.98, green: 0.82, blue: 0.28)
+        case .bomb: return Color(red: 1, green: 0.55, blue: 0.35)
+        case .frost: return Color(red: 0.55, green: 0.82, blue: 0.98)
+        case .tack: return Color(red: 1, green: 0.55, blue: 0.75)
+        case .sniper: return Color(red: 0.55, green: 0.4, blue: 0.85)
+        case .farm: return Color(red: 0.55, green: 0.75, blue: 0.45)
+        }
     }
 }
 
@@ -515,9 +584,9 @@ final class DefenseStage: SKScene {
             guns[gun.id] = node
             node.position = place(DefensePoint(x: gun.x, y: gun.y))
             node.alpha = selected == gun.id ? 1 : 0.95
-            if let target = battle.blobs.max(by: { $0.distance < $1.distance }) {
+            if let target = battle.blobs.max(by: { $0.distance < $1.distance }), let aim = node.childNode(withName: "aim") {
                 let spot = place(DefensePlay.point(on: road, distance: target.distance))
-                node.zRotation = atan2(spot.y - node.position.y, spot.x - node.position.x)
+                aim.zRotation = atan2(spot.y - node.position.y, spot.x - node.position.x)
             }
             if let badge = node.childNode(withName: "rank") as? SKLabelNode {
                 badge.text = "\(gun.pathA)/\(gun.pathB)"
@@ -635,16 +704,34 @@ final class DefenseStage: SKScene {
             sprite.size = CGSize(width: 36, height: 36)
             node.addChild(sprite)
         } else {
-            let body = SKShapeNode(circleOfRadius: 12)
-            body.fillColor = blobColor(blob.sort)
-            body.strokeColor = .white
+            let tone = blobColor(blob.sort)
+            let shadow = SKShapeNode(ellipseOf: CGSize(width: 22, height: 8))
+            shadow.fillColor = UIColor(white: 0, alpha: 0.18)
+            shadow.strokeColor = .clear
+            shadow.position = CGPoint(x: 0, y: -10)
+            node.addChild(shadow)
+            let body = SKShapeNode(ellipseOf: CGSize(width: 18 + CGFloat(min(blob.layers, 6)) * 2, height: 16 + CGFloat(min(blob.layers, 6)) * 1.6))
+            body.fillColor = tone
+            body.strokeColor = tone.withAlphaComponent(0.65)
             body.lineWidth = 2
             node.addChild(body)
-            let eye = SKShapeNode(circleOfRadius: 2.5)
-            eye.fillColor = UIColor(red: 0.25, green: 0.15, blue: 0.35, alpha: 1)
-            eye.strokeColor = .clear
-            eye.position = CGPoint(x: 4, y: 3)
-            node.addChild(eye)
+            let shine = SKShapeNode(ellipseOf: CGSize(width: 7, height: 4))
+            shine.fillColor = UIColor(white: 1, alpha: 0.55)
+            shine.strokeColor = .clear
+            shine.position = CGPoint(x: -4, y: 4)
+            node.addChild(shine)
+            for side in [-1, 1] as [CGFloat] {
+                let eye = SKShapeNode(circleOfRadius: 2.2)
+                eye.fillColor = UIColor(red: 0.2, green: 0.12, blue: 0.28, alpha: 1)
+                eye.strokeColor = .clear
+                eye.position = CGPoint(x: side * 4, y: 1)
+                node.addChild(eye)
+            }
+            let nub = SKShapeNode(circleOfRadius: 2)
+            nub.fillColor = tone
+            nub.strokeColor = .clear
+            nub.position = CGPoint(x: 0, y: 12)
+            node.addChild(nub)
         }
         board.addChild(node)
         return node
@@ -659,16 +746,37 @@ final class DefenseStage: SKScene {
             sprite.size = CGSize(width: 48, height: 48)
             node.addChild(sprite)
         } else {
-            let body = SKShapeNode(circleOfRadius: 15)
-            body.fillColor = towerColor(gun.kind)
-            body.strokeColor = .white
+            let tone = towerColor(gun.kind)
+            let shadow = SKShapeNode(ellipseOf: CGSize(width: 28, height: 10))
+            shadow.fillColor = UIColor(white: 0, alpha: 0.18)
+            shadow.strokeColor = .clear
+            shadow.position = CGPoint(x: 0, y: -16)
+            node.addChild(shadow)
+            let pad = SKShapeNode(circleOfRadius: 16)
+            pad.fillColor = tone.withAlphaComponent(0.45)
+            pad.strokeColor = tone
+            pad.lineWidth = 2
+            node.addChild(pad)
+            let body = SKShapeNode(circleOfRadius: gun.pathA >= 4 || gun.pathB >= 4 ? 16 : 12)
+            body.fillColor = tone
+            body.strokeColor = UIColor(white: 1, alpha: 0.85)
             body.lineWidth = 2
+            body.position = CGPoint(x: 0, y: 6)
             node.addChild(body)
-            let barrel = SKShapeNode(rectOf: CGSize(width: 18, height: 6), cornerRadius: 3)
-            barrel.fillColor = UIColor(white: 1, alpha: 0.9)
+            let aim = SKNode()
+            aim.name = "aim"
+            let barrel = SKShapeNode(rectOf: CGSize(width: 16 + CGFloat(gun.pathA) * 2, height: 5), cornerRadius: 2)
+            barrel.fillColor = gun.pathB > gun.pathA ? UIColor(red: 1, green: 0.45, blue: 0.75, alpha: 1) : UIColor(red: 0.35, green: 0.82, blue: 1, alpha: 1)
             barrel.strokeColor = .clear
             barrel.position = CGPoint(x: 14, y: 0)
-            node.addChild(barrel)
+            aim.addChild(barrel)
+            aim.position = CGPoint(x: 0, y: 6)
+            node.addChild(aim)
+            let eye = SKShapeNode(circleOfRadius: 2)
+            eye.fillColor = .white
+            eye.strokeColor = .clear
+            eye.position = CGPoint(x: 4, y: 8)
+            node.addChild(eye)
         }
         let badge = SKLabelNode(text: "0/0")
         badge.name = "rank"
