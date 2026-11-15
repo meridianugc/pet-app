@@ -438,14 +438,16 @@ final class BedroomWorld: ObservableObject {
         }
         let walkingShot = ProcessInfo.processInfo.arguments.contains("-roomWalk")
         let walked = RoomSpace.walk(from: floor, yaw: yaw, stickX: stickX, stickY: stickY, dt: dt)
+        let showing = ProcessInfo.processInfo.arguments.contains("-roomShot") || walkingShot
         if !walkingShot {
             floor = walked.0
             yaw = walked.yaw
             room.pet = RoomSpace.spot(from: floor)
             room.yaw = yaw
         } else {
-            floor = FloorPoint(x: -0.15, z: -1.15)
+            floor = FloorPoint(x: -0.35, z: -1.35)
         }
+        if showing { yaw = .pi }
         placePet(at: floor, yaw: yaw, moving: walked.moving || walkingShot, time: time)
         followCamera(pet: floor, dt: dt)
         if walked.moving {
@@ -584,38 +586,44 @@ final class BedroomWorld: ObservableObject {
             material.diffuse.contents = woodImage()
             material.diffuse.wrapS = .repeat
             material.diffuse.wrapT = .repeat
-            material.diffuse.contentsTransform = SCNMatrix4MakeScale(6, 6, 1)
+            material.diffuse.contentsTransform = SCNMatrix4MakeScale(8, 8, 1)
         }
         scene.rootNode.addChildNode(floor)
         addWalls()
         if let rug = furniture("rugRectangle") {
-            rug.position = SCNVector3(0.1, 0.01, 0.15)
-            rug.scale = SCNVector3(1.8, 1, 1.8)
-            seat(rug, shadow: 1.6)
+            rug.position = SCNVector3(0.15, 0.01, 0.35)
+            rug.scale = SCNVector3(1.6, 1, 1.6)
+            scene.rootNode.addChildNode(rug)
         }
-        seat(makeBed(), shadow: 1.5)
-        seat(makeCloset(), shadow: 1.3)
-        seat(makeShelf(), shadow: 1.1)
+        seat(makeBed(), shadow: 0.85)
+        seat(makeCloset(), shadow: 0.7)
+        seat(makeShelf(), shadow: 0.55)
         if let desk = furniture("desk") {
-            desk.position = SCNVector3(1.7, 0, -2.15)
-            desk.eulerAngles.y = .pi
-            desk.scale = SCNVector3(1.25, 1.25, 1.25)
-            seat(desk, shadow: 1.2)
+            desk.position = SCNVector3(-2.15, 0, 1.2)
+            desk.eulerAngles.y = .pi / 2
+            desk.scale = SCNVector3(1.15, 1.15, 1.15)
+            seat(desk, shadow: 0.7)
+        }
+        if let chair = furniture("chair") {
+            chair.position = SCNVector3(-1.4, 0, 1.2)
+            chair.eulerAngles.y = .pi / 2
+            chair.scale = SCNVector3(1.15, 1.15, 1.15)
+            seat(chair, shadow: 0.4)
         }
         if let lamp = furniture("lampRoundFloor") {
-            lamp.position = SCNVector3(-2.2, 0, -1.55)
-            lamp.scale = SCNVector3(1.2, 1.2, 1.2)
-            seat(lamp, shadow: 0.45)
+            lamp.position = SCNVector3(-2.25, 0, -1.45)
+            lamp.scale = SCNVector3(1.15, 1.15, 1.15)
+            seat(lamp, shadow: 0.28)
         }
         if let plant = furniture("plantSmall1") {
-            plant.position = SCNVector3(2.15, 0, 0.4)
-            plant.scale = SCNVector3(1.3, 1.3, 1.3)
-            seat(plant, shadow: 0.4)
+            plant.position = SCNVector3(-2.25, 0, 2.15)
+            plant.scale = SCNVector3(4.8, 4.8, 4.8)
+            seat(plant, shadow: 0.28)
         }
         if let plant = furniture("plantSmall2") {
-            plant.position = SCNVector3(0.35, 0, 1.55)
-            plant.scale = SCNVector3(1.2, 1.2, 1.2)
-            seat(plant, shadow: 0.4)
+            plant.position = SCNVector3(2.2, 0, 2.05)
+            plant.scale = SCNVector3(4.2, 4.2, 4.2)
+            seat(plant, shadow: 0.28)
         }
         seat(makeBin(), shadow: 0.55)
         scene.rootNode.addChildNode(makeWindow())
@@ -626,7 +634,7 @@ final class BedroomWorld: ObservableObject {
         lens.zFar = 80
         lens.wantsHDR = true
         lens.wantsExposureAdaptation = false
-        lens.exposureOffset = -0.55
+        lens.exposureOffset = 0.35
         lens.bloomIntensity = 0.08
         lens.bloomThreshold = 1.15
         lens.bloomBlurRadius = 4
@@ -642,7 +650,7 @@ final class BedroomWorld: ObservableObject {
             (-3.02, 0, 0.12, 6.2)
         ]
         for (x, z, w, l) in walls {
-            let wall = box(w, 2.6, l, 0.02, color(0.76, 0.68, 0.9))
+            let wall = box(w, 2.6, l, 0.02, color(0.98, 0.93, 0.86))
             if let material = wall.geometry?.firstMaterial {
                 material.lightingModel = .lambert
                 material.diffuse.contents = paper
@@ -671,7 +679,9 @@ final class BedroomWorld: ObservableObject {
         node.position = SCNVector3(0, 0.025, 0)
         let material = SCNMaterial()
         material.lightingModel = .constant
-        material.diffuse.contents = UIColor(white: 0, alpha: 0.22)
+        material.diffuse.contents = shadowImage()
+        material.blendMode = .alpha
+        material.writesToDepthBuffer = false
         material.isDoubleSided = true
         node.geometry?.materials = [material]
         return node
@@ -776,10 +786,11 @@ final class BedroomWorld: ObservableObject {
 
     private func makeWindow() -> SCNNode {
         let window = SCNNode()
-        window.position = SCNVector3(2.05, 1.25, -2.9)
-        window.addChildNode(shifted(box(1.5, 1.15, 0.08, 0.04, color(1, 0.95, 0.98))))
-        let glass = box(1.15, 0.82, 0.02, 0.02, color(0.25, 0.22, 0.5))
-        glass.geometry?.firstMaterial?.emission.contents = color(0.35, 0.4, 0.8)
+        window.position = SCNVector3(-0.2, 1.45, -2.94)
+        window.addChildNode(shifted(box(1.35, 1.2, 0.08, 0.03, color(0.98, 0.94, 0.88))))
+        let glass = box(1.05, 0.9, 0.02, 0.01, color(0.78, 0.9, 0.98))
+        glass.geometry?.firstMaterial?.emission.contents = color(1, 0.97, 0.86)
+        glass.geometry?.firstMaterial?.lightingModel = .constant
         glass.position = SCNVector3(0, 0, 0.04)
         window.addChildNode(glass)
         for index in 0..<7 {
@@ -801,13 +812,13 @@ final class BedroomWorld: ObservableObject {
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.intensity = 80
-        ambient.light?.color = color(1, 0.93, 0.84)
+        ambient.light?.intensity = 260
+        ambient.light?.color = color(1, 0.96, 0.9)
         scene.rootNode.addChildNode(ambient)
         let sun = SCNNode()
         sun.light = SCNLight()
         sun.light?.type = .directional
-        sun.light?.intensity = 280
+        sun.light?.intensity = 560
         sun.light?.color = color(1, 0.93, 0.82)
         sun.light?.castsShadow = true
         sun.light?.shadowMode = .deferred
@@ -828,7 +839,7 @@ final class BedroomWorld: ObservableObject {
         ball.segmentCount = 36
         let body = SCNNode(geometry: ball)
         body.name = "body"
-        body.geometry?.materials = [toon(colors.body)]
+        body.geometry?.materials = [toon(brighten(colors.body))]
         body.position = SCNVector3(0, 0.62, 0)
         let shellBall = SCNSphere(radius: radius * 1.05)
         shellBall.segmentCount = 24
@@ -850,17 +861,17 @@ final class BedroomWorld: ObservableObject {
                 body.addChildNode(node)
             }
         }
-        let eye = sphere(0.08, color(1, 1, 1))
-        eye.position = SCNVector3(-0.14, 0.08, 0.38)
+        let eye = sphere(0.12, color(1, 1, 1))
+        eye.position = SCNVector3(-0.16, 0.1, 0.36)
         body.addChildNode(eye)
         let eye2 = eye.clone()
-        eye2.position = SCNVector3(0.14, 0.08, 0.38)
+        eye2.position = SCNVector3(0.16, 0.1, 0.36)
         body.addChildNode(eye2)
-        let pupil = sphere(0.04, color(0.22, 0.14, 0.36))
-        pupil.position = SCNVector3(-0.14, 0.08, 0.44)
+        let pupil = sphere(0.055, color(0.18, 0.12, 0.28))
+        pupil.position = SCNVector3(-0.16, 0.1, 0.46)
         body.addChildNode(pupil)
         let pupil2 = pupil.clone()
-        pupil2.position = SCNVector3(0.14, 0.08, 0.44)
+        pupil2.position = SCNVector3(0.16, 0.1, 0.46)
         body.addChildNode(pupil2)
         let antenna = SCNNode()
         antenna.name = "antenna"
@@ -876,12 +887,12 @@ final class BedroomWorld: ObservableObject {
         pet.addChildNode(body)
         pet.addChildNode(contactShadow(0.7))
         for (name, x) in [("handL", Float(-0.38)), ("handR", Float(0.38))] {
-            let hand = sphere(0.055, colors.body)
+            let hand = sphere(0.055, brighten(colors.body))
             hand.name = name
             hand.position = SCNVector3(x, 0.42, 0.12)
             pet.addChildNode(hand)
         }
-        let foot = sphere(0.09, colors.body)
+        let foot = sphere(0.09, brighten(colors.body))
         foot.name = "footL"
         foot.position = SCNVector3(-0.12, 0.08, 0.04)
         pet.addChildNode(foot)
@@ -1023,24 +1034,24 @@ final class BedroomWorld: ObservableObject {
                 guard let materials = node.geometry?.materials else { return }
                 for material in materials {
                     let title = (material.name ?? "").lowercased()
-                    let tone: UIColor
-                    if title.contains("wood") {
-                        tone = color(0.84, 0.68, 0.48)
+                    material.lightingModel = .lambert
+                    if title.contains("carpetwhite") || title.contains("white") {
+                        material.diffuse.contents = color(1, 0.99, 0.97)
                     } else if title.contains("carpet") || title.contains("fabric") {
-                        tone = color(0.96, 0.72, 0.82)
+                        material.diffuse.contents = color(0.98, 0.73, 0.8)
+                    } else if title.contains("wood") {
+                        material.diffuse.contents = color(0.93, 0.75, 0.52)
                     } else if title.contains("metal") {
-                        tone = color(0.78, 0.8, 0.86)
+                        material.diffuse.contents = color(0.86, 0.88, 0.9)
                     } else if title.contains("plant") || title.contains("leaf") {
-                        tone = color(0.42, 0.72, 0.46)
+                        material.diffuse.contents = color(0.42, 0.78, 0.4)
                     } else if title.contains("lamp") {
-                        tone = color(1, 0.94, 0.7)
-                        material.emission.contents = color(1, 0.9, 0.55)
-                    } else {
-                        tone = color(0.94, 0.9, 0.98)
+                        material.diffuse.contents = color(1, 0.96, 0.72)
+                        material.emission.contents = color(1, 0.92, 0.6)
+                    } else if let existing = material.diffuse.contents as? UIColor {
+                        material.diffuse.contents = brighten(existing)
                     }
-                    material.lightingModel = .physicallyBased
-                    material.diffuse.contents = tone
-                    material.roughness.contents = NSNumber(value: 0.55)
+                    material.roughness.contents = NSNumber(value: 0.62)
                 }
             }
             return root
@@ -1074,16 +1085,40 @@ final class BedroomWorld: ObservableObject {
         return material
     }
 
-    private func woodImage() -> UIImage {
-        let side = CGSize(width: 128, height: 128)
+    private func brighten(_ ui: UIColor) -> UIColor {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard ui.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return ui }
+        return UIColor(
+            red: min(1, red * 0.45 + 0.55),
+            green: min(1, green * 0.45 + 0.55),
+            blue: min(1, blue * 0.45 + 0.55),
+            alpha: alpha
+        )
+    }
+
+    private func shadowImage() -> UIImage {
+        let side = CGSize(width: 64, height: 40)
         return UIGraphicsImageRenderer(size: side).image { ctx in
-            UIColor(red: 0.79, green: 0.58, blue: 0.36, alpha: 1).setFill()
+            ctx.cgContext.clear(CGRect(origin: .zero, size: side))
+            ctx.cgContext.setFillColor(UIColor(white: 0, alpha: 0.2).cgColor)
+            ctx.cgContext.fillEllipse(in: CGRect(x: 4, y: 6, width: 56, height: 28))
+        }
+    }
+
+    private func woodImage() -> UIImage {
+        let side = CGSize(width: 128, height: 256)
+        return UIGraphicsImageRenderer(size: side).image { ctx in
+            UIColor(red: 0.93, green: 0.78, blue: 0.55, alpha: 1).setFill()
             ctx.fill(CGRect(origin: .zero, size: side))
-            for row in 0..<7 {
-                UIColor(red: 0.55, green: 0.36, blue: 0.2, alpha: 0.55).setFill()
-                ctx.fill(CGRect(x: 0, y: CGFloat(row) * 18, width: 128, height: 3))
-                UIColor(red: 0.9, green: 0.74, blue: 0.5, alpha: 0.35).setFill()
-                ctx.fill(CGRect(x: 0, y: CGFloat(row) * 18 + 6, width: 128, height: 8))
+            for row in 0..<4 {
+                let y = CGFloat(row) * 64
+                UIColor(red: 0.86, green: 0.68, blue: 0.44, alpha: 0.55).setFill()
+                ctx.fill(CGRect(x: 0, y: y, width: 128, height: 60))
+                UIColor(red: 0.72, green: 0.54, blue: 0.34, alpha: 0.45).setFill()
+                ctx.fill(CGRect(x: 0, y: y + 60, width: 128, height: 4))
             }
         }
     }
@@ -1091,16 +1126,13 @@ final class BedroomWorld: ObservableObject {
     private func wallpaperImage() -> UIImage {
         let side = CGSize(width: 128, height: 128)
         return UIGraphicsImageRenderer(size: side).image { ctx in
-            UIColor(red: 0.73, green: 0.62, blue: 0.86, alpha: 1).setFill()
+            UIColor(red: 0.98, green: 0.93, blue: 0.86, alpha: 1).setFill()
             ctx.fill(CGRect(origin: .zero, size: side))
-            let stars = [(14, 18), (36, 40), (62, 16), (90, 52), (22, 78), (74, 96), (50, 64), (104, 28), (8, 108)]
-            UIColor(red: 1, green: 0.96, blue: 0.78, alpha: 1).setFill()
-            for (x, y) in stars {
-                ctx.cgContext.fillEllipse(in: CGRect(x: x, y: y, width: 7, height: 7))
+            UIColor(red: 0.93, green: 0.78, blue: 0.68, alpha: 0.55).setFill()
+            let dots = [(18, 22), (46, 18), (78, 30), (104, 16), (28, 58), (64, 52), (96, 64), (16, 92), (52, 96), (88, 100)]
+            for (x, y) in dots {
+                ctx.cgContext.fillEllipse(in: CGRect(x: x, y: y, width: 8, height: 8))
             }
-            UIColor(red: 0.96, green: 0.78, blue: 0.88, alpha: 0.9).setFill()
-            ctx.cgContext.fillEllipse(in: CGRect(x: 48, y: 24, width: 5, height: 5))
-            ctx.cgContext.fillEllipse(in: CGRect(x: 86, y: 80, width: 5, height: 5))
         }
     }
 
