@@ -11,7 +11,7 @@ struct BedroomView: View {
     var visitor: String
 
     @StateObject private var world = BedroomWorld()
-    @State private var hint = !UserDefaults.standard.bool(forKey: "hint.room3d")
+    @State private var hint = !UserDefaults.standard.bool(forKey: "hint.room3d") && !ProcessInfo.processInfo.arguments.contains("-roomShot")
     @State private var lookDrag = CGSize.zero
     @State private var closet = false
 
@@ -416,6 +416,11 @@ final class BedroomWorld: ObservableObject {
         }
         refreshItems()
         placePet(at: floor, yaw: yaw, moving: false, time: 0)
+        if ProcessInfo.processInfo.arguments.contains("-roomShot") {
+            cam = SCNVector3(1.6, 1.7, 1.55)
+            camera.position = cam
+            camera.look(at: SCNVector3(-0.6, 0.45, -0.8), up: SCNVector3(0, 1, 0), localFront: SCNVector3(0, 0, -1))
+        }
     }
 
     func tick(dt: Double, closet: Bool) {
@@ -436,6 +441,9 @@ final class BedroomWorld: ObservableObject {
         room.pet = RoomSpace.spot(from: floor)
         room.yaw = yaw
         placePet(at: floor, yaw: yaw, moving: walked.moving, time: time)
+        if ProcessInfo.processInfo.arguments.contains("-roomShot") {
+            return
+        }
         followCamera(pet: floor, dt: dt)
         if walked.moving {
             moved = true
@@ -538,7 +546,7 @@ final class BedroomWorld: ObservableObject {
     private func followCamera(pet floor: FloorPoint, dt: Double) {
         let lookX = sin(yaw)
         let lookZ = -cos(yaw)
-        let distance = 2.55 - (pitch - 0.42) * 0.45
+        let distance = 3.1 - (pitch - 0.42) * 0.45
         let height = 1.15 + Float(pitch) * 0.85
         var desired = SCNVector3(
             Float(floor.x) - Float(lookX) * Float(distance),
@@ -672,6 +680,7 @@ final class BedroomWorld: ObservableObject {
         if let bed = furniture("bedSingle") {
             bed.position = SCNVector3(-1.15, 0, -1.35)
             bed.eulerAngles.y = .pi
+            bed.scale = SCNVector3(1.35, 1.35, 1.35)
             return bed
         }
         let bed = SCNNode()
