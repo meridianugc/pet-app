@@ -432,7 +432,9 @@ struct StarDefenseGame: View {
                 shopGrid
             }
         }
-        .padding(10)
+        .padding(.horizontal, 10)
+        .padding(.top, max(windowInsets.top, 16) + 8)
+        .padding(.bottom, 10)
         .frame(width: 168)
         .frame(maxHeight: .infinity, alignment: .top)
         .offset(x: cardNudge)
@@ -456,14 +458,18 @@ struct StarDefenseGame: View {
                                 TowerGlyph(kind: kind)
                                     .frame(width: 44, height: 44)
                                     .opacity(open ? 1 : 0.35)
-                                Text(open ? "\(kind.cost)" : "Lock")
-                                    .font(.system(.caption2, design: .rounded).weight(.bold))
-                                    .foregroundStyle(affordable || !open ? Color(red: 0.28, green: 0.16, blue: 0.42) : Color(red: 0.85, green: 0.25, blue: 0.35))
+                                Text(open ? "\(kind.cost)" : "Lv \(kind.unlockLevel)")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(open
+                                        ? (affordable ? Color(red: 0.22, green: 0.12, blue: 0.32) : Color(red: 0.75, green: 0.15, blue: 0.28))
+                                        : Color.white)
                             }
                             .frame(maxWidth: .infinity, minHeight: 74)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(armed == kind ? Color(red: 1, green: 0.86, blue: 0.55) : Color.white.opacity(open ? 0.9 : 0.45))
+                                    .fill(open
+                                        ? (armed == kind ? Color(red: 1, green: 0.86, blue: 0.55) : Color.white.opacity(0.92))
+                                        : Color.white.opacity(0.22))
                             )
                         }
                         .buttonStyle(.plain)
