@@ -23,7 +23,7 @@ final class PetModelTests: XCTestCase {
         XCTAssertEqual(rules.hungerDecayPerHour, 10)
         XCTAssertEqual(rules.happinessDecayPerHour, 7)
         XCTAssertEqual(rules.energyDecayPerHour, 12)
-        XCTAssertEqual(rules.sleepEnergyPerHour, 30)
+        XCTAssertEqual(rules.sleepEnergyPerHour, 110)
         XCTAssertEqual(rules.sleepHungerPerHour, 4)
         XCTAssertEqual(rules.sleepHappinessPerHour, 0)
         XCTAssertEqual(rules.neglectDuration, 4 * 60 * 60)
