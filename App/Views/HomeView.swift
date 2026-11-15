@@ -227,11 +227,15 @@ struct HomeView: View {
                 }
             }
         .frame(maxWidth: .infinity)
-        .onTapGesture {
-            withAnimation(.spring(duration: 0.45)) { inRoom = true }
-        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { session.react(to: .tickle) }
+        .onTapGesture { session.react(to: .poke) }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { _ in session.react(to: .pet) }
+        )
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens the room")
+        .accessibilityHint("Tap to poke, double tap to tickle, swipe to pet")
     }
 
     private func actions(_ pet: Pet) -> some View {
@@ -283,6 +287,14 @@ struct HomeView: View {
                 disabled: false
             ) {
                 showDressing = true
+            }
+            careButton(
+                title: "Room",
+                systemImage: "house.fill",
+                hint: "Walk around your pet's room.",
+                disabled: pet.stage == .egg
+            ) {
+                withAnimation(.spring(duration: 0.45)) { inRoom = true }
             }
             careButton(
                 title: "Shop",
