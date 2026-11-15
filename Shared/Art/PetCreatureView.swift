@@ -12,6 +12,7 @@ struct PetCreatureView: View {
     var eyes: String = "eyes.round"
     var antenna: String = "antenna.ball"
     var marking: String = "marking.none"
+    var level: Int = 1
     var animates: Bool = true
     var accessibilityLabel: String
 
@@ -48,10 +49,10 @@ struct PetCreatureView: View {
 
     private var spriteName: String {
         if stage == .egg { return GameArt.alienEgg }
+        if stage == .baby, level >= 8 { return Youth.teenAsset }
+        if stage == .baby, level >= 4 { return Youth.toddlerAsset }
         switch shownForm {
-        case .star: return GameArt.alienStar
-        case .cloud: return GameArt.alienCloud
-        case .spiky: return GameArt.alienSpiky
+        case .some(let form): return form.assetName
         case nil:
             switch mood {
             case .sleepy, .gone: return GameArt.alienBabySleep
@@ -236,19 +237,19 @@ private struct AlienBody: View {
     @ViewBuilder
     private var bodyShape: some View {
         switch form {
-        case .star:
+        case .star, .starlet, .nova, .constellation:
             StarShape()
                 .fill(palette.body)
                 .overlay(StarShape().stroke(palette.shade, lineWidth: side * 0.012))
                 .frame(width: side * 0.72, height: side * 0.72)
-        case .cloud:
+        case .cloud, .mist, .nimbus, .aurora:
             ZStack {
                 puff(side * 0.34, x: -side * 0.12, y: side * 0.04)
                 puff(side * 0.36, x: side * 0.12, y: side * 0.02)
                 puff(side * 0.28, x: 0, y: -side * 0.12)
                 puff(side * 0.42, x: 0, y: side * 0.08)
             }
-        case .spiky:
+        case .spiky, .pebble, .comet, .meteor:
             SpikyShape()
                 .fill(palette.body)
                 .overlay(SpikyShape().stroke(palette.shade, lineWidth: side * 0.01))

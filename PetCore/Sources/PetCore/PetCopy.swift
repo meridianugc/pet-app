@@ -20,7 +20,7 @@ public enum PetCopy {
         return "\(pet.name), \(pet.stage.displayName.lowercased()), \(age) old. \(mood.blurb) Fed \(fed) percent, happiness \(happy) percent, energy \(energy) percent."
     }
 
-    public static func stageLine(_ pet: Pet, now: Date, engine: PetEngine = PetEngine()) -> String {
+    public static func stageLine(_ pet: Pet, now: Date, level: Int = 1, engine: PetEngine = PetEngine()) -> String {
         if pet.hasGoneHome { return "Flying home" }
         if pet.stage == .egg {
             let left = engine.timeRemainingInStage(pet, at: now) ?? 0
@@ -32,7 +32,8 @@ public enum PetCopy {
             return "\(form) · \(age) old"
         }
         let left = engine.timeRemainingInStage(pet, at: now) ?? 0
-        return "\(pet.stage.displayName) · grows up in \(PetAge.remaining(left))"
+        let name = Youth.title(stage: pet.stage, level: level) ?? pet.stage.displayName
+        return "\(name) · grows up in \(PetAge.remaining(left))"
     }
 
     public static func statusLine(_ pet: Pet) -> String {

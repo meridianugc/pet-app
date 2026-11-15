@@ -39,12 +39,13 @@ public struct InheritedTrait: Codable, Equatable, Sendable {
     }
 
     public static func gift(from pet: Pet) -> InheritedTrait {
-        switch pet.stage == .adult ? pet.displayForm : nil {
-        case .star:
+        let branch = pet.stage == .adult ? pet.displayForm?.root : nil
+        switch branch {
+        case .star, .starlet, .nova, .constellation:
             return InheritedTrait(tint: .starlight, happinessBonus: 6, fromName: pet.name)
-        case .cloud:
+        case .cloud, .mist, .nimbus, .aurora:
             return InheritedTrait(tint: .mist, energyBonus: 6, fromName: pet.name)
-        case .spiky:
+        case .spiky, .pebble, .comet, .meteor:
             return InheritedTrait(tint: .dusk, hungerBonus: 6, fromName: pet.name)
         case nil:
             return InheritedTrait(tint: .stardust, happinessBonus: 4, fromName: pet.name)

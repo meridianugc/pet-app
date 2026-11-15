@@ -42,9 +42,20 @@ public enum StarDex {
     public static let entries: [DexEntry] = [
         DexEntry(id: "form.egg", title: "Star egg", hint: "Name an egg and wait with it.", rarity: .common, setName: "Forms", unlockLevel: 1),
         DexEntry(id: "form.baby", title: "Baby", hint: "Let the egg hatch.", rarity: .common, setName: "Forms", unlockLevel: 1),
+        DexEntry(id: "form.toddler", title: "Toddler", hint: "Reach level 4 while they are still little.", rarity: .common, setName: "Forms", unlockLevel: 4),
+        DexEntry(id: "form.teen", title: "Teen", hint: "Reach level 8 while they are still little.", rarity: .common, setName: "Forms", unlockLevel: 8),
         DexEntry(id: "form.spiky", title: "Spiky", hint: "Leave a baby needing you for too long.", rarity: .rare, setName: "Forms", unlockLevel: 2),
         DexEntry(id: "form.cloud", title: "Cloud", hint: "Spoil a baby with too many treats.", rarity: .rare, setName: "Forms", unlockLevel: 4),
         DexEntry(id: "form.star", title: "Star", hint: "Raise a baby with great care.", rarity: .rare, setName: "Forms", unlockLevel: 6),
+        DexEntry(id: "form.starlet", title: "Starlet", hint: "Keep a star bright through level 14.", rarity: .rare, setName: "Forms", unlockLevel: 14),
+        DexEntry(id: "form.nova", title: "Nova", hint: "Keep a star bright through level 24.", rarity: .rare, setName: "Forms", unlockLevel: 24),
+        DexEntry(id: "form.constellation", title: "Constellation", hint: "Keep a star bright through level 36.", rarity: .rare, setName: "Forms", unlockLevel: 36),
+        DexEntry(id: "form.mist", title: "Mist", hint: "Keep a cloud soft through level 12.", rarity: .rare, setName: "Forms", unlockLevel: 12),
+        DexEntry(id: "form.nimbus", title: "Nimbus", hint: "Keep a cloud soft through level 22.", rarity: .rare, setName: "Forms", unlockLevel: 22),
+        DexEntry(id: "form.aurora", title: "Aurora", hint: "Keep a cloud soft through level 34.", rarity: .rare, setName: "Forms", unlockLevel: 34),
+        DexEntry(id: "form.pebble", title: "Pebble", hint: "A spiky baby reaches level 10.", rarity: .rare, setName: "Forms", unlockLevel: 10),
+        DexEntry(id: "form.comet", title: "Comet", hint: "A spiky baby reaches level 20.", rarity: .rare, setName: "Forms", unlockLevel: 20),
+        DexEntry(id: "form.meteor", title: "Meteor", hint: "A spiky baby reaches level 32.", rarity: .rare, setName: "Forms", unlockLevel: 32),
         DexEntry(id: "outfit.scarf", title: "Scarf", hint: "Buy the scarf in the shop.", rarity: .common, setName: "Outfits", unlockLevel: 1),
         DexEntry(id: "outfit.bow", title: "Bow", hint: "Buy the bow in the shop.", rarity: .common, setName: "Outfits", unlockLevel: 2),
         DexEntry(id: "outfit.helmet", title: "Tiny helmet", hint: "Buy the tiny helmet in the shop.", rarity: .rare, setName: "Outfits", unlockLevel: 4),
@@ -71,9 +82,11 @@ public enum StarDex {
         switch id {
         case "form.egg": return collection.sawEgg
         case "form.baby": return collection.sawBaby
-        case "form.star": return collection.raisedForms.contains(.star)
-        case "form.cloud": return collection.raisedForms.contains(.cloud)
-        case "form.spiky": return collection.raisedForms.contains(.spiky)
+        case "form.toddler": return LevelTable.level(for: progress.xp) >= 4
+        case "form.teen": return LevelTable.level(for: progress.xp) >= 8
+        case let id where id.hasPrefix("form."):
+            guard let form = AdultForm(rawValue: String(id.dropFirst(5))) else { return false }
+            return collection.raisedForms.contains(form)
         case "outfit.scarf", "outfit.bow", "outfit.helmet":
             return progress.ownedIDs.contains(id)
         case let id where id.hasPrefix("look."):

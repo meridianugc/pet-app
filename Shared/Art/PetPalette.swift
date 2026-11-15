@@ -76,7 +76,7 @@ struct PetPalette {
         let ink = Color(red: 0.28, green: 0.20, blue: 0.42)
         let shine = Color.white.opacity(scheme == .dark ? 0.35 : 0.7)
         switch form {
-        case .star:
+        case .star, .starlet, .nova, .constellation:
             return PetPalette(
                 body: Color(red: 0.72, green: 0.62, blue: 0.98),
                 shade: Color(red: 0.55, green: 0.48, blue: 0.90),
@@ -87,7 +87,7 @@ struct PetPalette {
                 shine: shine,
                 sparkle: Color(red: 1, green: 0.92, blue: 0.55)
             )
-        case .cloud:
+        case .cloud, .mist, .nimbus, .aurora:
             return PetPalette(
                 body: Color(red: 0.93, green: 0.90, blue: 1),
                 shade: Color(red: 0.78, green: 0.74, blue: 0.96),
@@ -98,7 +98,7 @@ struct PetPalette {
                 shine: shine,
                 sparkle: Color(red: 1, green: 0.86, blue: 0.45)
             )
-        case .spiky:
+        case .spiky, .pebble, .comet, .meteor:
             return PetPalette(
                 body: Color(red: 0.48, green: 0.38, blue: 0.68),
                 shade: Color(red: 0.34, green: 0.26, blue: 0.52),

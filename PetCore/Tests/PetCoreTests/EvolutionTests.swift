@@ -47,6 +47,11 @@ final class EvolutionTests: XCTestCase {
         XCTAssertEqual(Evolution.form(for: cared, level: 3), .spiky)
         XCTAssertEqual(Evolution.form(for: cared, level: 1), .star)
         XCTAssertEqual(AdultForm.cloud.unlockLevel, 4)
+        XCTAssertEqual(Evolution.form(for: cared, level: 14), .starlet)
+        XCTAssertEqual(Evolution.form(for: cared, level: 36), .constellation)
+        XCTAssertEqual(Evolution.form(for: CareHistory(), level: 32), .meteor)
+        XCTAssertEqual(Youth.title(stage: .baby, level: 4), "Toddler")
+        XCTAssertEqual(Youth.title(stage: .baby, level: 8), "Teen")
         XCTAssertTrue(StarDex.entries.allSatisfy { $0.unlockLevel >= 1 })
     }
 }

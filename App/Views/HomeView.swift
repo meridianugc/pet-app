@@ -194,7 +194,7 @@ struct HomeView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
-            Text(PetCopy.stageLine(pet, now: session.currentDate))
+            Text(PetCopy.stageLine(pet, now: session.currentDate, level: session.level))
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -215,6 +215,7 @@ struct HomeView: View {
             eyes: session.record?.progress.wardrobe.eyes ?? "eyes.round",
             antenna: session.record?.progress.wardrobe.antenna ?? "antenna.ball",
             marking: session.record?.progress.wardrobe.marking ?? "marking.none",
+            level: session.level,
             accessibilityLabel: PetCopy.summary(pet, now: session.currentDate)
         )
             .frame(maxWidth: 260)
@@ -557,8 +558,12 @@ struct CollectionBookView: View {
         case "form.spiky":
             PetCreatureView(stage: .adult, mood: .joyful, form: .spiky, animates: false, accessibilityLabel: "")
         default:
-            CareGlyph(stat: entry.id.hasPrefix("outfit") ? .look : (entry.id.hasPrefix("look") ? .happy : .gems), side: 36)
-                .grayscale(found ? 0 : 1)
+            if let form = AdultForm(rawValue: String(entry.id.dropFirst(5))), entry.id.hasPrefix("form.") {
+                PetCreatureView(stage: .adult, mood: .joyful, form: form, animates: false, accessibilityLabel: "")
+            } else {
+                CareGlyph(stat: entry.id.hasPrefix("outfit") ? .look : (entry.id.hasPrefix("look") ? .happy : .gems), side: 36)
+                    .grayscale(found ? 0 : 1)
+            }
         }
     }
 }
