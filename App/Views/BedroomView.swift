@@ -71,6 +71,7 @@ struct BedroomView: View {
             world.tick(dt: 1.0 / 60.0, closet: closet)
         }
         .background(Color(red: 0.16, green: 0.12, blue: 0.28))
+        .persistentSystemOverlays(.hidden)
     }
 
     private var joystick: some View {
@@ -443,7 +444,7 @@ final class BedroomWorld: ObservableObject {
             room.pet = RoomSpace.spot(from: floor)
             room.yaw = yaw
         } else {
-            floor = FloorPoint(x: RoomSpace.bed.x + 0.55, z: RoomSpace.bed.z + 0.65)
+            floor = FloorPoint(x: -0.15, z: -1.15)
         }
         placePet(at: floor, yaw: yaw, moving: walked.moving || walkingShot, time: time)
         followCamera(pet: floor, dt: dt)
@@ -602,7 +603,7 @@ final class BedroomWorld: ObservableObject {
             seat(desk, shadow: 1.2)
         }
         if let lamp = furniture("lampRoundFloor") {
-            lamp.position = SCNVector3(-2.15, 0, 1.7)
+            lamp.position = SCNVector3(-2.2, 0, -1.55)
             lamp.scale = SCNVector3(1.2, 1.2, 1.2)
             seat(lamp, shadow: 0.45)
         }
@@ -612,7 +613,7 @@ final class BedroomWorld: ObservableObject {
             seat(plant, shadow: 0.4)
         }
         if let plant = furniture("plantSmall2") {
-            plant.position = SCNVector3(2.05, 0, 1.7)
+            plant.position = SCNVector3(0.35, 0, 1.55)
             plant.scale = SCNVector3(1.2, 1.2, 1.2)
             seat(plant, shadow: 0.4)
         }
