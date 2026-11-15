@@ -78,7 +78,8 @@ struct StarDefenseGame: View {
             }
         }
         .onAppear {
-            scene.scaleMode = .aspectFit
+            scene.scaleMode = .resizeFill
+            scene.backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
             scene.petTexture = PetStamp.texture(session: session, mood: .joyful)
         }
         .onReceive(Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()) { _ in
@@ -193,7 +194,7 @@ struct StarDefenseGame: View {
                     }
                     .accessibilityLabel("Pause")
                 }
-                SpriteView(scene: scene)
+                DefenseCanvas(scene: scene)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
                     .overlay(alignment: .top) { bossBar }
@@ -505,9 +506,9 @@ struct GlorbStyle {
 enum DefenseBake {
     static var cache: [String: SKTexture] = [:]
 
-    static func texture(_ key: String, draw: (CGContext, CGSize) -> Void) -> SKTexture {
+    static func texture(_ key: String, pixels: CGFloat = 96, draw: (CGContext, CGSize) -> Void) -> SKTexture {
         if let cached = cache[key] { return cached }
-        let side = CGSize(width: 96, height: 96)
+        let side = CGSize(width: pixels, height: pixels)
         let image = UIGraphicsImageRenderer(size: side).image { renderer in
             draw(renderer.cgContext, side)
         }
@@ -520,10 +521,12 @@ enum DefenseBake {
         let rect = CGRect(x: 18, y: 22, width: 60, height: 52)
         ctx.setFillColor(UIColor(white: 0, alpha: 0.16).cgColor)
         ctx.fillEllipse(in: CGRect(x: 24, y: 10, width: 48, height: 14))
+        ctx.setFillColor(UIColor(red: 0.15, green: 0.08, blue: 0.22, alpha: 1).cgColor)
+        ctx.fillEllipse(in: rect.insetBy(dx: -4, dy: -4))
         ctx.setFillColor(style.fill.cgColor)
         ctx.fillEllipse(in: rect)
-        ctx.setStrokeColor(style.fill.withAlphaComponent(0.65).cgColor)
-        ctx.setLineWidth(3)
+        ctx.setStrokeColor(UIColor(white: 1, alpha: 0.9).cgColor)
+        ctx.setLineWidth(4)
         ctx.strokeEllipse(in: rect)
         ctx.setFillColor(UIColor(white: 1, alpha: 0.55).cgColor)
         ctx.fillEllipse(in: CGRect(x: 28, y: 52, width: 18, height: 10))
@@ -533,6 +536,28 @@ enum DefenseBake {
         if style.nub {
             ctx.setFillColor(style.fill.cgColor)
             ctx.fillEllipse(in: CGRect(x: 44, y: 72, width: 8, height: 8))
+        }
+    }
+}
+
+struct DefenseCanvas: UIViewRepresentable {
+    var scene: DefenseStage
+
+    func makeUIView(context: Context) -> SKView {
+        let view = SKView()
+        view.presentScene(scene)
+        view.preferredFramesPerSecond = 60
+        view.ignoresSiblingOrder = true
+        scene.scaleMode = .resizeFill
+        scene.backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
+        return view
+    }
+
+    func updateUIView(_ view: SKView, context: Context) {
+        let bounds = view.bounds.size
+        guard bounds.width > 2, bounds.height > 2 else { return }
+        if abs(scene.size.width - bounds.width) > 1 || abs(scene.size.height - bounds.height) > 1 {
+            scene.size = bounds
         }
     }
 }
@@ -585,7 +610,8 @@ final class DefenseStage: SKScene {
     }
 
     private let board = SKNode()
-    private let boardSize = CGSize(width: 1000, height: 700)
+    private var boardSize = CGSize(width: 390, height: 700)
+    private var shownMap: DefenseMap?
     private var road: [DefensePoint] = []
     private var blobs: [Int: SKNode] = [:]
     private var guns: [Int: SKNode] = [:]
@@ -617,12 +643,13 @@ final class DefenseStage: SKScene {
     }
 
     func load(_ map: DefenseMap) {
+        shownMap = map
         road = map.path
         board.removeAllChildren()
         blobs.removeAll()
         guns.removeAll()
         shots.removeAll()
-        fitBoard()
+        adoptSceneSize()
         drawGround(map)
         board.addChild(rangeRing)
         board.addChild(ghost)
@@ -635,15 +662,21 @@ final class DefenseStage: SKScene {
         board.addChild(hero)
     }
 
-    private func fitBoard() {
+    private func adoptSceneSize() {
         if board.parent == nil { addChild(board) }
-        let sceneSize = size.width > 2 ? size : CGSize(width: 1000, height: 700)
-        let scale = min(sceneSize.width / boardSize.width, sceneSize.height / boardSize.height)
-        board.setScale(scale)
-        board.position = CGPoint(
-            x: (sceneSize.width - boardSize.width * scale) / 2,
-            y: (sceneSize.height - boardSize.height * scale) / 2
-        )
+        let sceneSize = size.width > 2 ? size : CGSize(width: 390, height: 700)
+        boardSize = sceneSize
+        board.setScale(1)
+        board.position = .zero
+        backgroundColor = UIColor(red: 0.55, green: 0.78, blue: 0.48, alpha: 1)
+    }
+
+    private func fitBoard() {
+        let previous = boardSize
+        adoptSceneSize()
+        guard let shownMap, abs(previous.width - boardSize.width) > 1 || abs(previous.height - boardSize.height) > 1 else { return }
+        board.children.filter { $0.name == "ground" }.forEach { $0.removeFromParent() }
+        drawGround(shownMap)
     }
 
     func drag(_ kind: DefenseGunKind, at local: CGPoint, in viewSize: CGSize, ended: Bool) {
@@ -831,7 +864,22 @@ final class DefenseStage: SKScene {
     }
 
     private func drawGround(_ map: DefenseMap) {
-        let wash = SKSpriteNode(color: themeColor(map.id), size: boardSize)
+        let meadow = DefenseBake.texture("meadow-\(map.id)", pixels: 256) { ctx, side in
+            let base = self.meadowColor(map.id)
+            ctx.setFillColor(base.cgColor)
+            ctx.fill(CGRect(origin: .zero, size: side))
+            for index in 0..<28 {
+                let x = CGFloat((index * 47) % 240) + 8
+                let y = CGFloat((index * 29) % 240) + 8
+                ctx.setFillColor(base.withAlphaComponent(0.35).cgColor)
+                ctx.fillEllipse(in: CGRect(x: x, y: y, width: 18, height: 10))
+                ctx.setFillColor(UIColor(red: 1, green: 0.82, blue: 0.88, alpha: 0.8).cgColor)
+                if index.isMultiple(of: 4) {
+                    ctx.fillEllipse(in: CGRect(x: x + 4, y: y + 6, width: 5, height: 5))
+                }
+            }
+        }
+        let wash = SKSpriteNode(texture: meadow, size: boardSize)
         wash.anchorPoint = .zero
         wash.zPosition = 0
         wash.name = "ground"
@@ -845,7 +893,7 @@ final class DefenseStage: SKScene {
         }
         let shadow = SKShapeNode(path: path)
         shadow.strokeColor = UIColor(white: 0, alpha: 0.16)
-        shadow.lineWidth = 70
+        shadow.lineWidth = 58
         shadow.lineCap = .round
         shadow.lineJoin = .round
         shadow.position = CGPoint(x: 0, y: -4)
@@ -854,7 +902,7 @@ final class DefenseStage: SKScene {
         board.addChild(shadow)
         let border = SKShapeNode(path: path)
         border.strokeColor = pathBorder(map.id)
-        border.lineWidth = 64
+        border.lineWidth = 50
         border.lineCap = .round
         border.lineJoin = .round
         border.name = "ground"
@@ -862,7 +910,7 @@ final class DefenseStage: SKScene {
         board.addChild(border)
         let fill = SKShapeNode(path: path)
         fill.strokeColor = pathFill(map.id)
-        fill.lineWidth = 56
+        fill.lineWidth = 40
         fill.lineCap = .round
         fill.lineJoin = .round
         fill.name = "ground"
@@ -870,7 +918,7 @@ final class DefenseStage: SKScene {
         board.addChild(fill)
         let highlight = SKShapeNode(path: path)
         highlight.strokeColor = UIColor(white: 1, alpha: 0.22)
-        highlight.lineWidth = 18
+        highlight.lineWidth = 14
         highlight.lineCap = .round
         highlight.name = "ground"
         highlight.zPosition = 2
@@ -960,7 +1008,7 @@ final class DefenseStage: SKScene {
         case 9: ("prism", UIColor(red: 0.95, green: 0.55, blue: 0.7, alpha: 1))
         default: ("rock", UIColor(red: 0.56, green: 0.61, blue: 0.71, alpha: 1))
         }
-        let wide: CGFloat = blob.sort == .boss ? 100 : 22 + CGFloat(min(tier, 5)) * 2
+        let wide: CGFloat = blob.sort == .boss ? 64 : 26
         return GlorbStyle(key: "\(row.0)-\(blob.sort.rawValue)", wide: wide, fill: row.1, eyes: tier == 7 ? .white : UIColor(red: 0.18, green: 0.1, blue: 0.25, alpha: 1), nub: tier != 10)
     }
 
@@ -973,11 +1021,11 @@ final class DefenseStage: SKScene {
         default: [(150, 500, 30), (840, 220, 24), (620, 560, 18)]
         }
         for (x, y, r) in spots {
-            let decor = SKShapeNode(ellipseOf: CGSize(width: r * 2, height: r * 1.4))
+            let decor = SKShapeNode(ellipseOf: CGSize(width: r * 0.35, height: r * 0.24))
             decor.fillColor = themeColor(mapID).withAlphaComponent(0.55)
             decor.strokeColor = .white
             decor.lineWidth = 2
-            decor.position = CGPoint(x: x, y: y)
+            decor.position = CGPoint(x: x / 1000 * boardSize.width, y: y / 700 * boardSize.height)
             decor.zPosition = 3
             decor.name = "ground"
             let shine = SKShapeNode(ellipseOf: CGSize(width: r, height: r * 0.4))
@@ -1172,6 +1220,16 @@ final class DefenseStage: SKScene {
     private func normalized(_ point: CGPoint) -> DefensePoint {
         let local = board.convert(point, from: self)
         return DefensePoint(x: Double(local.x / boardSize.width), y: Double(local.y / boardSize.height))
+    }
+
+    private func meadowColor(_ id: Int) -> UIColor {
+        switch id {
+        case 2: return UIColor(red: 0.45, green: 0.62, blue: 0.78, alpha: 1)
+        case 3: return UIColor(red: 0.62, green: 0.7, blue: 0.42, alpha: 1)
+        case 4: return UIColor(red: 0.42, green: 0.72, blue: 0.48, alpha: 1)
+        case 5: return UIColor(red: 0.28, green: 0.32, blue: 0.55, alpha: 1)
+        default: return UIColor(red: 0.46, green: 0.74, blue: 0.42, alpha: 1)
+        }
     }
 
     private func themeColor(_ id: Int) -> UIColor {
