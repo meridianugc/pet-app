@@ -224,6 +224,7 @@ public struct PetRecord: Codable, Equatable, Sendable {
     public var farewell: HomeLetter?
     public var progress: PlayerProgress
     public var world: AwayWorld
+    public var room: PlayRoom?
 
     public init(
         pet: Pet,
@@ -232,7 +233,8 @@ public struct PetRecord: Codable, Equatable, Sendable {
         collection: PetCollection = .empty,
         farewell: HomeLetter? = nil,
         progress: PlayerProgress = PlayerProgress(),
-        world: AwayWorld? = nil
+        world: AwayWorld? = nil,
+        room: PlayRoom? = nil
     ) {
         self.schemaVersion = Self.currentSchema
         self.pet = pet
@@ -242,6 +244,7 @@ public struct PetRecord: Codable, Equatable, Sendable {
         self.farewell = farewell
         self.progress = progress
         self.world = world ?? AwayWorld.fresh(at: pet.lastSimulatedAt)
+        self.room = room
     }
 
     public init(from decoder: Decoder) throws {
@@ -255,6 +258,7 @@ public struct PetRecord: Codable, Equatable, Sendable {
         farewell = try c.decodeIfPresent(HomeLetter.self, forKey: .farewell)
         progress = try c.decodeIfPresent(PlayerProgress.self, forKey: .progress) ?? PlayerProgress()
         world = try c.decodeIfPresent(AwayWorld.self, forKey: .world) ?? AwayWorld.fresh(at: pet.lastSimulatedAt)
+        room = try c.decodeIfPresent(PlayRoom.self, forKey: .room)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -267,9 +271,10 @@ public struct PetRecord: Codable, Equatable, Sendable {
         try c.encodeIfPresent(farewell, forKey: .farewell)
         try c.encode(progress, forKey: .progress)
         try c.encode(world, forKey: .world)
+        try c.encodeIfPresent(room, forKey: .room)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, pet, debugTimeOffset, notificationPromptDismissed, collection, farewell, progress, world
+        case schemaVersion, pet, debugTimeOffset, notificationPromptDismissed, collection, farewell, progress, world, room
     }
 }

@@ -364,6 +364,33 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: false)
     }
 
+    func currentRoom() -> PlayRoom {
+        guard let record else { return PlayRoom.starter() }
+        let saved = record.room ?? PlayRoom.starter(looseToy: record.world.looseToy)
+        return saved.adoptingLooseToy(record.world.looseToy)
+    }
+
+    func saveRoom(_ room: PlayRoom, reward: Int = 0) {
+        guard var record else { return }
+        record.room = room
+        if reward > 0 {
+            record.progress.coins += reward
+            if let loose = room.things.first(where: { $0.id == record.world.looseToy }), loose.tucked {
+                record.world.looseToy = ""
+                if record.world.doodle == "toys" { record.world.doodle = "" }
+            }
+            flash([CareChip(stat: .gems, amount: reward)])
+        }
+        persist(record, includeAlreadyLow: false)
+    }
+
+    func applyCloset(_ wear: ClosetWear) {
+        guard var record else { return }
+        record.progress.wardrobe = wear.wardrobe
+        record.progress.outfitID = wear.outfitID
+        persist(record, includeAlreadyLow: false)
+    }
+
     func putToyAway() {
         guard var record else { return }
         guard let (world, gems) = AwayLife.putAway(record.world) else { return }
