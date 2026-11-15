@@ -1,6 +1,8 @@
+import AVFoundation
 import Combine
 import Foundation
 import PetCore
+import UIKit
 import WidgetKit
 
 struct MeterPop: Equatable, Identifiable {
@@ -219,6 +221,7 @@ final class PetSession: ObservableObject {
         )
         note = nil
         speech = PetVoice.boast(game: title, score: points)
+        PocketSound.shared.reward()
         if gameID != nil, showPopup {
             playReward = PlayReward(
                 title: title,
@@ -351,6 +354,8 @@ final class PetSession: ObservableObject {
         guard var record else { return }
         let reaction = PetVoice.onTouch(touch, sleeping: record.pet.isSleeping)
         speech = reaction.line
+        PocketSound.shared.voice()
+        UIImpactFeedbackGenerator(style: reaction.pleased ? .soft : .rigid).impactOccurred()
         guard record.pet.stage != .egg, !record.pet.hasGoneHome, !record.pet.isSleeping else { return }
         let bump = reaction.pleased ? 1.0 : -1.0
         record.pet.happiness = min(engine.rules.statMax, max(engine.rules.statMin, record.pet.happiness + bump))
@@ -785,4 +790,82 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: false)
     }
 #endif
+}
+
+/// Short tones made in code. Nothing here is a recorded or licensed file.
+@MainActor
+final class PocketSound {
+    static let shared = PocketSound()
+    private let engine = AVAudioEngine()
+    private let player = AVAudioPlayerNode()
+    private let tune = AVAudioPlayerNode()
+    private let format = AVAudioFormat(standardFormatWithSampleRate: 22_050, channels: 1)
+    private var ready = false
+    private var tuneOn = false
+
+    private init() {
+        guard let format else { return }
+        engine.attach(player)
+        engine.attach(tune)
+        engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.connect(tune, to: engine.mainMixerNode, format: format)
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            try engine.start()
+            ready = true
+        } catch {
+            ready = false
+        }
+    }
+
+    var muted: Bool {
+        get { UserDefaults.standard.bool(forKey: "sound.muted") }
+        set { UserDefaults.standard.set(newValue, forKey: "sound.muted") }
+    }
+
+    func tap() { tone(frequency: 620, seconds: 0.05) }
+    func match() { tone(frequency: 880, seconds: 0.07) }
+    func reward() {
+        tone(frequency: 523, seconds: 0.08)
+        tone(frequency: 784, seconds: 0.1)
+    }
+    func voice() { tone(frequency: 700, seconds: 0.04) }
+
+    func startTune() {
+        guard ready, !muted, !tuneOn, let format else { return }
+        let seconds = 2.4
+        let frames = AVAudioFrameCount(22_050 * seconds)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+        buffer.frameLength = frames
+        let notes = [392.0, 494.0, 587.0, 494.0]
+        let samples = buffer.floatChannelData?[0]
+        for index in 0..<Int(frames) {
+            let note = notes[min(notes.count - 1, index * notes.count / Int(frames))]
+            let envelope = 0.5 + 0.5 * sin(Double(index) / Double(frames) * .pi)
+            samples?[index] = Float(sin(2 * .pi * note * Double(index) / 22_050) * 0.04 * envelope)
+        }
+        tune.scheduleBuffer(buffer, at: nil, options: .loops)
+        tune.play()
+        tuneOn = true
+    }
+
+    func stopTune() {
+        tune.stop()
+        tuneOn = false
+    }
+
+    private func tone(frequency: Double, seconds: Double) {
+        guard ready, !muted, let format else { return }
+        let frames = AVAudioFrameCount(22_050 * seconds)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return }
+        buffer.frameLength = frames
+        let samples = buffer.floatChannelData?[0]
+        for index in 0..<Int(frames) {
+            let envelope = sin(Double(index) / Double(frames) * .pi)
+            samples?[index] = Float(sin(2 * .pi * frequency * Double(index) / 22_050) * 0.18 * envelope)
+        }
+        player.scheduleBuffer(buffer, at: nil, options: .interrupts)
+        if !player.isPlaying { player.play() }
+    }
 }

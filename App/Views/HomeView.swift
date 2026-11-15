@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var showDressing = false
     @State private var inRoom = false
     @AppStorage("room.decor") private var roomDecor = 0
+    @AppStorage("sound.muted") private var soundMuted = false
     @State private var showAway = false
 #if DEBUG
     @State private var showDebug = false
@@ -110,6 +111,7 @@ struct HomeView: View {
                     )
                 }
             }
+            .onAppear { PocketSound.shared.startTune() }
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
@@ -316,7 +318,11 @@ struct HomeView: View {
         disabled: Bool,
         action: @escaping @MainActor () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            PocketSound.shared.tap()
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
             Label(title, systemImage: systemImage)
                 .font(.body.weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 48)
@@ -397,6 +403,16 @@ struct HomeView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                soundMuted.toggle()
+                PocketSound.shared.muted = soundMuted
+                if soundMuted { PocketSound.shared.stopTune() } else { PocketSound.shared.startTune() }
+            } label: {
+                Image(systemName: soundMuted ? "speaker.slash" : "speaker.wave.2")
+            }
+            .accessibilityLabel(soundMuted ? "Unmute" : "Mute")
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 showCollection = true
@@ -2305,6 +2321,7 @@ final class SnackTable: ObservableObject {
             banner = "Combo \(outcome.cascades)"
         }
         UIImpactFeedbackGenerator(style: outcome.cascades > 1 ? .medium : .light).impactOccurred()
+        if outcome.points > 0 { PocketSound.shared.match() } else { PocketSound.shared.tap() }
         idle = Date()
         if score >= 220 || moves <= 0 { finished = true }
     }
