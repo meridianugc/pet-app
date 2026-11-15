@@ -397,14 +397,30 @@ struct ShopView: View {
             }
             Spacer()
             VStack(spacing: 6) {
-                Button("Buy") {
+                Button {
                     pending = item
                     pendingPrice = item.price
                     buyingDeal = false
+                } label: {
+                    Text("Buy")
+                        .font(.system(.caption, design: .rounded).weight(.bold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color(red: 1, green: 0.72, blue: 0.84)))
                 }
+                .buttonStyle(CosmicPressStyle())
                 .disabled(locked)
                 if !item.isDurable, (progress.stock[item.id] ?? 0) > 0 {
-                    Button("Use") { session.useItem(item.id) }
+                    Button {
+                        session.useItem(item.id)
+                    } label: {
+                        Text("Use")
+                            .font(.system(.caption, design: .rounded).weight(.bold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color(red: 0.75, green: 0.9, blue: 0.8)))
+                    }
+                    .buttonStyle(CosmicPressStyle())
                 }
                 if item.isDurable, progress.ownedIDs.contains(item.id) {
                     Button(progress.outfitID == item.id || progress.backgroundID == item.id ? "On" : "Use") {
