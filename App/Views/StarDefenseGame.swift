@@ -91,6 +91,8 @@ struct StarDefenseGame: View {
             scene.petTexture = PetStamp.texture(session: session, mood: .joyful)
         }
         .task { await runScreenshotDemo() }
+        .onAppear { PlayOrientation.landscape() }
+        .onDisappear { PlayOrientation.portrait() }
         .onReceive(Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()) { _ in
             if let drop = scene.takeDrop(), let armed {
                 if let next = DefensePlay.place(armed, at: drop, petLevel: session.level, in: battle) {
