@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import Foundation
+import MultipeerConnectivity
 import PetCore
 import UIKit
 import WidgetKit
@@ -867,5 +868,114 @@ final class PocketSound {
         }
         player.scheduleBuffer(buffer, at: nil, options: .interrupts)
         if !player.isPlaying { player.play() }
+    }
+}
+
+@MainActor
+final class ShipLink: NSObject, ObservableObject {
+    static let service = "pocketpet"
+    @Published var remote = CGSize.zero
+    @Published var status = "Practice"
+    private let me: MCPeerID
+    private var session: MCSession?
+    private var advertiser: MCNearbyServiceAdvertiser?
+    private var browser: MCNearbyServiceBrowser?
+
+    override init() {
+        me = MCPeerID(displayName: UIDevice.current.name)
+        super.init()
+    }
+
+    func host() {
+        stop()
+        let session = MCSession(peer: me, securityIdentity: nil, encryptionPreference: .required)
+        session.delegate = self
+        self.session = session
+        let advertiser = MCNearbyServiceAdvertiser(peer: me, discoveryInfo: nil, serviceType: Self.service)
+        advertiser.delegate = self
+        advertiser.startAdvertisingPeer()
+        self.advertiser = advertiser
+        status = "Hosting"
+    }
+
+    func join() {
+        stop()
+        let session = MCSession(peer: me, securityIdentity: nil, encryptionPreference: .required)
+        session.delegate = self
+        self.session = session
+        let browser = MCNearbyServiceBrowser(peer: me, serviceType: Self.service)
+        browser.delegate = self
+        browser.startBrowsingForPeers()
+        self.browser = browser
+        status = "Looking"
+    }
+
+    func stop() {
+        advertiser?.stopAdvertisingPeer()
+        browser?.stopBrowsingForPeers()
+        advertiser = nil
+        browser = nil
+        session?.disconnect()
+        session = nil
+        remote = .zero
+        status = "Practice"
+    }
+
+    func send(x: Double, y: Double) {
+        guard let session, !session.connectedPeers.isEmpty else { return }
+        let data = Data("\(x),\(y)".utf8)
+        try? session.send(data, toPeers: session.connectedPeers, with: .unreliable)
+    }
+}
+
+extension ShipLink: MCSessionDelegate {
+    nonisolated func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        let connected = state == .connected
+        Task { @MainActor in
+            self.status = connected ? "Together" : "Waiting"
+        }
+    }
+
+    nonisolated func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        let text = String(decoding: data, as: UTF8.self)
+        let parts = text.split(separator: ",")
+        guard parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) else { return }
+        Task { @MainActor in
+            self.remote = CGSize(width: x, height: y)
+        }
+    }
+
+    nonisolated func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+
+    nonisolated func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
+
+    nonisolated func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+}
+
+extension ShipLink: MCNearbyServiceAdvertiserDelegate {
+    nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
+        Task { @MainActor in
+            invitationHandler(true, self.session)
+        }
+    }
+
+    nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
+        Task { @MainActor in self.status = "Couldn't host" }
+    }
+}
+
+extension ShipLink: MCNearbyServiceBrowserDelegate {
+    nonisolated func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
+        Task { @MainActor in
+            guard let session = self.session else { return }
+            browser.invitePeer(peerID, to: session, withContext: nil, timeout: 12)
+            self.status = "Inviting"
+        }
+    }
+
+    nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {}
+
+    nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
+        Task { @MainActor in self.status = "Couldn't look" }
     }
 }

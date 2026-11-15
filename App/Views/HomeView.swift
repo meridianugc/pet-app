@@ -1,3 +1,4 @@
+import Combine
 import PetCore
 import SpriteKit
 import SwiftUI
@@ -11,6 +12,8 @@ struct HomeView: View {
     @State private var showToday = false
     @State private var showDressing = false
     @State private var inRoom = false
+    @State private var showVisit = false
+    @AppStorage("visit.card") private var visitCard = ""
     @AppStorage("room.decor") private var roomDecor = 0
     @AppStorage("sound.muted") private var soundMuted = false
     @State private var showAway = false
@@ -125,6 +128,9 @@ struct HomeView: View {
                     ShopView()
                 }
             }
+            .sheet(isPresented: $showVisit) {
+                VisitSheet(card: visitCard) { visitCard = $0 }
+            }
             .sheet(isPresented: $showDressing) {
                 NavigationStack {
                     DressingRoomView()
@@ -156,7 +162,9 @@ struct HomeView: View {
                         onCloset: { showDressing = true },
                         onDecor: { roomDecor = (roomDecor + 1) % 4 },
                         onExit: { withAnimation(.spring(duration: 0.45)) { inRoom = false } },
-                        onTouch: { session.react(to: $0) }
+                        onTouch: { session.react(to: $0) },
+                        onVisit: { showVisit = true },
+                        visitor: visitCard
                     )
                     .transition(.scale(scale: 0.72, anchor: .center).combined(with: .opacity))
                 }
@@ -621,6 +629,8 @@ struct ToyRoomView: View {
     var onDecor: () -> Void
     var onExit: () -> Void
     var onTouch: (PetTouch) -> Void
+    var onVisit: () -> Void
+    var visitor: String = ""
 
     @State private var drag = CGSize.zero
     @State private var wiggle = 0.0
@@ -646,6 +656,7 @@ struct ToyRoomView: View {
                     Button("Closet", action: onCloset)
                         .font(.system(.headline, design: .rounded).weight(.bold))
                     Button("Decorate", action: onDecor)
+                    Button("Visit", action: onVisit)
                         .font(.system(.headline, design: .rounded).weight(.bold))
                 }
                 .padding(.horizontal, 16)
@@ -687,6 +698,14 @@ struct ToyRoomView: View {
                     squish = 1.06
                     onTouch(.pet)
                     withAnimation(.spring(duration: 0.25)) { squish = 1 }
+                }
+                if let guest = PetCard.parse(visitor) {
+                    VStack {
+                        PetCreatureView(stage: .baby, mood: .joyful, animates: true, accessibilityLabel: "\(guest.name) is visiting")
+                            .frame(width: 90, height: 90)
+                        Text("\(guest.name) is visiting")
+                            .font(.system(.caption, design: .rounded).weight(.bold))
+                    }
                 }
                 HStack(spacing: 28) {
                     ToyBin()
@@ -846,6 +865,7 @@ struct GamePicker: View {
     @State private var defense = false
     @State private var solitaire = false
     @State private var sudoku = false
+    @State private var ship = false
 
     var body: some View {
         ZStack {
@@ -919,6 +939,16 @@ struct GamePicker: View {
                 }
                 .offset(y: appeared ? 0 : 160)
                 .opacity(appeared ? 1 : 0)
+                gameCard(
+                    title: "Ship Duo",
+                    blurb: "Two sticks, one ship. Practice alone or fly with a friend.",
+                    score: best["shipDuo"] ?? 0,
+                    colors: [Color(red: 0.65, green: 0.55, blue: 0.95), Color(red: 0.55, green: 0.85, blue: 0.95)]
+                ) {
+                    ship = true
+                }
+                .offset(y: appeared ? 0 : 180)
+                .opacity(appeared ? 1 : 0)
                 }
                 }
             }
@@ -946,6 +976,9 @@ struct GamePicker: View {
         }
         .fullScreenCover(isPresented: $sudoku) {
             StarSudokuGame()
+        }
+        .fullScreenCover(isPresented: $ship) {
+            ShipDuoGame()
         }
     }
 
@@ -3219,5 +3252,203 @@ struct StarSudokuGame: View {
         let filled = cells.filter { $0 != 0 }.count - puzzle.given.filter { $0 != 0 }.count
         let points = filled > 0 ? min(10, filled / 3) : 0
         finale = bankedFinale(session: session, title: "Star Sudoku", score: points, detail: "You left the grid.", gameID: MiniGame.starSudoku.rawValue)
+    }
+}
+
+struct VisitSheet: View {
+    var card: String
+    var onSave: (String) -> Void
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var pasted = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                if let pet = session.record?.pet {
+                    let mine = PetCard.text(name: pet.name, form: pet.displayForm?.rawValue ?? pet.stage.rawValue, level: session.level)
+                    Text(mine)
+                        .font(.system(.caption, design: .rounded))
+                        .textSelection(.enabled)
+                    if let image = VisitCode.image(for: mine) {
+                        Image(uiImage: image)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 180, height: 180)
+                            .accessibilityLabel("QR code for \(pet.name)")
+                    }
+                    ShareLink(item: mine) {
+                        Text("Share with AirDrop")
+                            .font(.system(.headline, design: .rounded).weight(.bold))
+                    }
+                }
+                TextField("Paste a friend's card", text: $pasted)
+                    .textFieldStyle(.roundedBorder)
+                Button("Show this visitor") {
+                    if PetCard.parse(pasted) != nil {
+                        onSave(pasted)
+                        dismiss()
+                    }
+                }
+                .font(.system(.headline, design: .rounded).weight(.bold))
+                if !card.isEmpty {
+                    Button("Send the visitor home") {
+                        onSave("")
+                        dismiss()
+                    }
+                }
+            }
+            .padding()
+            .navigationTitle("Pet visit")
+            .toolbar {
+                Button("Close") { dismiss() }
+            }
+        }
+    }
+}
+
+enum VisitCode {
+    static func image(for text: String) -> UIImage? {
+        guard let data = text.data(using: .utf8),
+              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage else { return nil }
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        return UIImage(ciImage: scaled)
+    }
+}
+
+struct StickPad: View {
+    @Binding var stick: CGSize
+
+    var body: some View {
+        Circle()
+            .fill(Color.white.opacity(0.35))
+            .frame(width: 120, height: 120)
+            .overlay {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 48, height: 48)
+                    .offset(stick)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let limited = CGSize(
+                            width: min(36, max(-36, value.translation.width)),
+                            height: min(36, max(-36, value.translation.height))
+                        )
+                        stick = limited
+                    }
+                    .onEnded { _ in stick = .zero }
+            )
+            .accessibilityLabel("Joystick")
+    }
+}
+
+struct ShipDuoGame: View {
+    @EnvironmentObject private var session: PetSession
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var link = ShipLink()
+    @State private var run = ShipRun()
+    @State private var stick = CGSize.zero
+    @State private var last = Date()
+    @State private var finale: GameFinale?
+    @State private var banked = false
+
+    var body: some View {
+        ZStack {
+            PocketBackground(theme: "bg_hopper").ignoresSafeArea()
+            course
+            VStack {
+                HStack {
+                    CosmicCloseButton(label: "Leave Ship Duo") { presentEnd(detail: "You docked the ship.") }
+                    Text("Level \(run.level)")
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text(link.status)
+                        .font(.system(.caption, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                }
+                Spacer()
+                HStack {
+                    StickPad(stick: $stick)
+                    Spacer()
+                    VStack(spacing: 8) {
+                        Button("Practice") { link.stop(); link.status = "Practice" }
+                        Button("Host") { link.host() }
+                        Button("Join") { link.join() }
+                    }
+                    .font(.system(.caption, design: .rounded).weight(.bold))
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding()
+            if let finale {
+                GameEndCard(
+                    finale: finale,
+                    onAgain: { replay() },
+                    onNext: { replay() },
+                    onShop: {
+                        session.openShopAfterGame = true
+                        dismiss()
+                    },
+                    onHome: { dismiss() }
+                )
+            }
+        }
+        .onAppear { last = Date() }
+        .onReceive(Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()) { date in
+            guard finale == nil else { return }
+            let dt = min(0.05, date.timeIntervalSince(last))
+            last = date
+            let mine = (Double(stick.width / 36), Double(-stick.height / 36))
+            let theirs = (Double(link.remote.width), Double(link.remote.height))
+            link.send(x: mine.0, y: mine.1)
+            run = ShipCourse.step(run, left: mine, right: theirs, dt: dt)
+            if run.level >= 4 {
+                presentEnd(detail: "You flew through three doors.")
+            }
+        }
+    }
+
+    private var course: some View {
+        Canvas { context, size in
+            let center = CGPoint(x: size.width / 2, y: size.height * 0.72)
+            func place(_ across: Double, _ along: Double) -> CGPoint {
+                CGPoint(x: center.x + across, y: center.y - (along - run.y))
+            }
+            for gate in ShipCourse.checkpoints {
+                let point = place(0, gate)
+                let line = Path(CGRect(x: 24, y: point.y, width: size.width - 48, height: 4))
+                context.fill(line, with: .color(.white.opacity(0.7)))
+            }
+            for rock in ShipCourse.obstacles(level: run.level) {
+                let point = place(rock.0, rock.1)
+                context.fill(Path(ellipseIn: CGRect(x: point.x - 16, y: point.y - 16, width: 32, height: 32)), with: .color(Color(red: 0.95, green: 0.55, blue: 0.45)))
+            }
+            let door = place(0, ShipCourse.length)
+            context.fill(Path(roundedRect: CGRect(x: size.width / 2 - 28, y: door.y, width: 56, height: 70), cornerRadius: 12), with: .color(Color(red: 0.55, green: 0.85, blue: 0.7)))
+            context.fill(Path(ellipseIn: CGRect(x: center.x + run.x - 18, y: center.y - 14, width: 36, height: 28)), with: .color(Color(red: 0.75, green: 0.65, blue: 0.98)))
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    private func presentEnd(detail: String) {
+        guard finale == nil else { return }
+        let score = (run.level - 1) * 100 + Int(run.y / 40)
+        if !banked {
+            banked = true
+            finale = bankedFinale(session: session, title: "Ship Duo", score: score, detail: detail, gameID: "shipDuo")
+        }
+    }
+
+    private func replay() {
+        run = ShipRun()
+        finale = nil
+        banked = false
     }
 }
