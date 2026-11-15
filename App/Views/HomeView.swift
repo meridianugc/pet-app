@@ -22,11 +22,15 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         header(pet)
                         creature(pet)
-                        Text(PetCopy.statusLine(pet))
-                            .font(.title3)
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityAddTraits(.isHeader)
+                        if pet.isSleeping {
+                            NappingBubble()
+                        } else {
+                            Text(PetCopy.statusLine(pet))
+                                .font(.system(.title3, design: .rounded).weight(.bold))
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityAddTraits(.isHeader)
+                        }
 
                         if pet.stage == .egg {
                             Text(PetCopy.stageLine(pet, now: session.currentDate))
@@ -39,6 +43,7 @@ struct HomeView: View {
                                 StatMeterView(stat: .energy, value: pet.energy, tint: StatTint.energy, pop: pop(for: .energy))
                             }
                             .animation(.spring(duration: 0.35), value: session.meterPops.count)
+                            itemTray
                         }
 
                         if let note = session.note {
@@ -272,6 +277,38 @@ struct HomeView: View {
         .accessibilityHint(hint)
     }
 
+    private var itemTray: some View {
+        let stock = session.record?.progress.stock ?? [:]
+        let ids = stock.keys.sorted().filter { key in
+            guard let item = Shop.item(key) else { return false }
+            return !item.isDurable && (stock[key] ?? 0) > 0
+        }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ids, id: \.self) { id in
+                    if let item = Shop.item(id) {
+                        Button {
+                            session.useItem(id)
+                        } label: {
+                            VStack(spacing: 4) {
+                                Text(item.name)
+                                    .font(.system(.caption, design: .rounded).weight(.bold))
+                                ChipStrip(chips: item.chips)
+                                Text("×\(stock[id] ?? 0)")
+                                    .font(.system(.caption2, design: .rounded))
+                            }
+                            .padding(8)
+                            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.72)))
+                        }
+                        .buttonStyle(CosmicPressStyle())
+                    }
+                }
+            }
+        }
+        .opacity(ids.isEmpty ? 0 : 1)
+        .frame(height: ids.isEmpty ? 0 : nil)
+    }
+
     private func pop(for stat: CareStat) -> Int? {
         session.meterPops.first { $0.stat == stat }?.amount
     }
@@ -473,6 +510,28 @@ struct CollectionBookView: View {
         default:
             CareGlyph(stat: entry.id.hasPrefix("outfit") ? .look : (entry.id.hasPrefix("look") ? .happy : .gems), side: 36)
                 .grayscale(found ? 0 : 1)
+        }
+    }
+}
+
+struct NappingBubble: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 8) {
+                Text("zZz napping...")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                ForEach(0..<3, id: \.self) { index in
+                    Image(systemName: "sparkle")
+                        .font(.caption)
+                        .offset(y: sin(time * 2 + Double(index)) * 4)
+                        .opacity(0.5 + 0.5 * abs(sin(time + Double(index))))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(Color.white.opacity(0.72)))
+            .accessibilityLabel("zZz napping")
         }
     }
 }

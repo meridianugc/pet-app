@@ -21,25 +21,32 @@ struct StatMeterView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 2 : 6) {
-            HStack(spacing: 6) {
-                CareGlyph(stat: stat, side: compact ? 14 : 22)
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle().fill(tint.opacity(0.28))
+                    CareGlyph(stat: stat, side: compact ? 16 : 26)
+                }
+                .frame(width: compact ? 22 : 36, height: compact ? 22 : 36)
                 Spacer(minLength: 8)
                 Text("\(Int(value.rounded()))")
+                    .font(.system(compact ? .caption : .title3, design: .rounded).weight(.bold))
                     .monospacedDigit()
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.white.opacity(0.78)))
             }
-            .font(compact ? .caption : .subheadline)
-            .foregroundStyle(.primary)
 
             Capsule()
                 .fill(tint.opacity(0.22))
                 .overlay(alignment: .leading) {
                     GeometryReader { geo in
                         Capsule()
-                            .fill(tint)
-                            .frame(width: geo.size.width * fraction)
+                            .fill(LinearGradient(colors: [Color.white.opacity(0.85), tint], startPoint: .top, endPoint: .bottom))
+                            .frame(width: max(8, geo.size.width * fraction))
+                            .animation(.spring(duration: 0.45), value: fraction)
                     }
                 }
-                .frame(height: compact ? 8 : 14)
+                .frame(height: compact ? 10 : 18)
         }
         .overlay(alignment: .topTrailing) {
             if let pop {
