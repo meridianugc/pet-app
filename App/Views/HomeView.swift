@@ -24,6 +24,19 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         header(pet)
                         creature(pet)
+                        if !session.speech.isEmpty {
+                            Text(session.speech)
+                                .font(.system(.title3, design: .rounded).weight(.bold))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.white.opacity(0.75)))
+                                .accessibilityLabel(session.speech)
+                        }
+                        if let wish = session.record?.world.requestText, !wish.isEmpty {
+                            Text(wish)
+                                .font(.system(.callout, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
                         if pet.isSleeping {
                             NappingBubble()
                         } else {
@@ -140,7 +153,8 @@ struct HomeView: View {
                         onPickup: { session.putToyAway() },
                         onCloset: { showDressing = true },
                         onDecor: { roomDecor = (roomDecor + 1) % 4 },
-                        onExit: { withAnimation(.spring(duration: 0.45)) { inRoom = false } }
+                        onExit: { withAnimation(.spring(duration: 0.45)) { inRoom = false } },
+                        onTouch: { session.react(to: $0) }
                     )
                     .transition(.scale(scale: 0.72, anchor: .center).combined(with: .opacity))
                 }
@@ -585,8 +599,11 @@ struct ToyRoomView: View {
     var onCloset: () -> Void
     var onDecor: () -> Void
     var onExit: () -> Void
+    var onTouch: (PetTouch) -> Void
 
     @State private var drag = CGSize.zero
+    @State private var wiggle = 0.0
+    @State private var squish = 1.0
 
     private var floor: Color {
         switch decor % 4 {
@@ -624,6 +641,32 @@ struct ToyRoomView: View {
                     accessibilityLabel: pet.name
                 )
                 .frame(height: 280)
+                .rotationEffect(.degrees(wiggle))
+                .scaleEffect(squish)
+                .gesture(DragGesture(minimumDistance: 12).onEnded { _ in
+                    wiggle = 8
+                    squish = 1.08
+                    onTouch(.drag)
+                    withAnimation(.spring(duration: 0.35)) {
+                        wiggle = 0
+                        squish = 1
+                    }
+                })
+                .onTapGesture(count: 2) {
+                    squish = 0.86
+                    onTouch(.poke)
+                    withAnimation(.spring(duration: 0.3)) { squish = 1 }
+                }
+                .onLongPressGesture {
+                    wiggle = 12
+                    onTouch(.tickle)
+                    withAnimation(.spring(duration: 0.4)) { wiggle = 0 }
+                }
+                .onTapGesture {
+                    squish = 1.06
+                    onTouch(.pet)
+                    withAnimation(.spring(duration: 0.25)) { squish = 1 }
+                }
                 HStack(spacing: 28) {
                     ToyBin()
                         .frame(width: 72, height: 56)

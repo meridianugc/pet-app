@@ -635,6 +635,14 @@ struct AwayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Text(world.doodle.isEmpty ? "The room is tidy." : roomLine(world.doodle))
+                if !world.diary.isEmpty {
+                    Text(world.diary[0])
+                        .font(.system(.callout, design: .rounded))
+                }
+                if !world.requestText.isEmpty {
+                    Text(world.requestText)
+                        .font(.system(.callout, design: .rounded).weight(.bold))
+                }
                     .font(.system(.body, design: .rounded))
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Star garden")

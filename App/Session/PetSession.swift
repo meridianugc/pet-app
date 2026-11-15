@@ -37,6 +37,7 @@ final class PetSession: ObservableObject {
     @Published private(set) var loadError: String?
     @Published private(set) var saveError: String?
     @Published var note: String?
+    @Published var speech: String = ""
     @Published private(set) var reminderAccess: ReminderAccess = .unknown
     @Published var playReward: PlayReward?
     @Published var meterPops: [MeterPop] = []
@@ -217,6 +218,7 @@ final class PetSession: ObservableObject {
             calendar: calendar
         )
         note = nil
+        speech = PetVoice.boast(game: title, score: points)
         if gameID != nil, showPopup {
             playReward = PlayReward(
                 title: title,
@@ -345,6 +347,17 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: false)
     }
 
+    func react(to touch: PetTouch) {
+        guard var record else { return }
+        let reaction = PetVoice.onTouch(touch, sleeping: record.pet.isSleeping)
+        speech = reaction.line
+        guard record.pet.stage != .egg, !record.pet.hasGoneHome, !record.pet.isSleeping else { return }
+        let bump = reaction.pleased ? 1.0 : -1.0
+        record.pet.happiness = min(engine.rules.statMax, max(engine.rules.statMin, record.pet.happiness + bump))
+        record.pet.lastSimulatedAt = currentDate
+        persist(record, includeAlreadyLow: false)
+    }
+
     func putToyAway() {
         guard var record else { return }
         guard let (world, gems) = AwayLife.putAway(record.world) else { return }
@@ -395,6 +408,12 @@ final class PetSession: ObservableObject {
                 praiseCare(&record.progress, at: currentDate)
             }
             note = effect.countsAsTreat ? "A sweet treat." : "Yum."
+            if let claimed = AwayLife.claimRequest(record.world, itemID: id) {
+                record.world = claimed.0
+                record.pet.happiness = min(engine.rules.statMax, record.pet.happiness + Double(claimed.1))
+                speech = claimed.0.requestText
+                flash([CareChip(stat: .happy, amount: claimed.1)])
+            }
             persist(record, includeAlreadyLow: false)
         case let .failure(error):
             note = shopNote(error)
@@ -708,6 +727,8 @@ final class PetSession: ObservableObject {
         }
         if !caught.1.lines.isEmpty {
             awayReport = caught.1
+            let minutes = Int(now.timeIntervalSince(before.lastSimulatedAt) / 60)
+            speech = PetVoice.greet(minutesAway: minutes)
         }
         if EvolutionBonus.applies(before: before, after: record.pet) {
             record.progress.coins += EvolutionBonus.coins
