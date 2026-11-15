@@ -187,72 +187,101 @@ struct StarDefenseGame: View {
     }
 
     private var match: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 8) {
-                HStack {
-                    CosmicCloseButton(label: "Leave Star Defense") {
-                        playing = false
-                        askingLeave = true
-                    }
-                    Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
-                        .font(.system(.headline, design: .rounded).weight(.bold))
-                    Spacer()
-                    Button {
-                        paused = true
-                        playing = false
-                    } label: {
-                        Image(systemName: "pause.fill")
-                            .padding(8)
-                            .background(Circle().fill(Color.white.opacity(0.85)))
-                    }
-                    .accessibilityLabel("Pause")
-                }
-                DefenseCanvas(scene: scene)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
-                    .overlay(alignment: .top) { bossBar }
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: FieldFrameKey.self, value: geo.frame(in: .named("field")))
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        CosmicCloseButton(label: "Leave Star Defense") {
+                            playing = false
+                            askingLeave = true
                         }
-                    )
-                    .onPreferenceChange(FieldFrameKey.self) { fieldFrame = $0 }
-                if let selected, let gun = battle.guns.first(where: { $0.id == selected }) {
-                    upgradePanel(gun)
-                }
-                HStack {
-                Button(battle.running ? "In wave" : "Start round") {
-                    battle = DefensePlay.beginRound(battle)
-                    playing = battle.running
-                    PocketSound.shared.tap()
-                }
-                .disabled(battle.running || battle.won || battle.lost)
-                Button(rate == 1 ? "1x" : "\(rate)x") {
-                    rate = rate == 1 ? 2 : (rate == 2 ? 3 : 1)
-                }
-                Button(autoPlay ? "Auto on" : "Auto") { autoPlay.toggle() }
-                Button(battle.heroCooldown <= 0 ? "Pet blast" : "Pet \(Int(battle.heroCooldown.rounded()))") {
-                    if let blasted = DefensePlay.heroBlast(battle) {
-                        battle = blasted.0
-                        scene.apply(battle, events: blasted.1, selected: selected)
-                        react(blasted.1)
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Spacer(minLength: 4)
+                        Button {
+                            paused = true
+                            playing = false
+                        } label: {
+                            Image(systemName: "pause.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(Color(red: 0.2, green: 0.1, blue: 0.28))
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(Color.white))
+                        }
+                        .accessibilityLabel("Pause")
                     }
+                    DefenseCanvas(scene: scene)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
+                        .overlay(alignment: .top) { bossBar }
+                        .background(
+                            GeometryReader { field in
+                                Color.clear.preference(key: FieldFrameKey.self, value: field.frame(in: .named("field")))
+                            }
+                        )
+                        .onPreferenceChange(FieldFrameKey.self) { fieldFrame = $0 }
+                    controlBar
                 }
-                .disabled(battle.heroCooldown > 0 || !battle.running)
+                .padding(.leading, 8)
+                shopRail
             }
-                .font(.system(.caption, design: .rounded).weight(.bold))
-                Button("Maps") {
-                    playing = false
-                    pickedMap = nil
-                    armed = nil
-                }
-                .font(.system(.caption, design: .rounded).weight(.bold))
-            }
-            .padding(10)
-            shopRail
+            .padding(.top, geo.safeAreaInsets.top + 8)
+            .padding(.bottom, max(geo.safeAreaInsets.bottom, 12) + 8)
+            .padding(.trailing, geo.safeAreaInsets.trailing)
         }
+        .ignoresSafeArea()
         .coordinateSpace(name: "field")
+    }
+
+    private var controlBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+            mapButton(battle.running ? "In wave" : "Start round") {
+                battle = DefensePlay.beginRound(battle)
+                playing = battle.running
+                PocketSound.shared.tap()
+            }
+            .disabled(battle.running || battle.won || battle.lost)
+            mapButton(rate == 1 ? "1x" : "\(rate)x") {
+                rate = rate == 1 ? 2 : (rate == 2 ? 3 : 1)
+            }
+            mapButton(autoPlay ? "Auto on" : "Auto") { autoPlay.toggle() }
+            mapButton(battle.heroCooldown <= 0 ? "Pet blast" : "Pet \(Int(battle.heroCooldown.rounded()))") {
+                if let blasted = DefensePlay.heroBlast(battle) {
+                    battle = blasted.0
+                    scene.apply(battle, events: blasted.1, selected: selected)
+                    react(blasted.1)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            }
+            .disabled(battle.heroCooldown > 0 || !battle.running)
+            mapButton("Maps") {
+                playing = false
+                pickedMap = nil
+                armed = nil
+                selected = nil
+            }
+            }
+        }
+        .frame(height: 48)
+    }
+
+    private func mapButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(Color(red: 0.18, green: 0.08, blue: 0.28))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(minWidth: 44, minHeight: 44)
+                .padding(.horizontal, 10)
+                .background(Capsule().fill(Color.white))
+        }
+        .buttonStyle(.plain)
     }
 
     private var bossBar: some View {
@@ -288,12 +317,27 @@ struct StarDefenseGame: View {
         VStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("★ \(battle.cash)")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(red: 1, green: 0.9, blue: 0.45))
                 Text("♥ \(battle.lives)")
-                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            ScrollView {
+            if let selected, let gun = battle.guns.first(where: { $0.id == selected }) {
+                upgradePanel(gun)
+            } else {
+                shopGrid
+            }
+        }
+        .padding(10)
+        .frame(width: 188)
+        .offset(x: cardNudge)
+        .background(Color(red: 0.14, green: 0.08, blue: 0.24))
+    }
+
+    private var shopGrid: some View {
+        ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     ForEach(DefenseGunKind.allCases, id: \.self) { kind in
                         let open = session.level >= kind.unlockLevel
@@ -307,7 +351,7 @@ struct StarDefenseGame: View {
                         } label: {
                             VStack(spacing: 4) {
                                 TowerGlyph(kind: kind)
-                                    .frame(width: 36, height: 36)
+                                    .frame(width: 44, height: 44)
                                     .opacity(open ? 1 : 0.35)
                                 Text(open ? "\(kind.cost)" : "Lock")
                                     .font(.system(.caption2, design: .rounded).weight(.bold))
@@ -336,64 +380,66 @@ struct StarDefenseGame: View {
                         )
                     }
                 }
-            }
         }
-        .padding(10)
-        .frame(width: 168)
-        .offset(x: cardNudge)
-        .background(
-            UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 0, topTrailingRadius: 0)
-                .fill(.ultraThinMaterial)
-        )
     }
 
     private func upgradePanel(_ gun: DefenseGun) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                TowerGlyph(kind: gun.kind).frame(width: 28, height: 28)
+                TowerGlyph(kind: gun.kind).frame(width: 36, height: 36)
                 Text(gun.kind.title)
-                    .font(.system(.headline, design: .rounded).weight(.bold))
-                Spacer()
-                Button("Sell \(Int(Double(gun.spent) * 0.7))") {
-                    if let next = DefensePlay.sell(gun.id, in: battle) {
-                        battle = next
-                        selected = nil
-                        PocketSound.shared.tap()
-                    }
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+            }
+            Button("Sell \(Int(Double(gun.spent) * 0.7))") {
+                if let next = DefensePlay.sell(gun.id, in: battle) {
+                    battle = next
+                    selected = nil
+                    PocketSound.shared.tap()
                 }
-                .font(.system(.caption, design: .rounded).weight(.bold))
             }
+            .font(.system(size: 15, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(red: 0.18, green: 0.08, blue: 0.28))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Capsule().fill(Color.white))
             HStack {
-                pathColumn(gun, pathA: true, tint: Color(red: 0.35, green: 0.82, blue: 1))
-                pathColumn(gun, pathA: false, tint: Color(red: 1, green: 0.45, blue: 0.75))
+                pathColumn(gun, pathA: true, tint: Color(red: 0.45, green: 0.88, blue: 1))
+                pathColumn(gun, pathA: false, tint: Color(red: 1, green: 0.62, blue: 0.82))
             }
-            HStack {
+            VStack(spacing: 6) {
                 ForEach(TowerAim.allCases, id: \.self) { aim in
-                    Button(aim.rawValue) {
+                    Button(aim.rawValue.capitalized) {
                         battle = DefensePlay.aim(gun.id, aim, in: battle)
                     }
-                    .font(.system(.caption2, design: .rounded).weight(.bold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(gun.aim == aim ? Color(red: 1, green: 0.86, blue: 0.55) : Color.white.opacity(0.7)))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(gun.aim == aim ? Color(red: 0.18, green: 0.08, blue: 0.28) : Color.white)
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .background(
+                        Capsule().fill(gun.aim == aim ? Color(red: 1, green: 0.86, blue: 0.55) : Color.white.opacity(0.22))
+                    )
                 }
             }
+            Text("Tap empty grass to close")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.8))
         }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.ultraThinMaterial))
+        .buttonStyle(.plain)
     }
 
     private func pathColumn(_ gun: DefenseGun, pathA: Bool, tint: Color) -> some View {
         let rank = pathA ? gun.pathA : gun.pathB
         return VStack(alignment: .leading, spacing: 4) {
             Text(pathA ? "Cyan path" : "Pink path")
-                .font(.system(.caption2, design: .rounded).weight(.bold))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
             HStack(spacing: 4) {
                 ForEach(1..<5, id: \.self) { tier in
                     Circle()
-                        .fill(tier <= rank ? tint : Color.white.opacity(0.45))
-                        .frame(width: 10, height: 10)
-                        .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 1))
+                        .fill(tier <= rank ? tint : Color.white.opacity(0.28))
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().stroke(Color.white.opacity(0.8), lineWidth: 1))
                 }
             }
             Button(trainTitle(gun, pathA: pathA)) {
@@ -403,7 +449,10 @@ struct StarDefenseGame: View {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
             }
-            .font(.system(.caption2, design: .rounded).weight(.bold))
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(red: 0.18, green: 0.08, blue: 0.28))
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white))
             .disabled(!DefensePlay.canTrain(gun, pathA: pathA))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -585,9 +634,30 @@ struct TowerGlyph: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(color.opacity(0.35))
-            Circle().fill(color).frame(width: 18, height: 18).offset(y: -2)
-            Capsule().fill(Color.white).frame(width: 12, height: 4).offset(x: 8)
+            Circle().fill(color.opacity(0.28))
+            Circle().stroke(Color.white, lineWidth: 2)
+            Circle().fill(color).frame(width: 18, height: 18)
+            mark
+        }
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        switch kind {
+        case .dart:
+            Capsule().fill(Color.white).frame(width: 18, height: 5).offset(x: 8)
+        case .laser:
+            Rectangle().fill(Color.white).frame(width: 22, height: 3)
+        case .bomb:
+            Circle().stroke(Color.white, lineWidth: 3).frame(width: 14, height: 14)
+        case .frost:
+            Circle().stroke(Color.white, lineWidth: 2).frame(width: 16, height: 16)
+        case .tack:
+            Capsule().fill(Color.white).frame(width: 16, height: 3).rotationEffect(.degrees(40))
+        case .sniper:
+            Capsule().fill(Color.white).frame(width: 22, height: 3).offset(x: 6)
+        case .farm:
+            Circle().fill(Color.white).frame(width: 8, height: 8).offset(y: -6)
         }
     }
 
@@ -911,10 +981,11 @@ final class DefenseStage: SKScene {
             armedKind = nil
             return
         }
+        let local = board.convert(point, from: self)
         let hit = guns.first { _, node in
-            hypot(node.position.x - point.x, node.position.y - point.y) < 28
+            hypot(node.position.x - local.x, node.position.y - local.y) < 36
         }
-        pendingSelect = hit?.key
+        pendingSelect = .some(hit?.key)
     }
 
     private func drawGround(_ map: DefenseMap) {
