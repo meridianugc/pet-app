@@ -24,6 +24,7 @@ struct StarDefenseGame: View {
     @State private var autoPlay = false
     @State private var fieldFrame = CGRect.zero
     @State private var cardNudge: CGFloat = 0
+    @State private var windowInsets = UIEdgeInsets(top: 59, left: 0, bottom: 34, right: 0)
     @State private var playing = false
     @State private var paused = false
     @State private var bossBanner = false
@@ -161,6 +162,8 @@ struct StarDefenseGame: View {
                     battle = next
                     selected = battle.guns.last?.id
                     scene.apply(battle, events: [], selected: selected)
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    playing = false
                     return
                 }
             }
@@ -218,31 +221,34 @@ struct StarDefenseGame: View {
 
     private var match: some View {
         GeometryReader { geo in
-            HStack(spacing: 0) {
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        CosmicCloseButton(label: "Leave Star Defense") {
-                            playing = false
-                            askingLeave = true
-                        }
-                        Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Spacer(minLength: 4)
-                        Button {
-                            paused = true
-                            playing = false
-                        } label: {
-                            Image(systemName: "pause.fill")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(Color(red: 0.2, green: 0.1, blue: 0.28))
-                                .frame(width: 44, height: 44)
-                                .background(Circle().fill(Color.white))
-                        }
-                        .accessibilityLabel("Pause")
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    CosmicCloseButton(label: "Leave Star Defense") {
+                        playing = false
+                        askingLeave = true
                     }
+                    Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.16, green: 0.08, blue: 0.24))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(Capsule().fill(Color.white))
+                    Spacer(minLength: 4)
+                    Button {
+                        paused = true
+                        playing = false
+                    } label: {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color(red: 0.2, green: 0.1, blue: 0.28))
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(Color.white))
+                    }
+                    .accessibilityLabel("Pause")
+                }
+                HStack(spacing: 0) {
                     DefenseCanvas(scene: scene)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -254,16 +260,22 @@ struct StarDefenseGame: View {
                             }
                         )
                         .onPreferenceChange(FieldFrameKey.self) { fieldFrame = $0 }
-                    controlBar
+                    shopRail
+                        .frame(maxHeight: .infinity)
                 }
-                .padding(.leading, 8)
-                shopRail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                controlBar
             }
-            .padding(.top, geo.safeAreaInsets.top + 8)
-            .padding(.bottom, max(geo.safeAreaInsets.bottom, 12) + 8)
-            .padding(.trailing, geo.safeAreaInsets.trailing)
+            .padding(.top, windowInsets.top + 8)
+            .padding(.bottom, windowInsets.bottom + 8)
+            .padding(.horizontal, 8)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .background(WindowInsetReader { insets in
+                if insets != windowInsets { windowInsets = insets }
+            })
         }
         .ignoresSafeArea()
+        .background(Color(red: 0.11, green: 0.14, blue: 0.28).ignoresSafeArea())
         .coordinateSpace(name: "field")
     }
 
@@ -361,7 +373,8 @@ struct StarDefenseGame: View {
             }
         }
         .padding(10)
-        .frame(width: 188)
+        .frame(width: 168)
+        .frame(maxHeight: .infinity, alignment: .top)
         .offset(x: cardNudge)
         .background(Color(red: 0.14, green: 0.08, blue: 0.24))
     }
@@ -628,6 +641,52 @@ enum DefenseBake {
         if style.nub {
             ctx.setFillColor(style.fill.cgColor)
             ctx.fillEllipse(in: CGRect(x: 44, y: 72, width: 8, height: 8))
+        }
+    }
+}
+
+struct WindowInsetReader: UIViewRepresentable {
+    var onChange: (UIEdgeInsets) -> Void
+
+    func makeUIView(context: Context) -> InsetProbe {
+        let view = InsetProbe()
+        view.onChange = onChange
+        return view
+    }
+
+    func updateUIView(_ view: InsetProbe, context: Context) {
+        view.onChange = onChange
+        view.publish()
+    }
+}
+
+final class InsetProbe: UIView {
+    var onChange: ((UIEdgeInsets) -> Void)?
+    private var last = UIEdgeInsets(top: -1, left: 0, bottom: 0, right: 0)
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        publish()
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        publish()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        publish()
+    }
+
+    func publish() {
+        guard window != nil else { return }
+        let insets = window?.safeAreaInsets ?? .zero
+        let present = insets.top > 0 || insets.bottom > 0 || insets.left > 0
+        guard present, insets != last else { return }
+        last = insets
+        DispatchQueue.main.async { [insets] in
+            self.onChange?(insets)
         }
     }
 }
