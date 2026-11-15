@@ -80,6 +80,25 @@ APPLESCRIPT
             xcrun simctl terminate booted com.example.petapp || true
             sleep 1
           done
+          python3 - <<'PY'
+import pathlib, struct, zlib
+root = pathlib.Path("${{ runner.temp }}/screens")
+for path in root.glob("star-defense-*.png"):
+    data = path.read_bytes()
+    # width and height are big-endian at IHDR
+    if data[12:16] != b"IHDR":
+        continue
+    width, height = struct.unpack(">II", data[16:24])
+    print(path.name, width, height)
+    if height > width:
+        path.rename(path.with_suffix(".portrait.png"))
+        print("portrait", path.name)
+PY
+          for shot in "$RUNNER_TEMP/screens"/star-defense-*.portrait.png; do
+            [ -e "$shot" ] || continue
+            base="${shot%.portrait.png}"
+            sips -r 270 "$shot" --out "${base}.png" || true
+          done
           mkdir -p "$RUNNER_TEMP/screens/reports"
           cp "$HOME/Library/Logs/DiagnosticReports/"*Pocket* "$RUNNER_TEMP/screens/reports/" 2>/dev/null || true
           cp "$HOME/Library/Logs/DiagnosticReports/"*petapp* "$RUNNER_TEMP/screens/reports/" 2>/dev/null || true
