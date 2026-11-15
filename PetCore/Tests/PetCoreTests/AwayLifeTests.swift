@@ -39,6 +39,25 @@ final class AwayLifeTests: XCTestCase {
         XCTAssertTrue(second.1.lines.isEmpty)
     }
 
+    func testAKnockedToyCanBePutBackForGems() {
+        var world = AwayWorld.fresh(at: start)
+        world.looseToy = "toy_comet"
+        world.doodle = "toys"
+        let tucked = AwayLife.putAway(world)
+        XCTAssertEqual(tucked?.1, 3)
+        XCTAssertEqual(tucked?.0.looseToy, "")
+        XCTAssertEqual(tucked?.0.doodle, "")
+        XCTAssertNil(AwayLife.putAway(tucked!.0))
+    }
+
+    func testOldWorldsWithoutALooseToyStillLoad() throws {
+        let json = """
+        {"seeds":[],"treeAt":0,"seenAt":0,"postcards":[],"doodle":""}
+        """.data(using: .utf8)!
+        let world = try JSONDecoder().decode(AwayWorld.self, from: json)
+        XCTAssertEqual(world.looseToy, "")
+    }
+
     func testNeedsDecayMoreSlowlyOnATrip() {
         let rules = EngineFixture.rules(hunger: 10)
         let engine = PetEngine(rules: rules)

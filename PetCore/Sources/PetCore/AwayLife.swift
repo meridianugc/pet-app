@@ -64,6 +64,8 @@ public struct AwayWorld: Codable, Equatable, Sendable {
     public var seenAt: Date
     public var postcards: [Postcard]
     public var doodle: String
+    /// A toy id sitting outside the bin, or empty when the floor is clear.
+    public var looseToy: String
 
     public init(
         seeds: [StarSeed] = [],
@@ -71,7 +73,8 @@ public struct AwayWorld: Codable, Equatable, Sendable {
         treeAt: Date,
         seenAt: Date,
         postcards: [Postcard] = [],
-        doodle: String = ""
+        doodle: String = "",
+        looseToy: String = ""
     ) {
         self.seeds = seeds
         self.trip = trip
@@ -79,6 +82,33 @@ public struct AwayWorld: Codable, Equatable, Sendable {
         self.seenAt = seenAt
         self.postcards = postcards
         self.doodle = doodle
+        self.looseToy = looseToy
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case seeds, trip, treeAt, seenAt, postcards, doodle, looseToy
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        seeds = try c.decode([StarSeed].self, forKey: .seeds)
+        trip = try c.decodeIfPresent(SpaceTrip.self, forKey: .trip)
+        treeAt = try c.decode(Date.self, forKey: .treeAt)
+        seenAt = try c.decode(Date.self, forKey: .seenAt)
+        postcards = try c.decode([Postcard].self, forKey: .postcards)
+        doodle = try c.decode(String.self, forKey: .doodle)
+        looseToy = try c.decodeIfPresent(String.self, forKey: .looseToy) ?? ""
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(seeds, forKey: .seeds)
+        try c.encodeIfPresent(trip, forKey: .trip)
+        try c.encode(treeAt, forKey: .treeAt)
+        try c.encode(seenAt, forKey: .seenAt)
+        try c.encode(postcards, forKey: .postcards)
+        try c.encode(doodle, forKey: .doodle)
+        try c.encode(looseToy, forKey: .looseToy)
     }
 
     public static func fresh(at date: Date) -> AwayWorld {
@@ -167,6 +197,7 @@ public enum AwayLife {
                 lines.append("A visitor left a gift.")
             case 1:
                 world.doodle = "toys"
+                if world.looseToy.isEmpty { world.looseToy = "toy_comet" }
                 lines.append("They knocked a toy around.")
             default:
                 world.doodle = "nap"
@@ -184,5 +215,14 @@ public enum AwayLife {
         }
         world.seenAt = now
         return (world, AwayReport(lines: lines, gift: gift))
+    }
+
+    /// Tuck a loose toy back in the bin. Pays a few gems.
+    public static func putAway(_ world: AwayWorld) -> (AwayWorld, Int)? {
+        guard !world.looseToy.isEmpty else { return nil }
+        var world = world
+        world.looseToy = ""
+        if world.doodle == "toys" { world.doodle = "" }
+        return (world, 3)
     }
 }
