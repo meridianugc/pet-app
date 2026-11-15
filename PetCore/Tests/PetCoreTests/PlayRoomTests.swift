@@ -50,6 +50,15 @@ final class PlayRoomTests: XCTestCase {
         XCTAssertEqual(RoomRules.nearbyToy(in: beside)?.id, "toy_comet")
     }
 
+    func testOldRoomsWithoutAYawOrCarryStillLoad() throws {
+        let json = """
+        {"wall":0,"petWall":0,"pet":{"x":0.5,"y":0.2},"things":[{"id":"toy_comet","kind":"toy","wall":0,"spot":{"x":0.7,"y":0.2},"home":"bin","tucked":false}],"furniture":[],"closetOpen":false}
+        """.data(using: .utf8)!
+        let room = try JSONDecoder().decode(PlayRoom.self, from: json)
+        XCTAssertEqual(room.yaw, 0)
+        XCTAssertFalse(room.things[0].carried)
+    }
+
     func testTurningWallsWrapsAround() {
         XCTAssertEqual(RoomWall.toys.next, .closet)
         XCTAssertEqual(RoomWall.window.next, .toys)

@@ -71,14 +71,43 @@ public struct RoomThing: Codable, Equatable, Identifiable, Sendable {
     /// Furniture id this thing belongs in.
     public var home: String
     public var tucked: Bool
+    /// True while the pet is holding this thing above its head.
+    public var carried: Bool
 
-    public init(id: String, kind: RoomKind, wall: RoomWall, spot: RoomSpot, home: String, tucked: Bool) {
+    public init(id: String, kind: RoomKind, wall: RoomWall, spot: RoomSpot, home: String, tucked: Bool, carried: Bool = false) {
         self.id = id
         self.kind = kind
         self.wall = wall
         self.spot = spot
         self.home = home
         self.tucked = tucked
+        self.carried = carried
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, wall, spot, home, tucked, carried
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        kind = try c.decode(RoomKind.self, forKey: .kind)
+        wall = try c.decode(RoomWall.self, forKey: .wall)
+        spot = try c.decode(RoomSpot.self, forKey: .spot)
+        home = try c.decode(String.self, forKey: .home)
+        tucked = try c.decode(Bool.self, forKey: .tucked)
+        carried = try c.decodeIfPresent(Bool.self, forKey: .carried) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(wall, forKey: .wall)
+        try c.encode(spot, forKey: .spot)
+        try c.encode(home, forKey: .home)
+        try c.encode(tucked, forKey: .tucked)
+        try c.encode(carried, forKey: .carried)
     }
 }
 
@@ -102,6 +131,8 @@ public struct PlayRoom: Codable, Equatable, Sendable {
     public var things: [RoomThing]
     public var furniture: [RoomFurniture]
     public var closetOpen: Bool
+    /// Camera-relative facing. 0 looks toward the closet wall.
+    public var yaw: Double
 
     public init(
         wall: RoomWall = .toys,
@@ -109,7 +140,8 @@ public struct PlayRoom: Codable, Equatable, Sendable {
         pet: RoomSpot = RoomSpot(x: 0.5, y: 0.2),
         things: [RoomThing] = [],
         furniture: [RoomFurniture] = [],
-        closetOpen: Bool = false
+        closetOpen: Bool = false,
+        yaw: Double = 0
     ) {
         self.wall = wall
         self.petWall = petWall
@@ -117,6 +149,33 @@ public struct PlayRoom: Codable, Equatable, Sendable {
         self.things = things
         self.furniture = furniture
         self.closetOpen = closetOpen
+        self.yaw = yaw
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case wall, petWall, pet, things, furniture, closetOpen, yaw
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        wall = try c.decodeIfPresent(RoomWall.self, forKey: .wall) ?? .toys
+        petWall = try c.decodeIfPresent(RoomWall.self, forKey: .petWall) ?? .toys
+        pet = try c.decodeIfPresent(RoomSpot.self, forKey: .pet) ?? RoomSpot(x: 0.5, y: 0.5)
+        things = try c.decodeIfPresent([RoomThing].self, forKey: .things) ?? []
+        furniture = try c.decodeIfPresent([RoomFurniture].self, forKey: .furniture) ?? []
+        closetOpen = try c.decodeIfPresent(Bool.self, forKey: .closetOpen) ?? false
+        yaw = try c.decodeIfPresent(Double.self, forKey: .yaw) ?? 0
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(wall, forKey: .wall)
+        try c.encode(petWall, forKey: .petWall)
+        try c.encode(pet, forKey: .pet)
+        try c.encode(things, forKey: .things)
+        try c.encode(furniture, forKey: .furniture)
+        try c.encode(closetOpen, forKey: .closetOpen)
+        try c.encode(yaw, forKey: .yaw)
     }
 
     public static func starter(looseToy: String = "") -> PlayRoom {
