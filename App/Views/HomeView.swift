@@ -827,6 +827,17 @@ final class PlanetMergeScene: SKScene, SKPhysicsContactDelegate {
         run(.sequence([.wait(forDuration: 0.4), .run { [weak self] in self?.ready = true }]))
     }
 
+    func restart() {
+        children.filter { $0.name == "planet" }.forEach { $0.removeFromParent() }
+        score = 0
+        combo = 0
+        ended = false
+        ready = true
+        danger = 0
+        isPaused = false
+        onScore?(0)
+    }
+
     func blastOne() -> Bool {
         let planets = children.filter { $0.name == "planet" }
         guard let target = planets.min(by: { sizeOf($0) ?? 0 < sizeOf($1) ?? 0 }) else { return false }
@@ -958,8 +969,10 @@ struct PlanetMergeGame: View {
     @State private var closed = false
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.planetMerge")
     @State private var askingLeave = false
+    @State private var finale: GameFinale?
+    @State private var run = 1
 
-    private let goal = 80
+    private var goal: Int { 60 + run * 20 }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1003,13 +1016,11 @@ struct PlanetMergeGame: View {
                     askingLeave = false
                     scene.isPaused = false
                 }, onLeave: {
-                    guard !closed else { return }
-                    closed = true
-                    if score > 0 {
-                        session.finishGame(points: score, gameID: MiniGame.planetMerge.rawValue, title: "Planet Merge")
-                    }
-                    dismiss()
+                    presentEnd(score: score, detail: "You stepped away from the jar.")
                 })
+            }
+            if let finale {
+                GameEndCard(finale: finale, onAgain: { replay(next: false) }, onNext: { replay(next: true) }, onShop: shopOut, onHome: { dismiss() })
             }
             if showHowTo {
                 HowToOverlay(
@@ -1032,13 +1043,30 @@ struct PlanetMergeGame: View {
             }
             scene.onEnd = { final in
                 Task { @MainActor in
-                    guard !closed else { return }
-                    closed = true
-                    session.finishGame(points: final, gameID: MiniGame.planetMerge.rawValue, title: "Planet Merge")
-                    dismiss()
+                    presentEnd(score: final, detail: final >= goal ? "The jar is glowing." : "The stack crossed the line.")
                 }
             }
         }
+    }
+
+    private func presentEnd(score: Int, detail: String) {
+        guard finale == nil else { return }
+        closed = true
+        scene.isPaused = true
+        finale = bankedFinale(session: session, title: "Planet Merge", score: score, detail: "Run \(run). \(detail)", gameID: MiniGame.planetMerge.rawValue)
+    }
+
+    private func replay(next: Bool) {
+        if next { run += 1 }
+        closed = false
+        finale = nil
+        score = 0
+        scene.restart()
+    }
+
+    private func shopOut() {
+        session.openShopAfterGame = true
+        dismiss()
     }
 }
 
@@ -1056,6 +1084,24 @@ final class StarHopperScene: SKScene, SKPhysicsContactDelegate {
     private var lastBounce: TimeInterval = 0
     private var wantsStart = false
     private let starfield = SKNode()
+
+    func restart() {
+        ended = false
+        started = false
+        wantsStart = false
+        score = 0
+        steer = 0
+        player.physicsBody?.velocity = .zero
+        player.physicsBody?.isDynamic = false
+        if let launch = pads.first {
+            player.position = CGPoint(x: launch.position.x, y: launch.position.y + 32)
+        }
+        if let camera {
+            camera.position = CGPoint(x: size.width / 2, y: player.position.y + size.height * 0.18)
+        }
+        isPaused = true
+        onScore?(0)
+    }
 
     func boost() {
         guard started, !ended else { return }
@@ -1295,8 +1341,10 @@ struct StarHopperGame: View {
     @State private var countdown = 3
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starHopper")
     @State private var askingLeave = false
+    @State private var finale: GameFinale?
+    @State private var run = 1
 
-    private let goal = 40
+    private var goal: Int { 30 + run * 15 }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1350,13 +1398,14 @@ struct StarHopperGame: View {
                     askingLeave = false
                     if countdown == 0 { scene.isPaused = false }
                 }, onLeave: {
-                    guard !closed else { return }
-                    closed = true
-                    if score > 0 {
-                        session.finishGame(points: score, gameID: MiniGame.starHopper.rawValue, title: "Star Hopper")
-                    }
-                    dismiss()
+                    presentEnd(score: score, detail: "You hopped away.")
                 })
+            }
+            if let finale {
+                GameEndCard(finale: finale, onAgain: { replay(next: false) }, onNext: { replay(next: true) }, onShop: {
+                    session.openShopAfterGame = true
+                    dismiss()
+                }, onHome: { dismiss() })
             }
             if showHowTo {
                 HowToOverlay(
@@ -1378,14 +1427,28 @@ struct StarHopperGame: View {
             scene.onScore = { value in Task { @MainActor in score = value } }
             scene.onEnd = { final in
                 Task { @MainActor in
-                    guard !closed else { return }
-                    closed = true
-                    session.finishGame(points: final, gameID: MiniGame.starHopper.rawValue, title: "Star Hopper")
-                    dismiss()
+                    presentEnd(score: final, detail: final >= goal ? "You reached the star." : "You slipped off the clouds.")
                 }
             }
             if !showHowTo { startCountdown() }
         }
+    }
+
+    private func presentEnd(score: Int, detail: String) {
+        guard finale == nil else { return }
+        closed = true
+        scene.isPaused = true
+        finale = bankedFinale(session: session, title: "Star Hopper", score: score, detail: "Run \(run). \(detail)", gameID: MiniGame.starHopper.rawValue)
+    }
+
+    private func replay(next: Bool) {
+        if next { run += 1 }
+        closed = false
+        countdown = 3
+        finale = nil
+        score = 0
+        scene.restart()
+        startCountdown()
     }
 
     private func startCountdown() {
@@ -1510,6 +1573,17 @@ struct CloseMark: Shape {
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         return path
     }
+}
+
+@MainActor
+func bankedFinale(session: PetSession, title: String, score: Int, stars: Int = 0, detail: String, gameID: String) -> GameFinale {
+    let solo = session.record?.pet.isSleeping == true
+    let reward = GameRewards.reward(points: max(0, score), solo: solo)
+    let gems = session.record?.progress.gemPayout(base: reward.coins, now: session.currentDate) ?? reward.coins
+    if score > 0 {
+        session.finishGame(points: score, gameID: gameID, title: title, showPopup: false)
+    }
+    return GameFinale(title: title, score: score, gems: score > 0 ? gems : 0, xp: score > 0 ? reward.xp : 0, stars: stars, detail: detail)
 }
 
 struct GameFinale: Equatable {
@@ -1868,6 +1942,16 @@ final class SnackTable: ObservableObject {
         idle = Date()
     }
 
+    func restart() {
+        score = 0
+        moves = 28
+        finished = false
+        banner = ""
+        armed = nil
+        board.isPaused = false
+        start()
+    }
+
     func nudgeHint() {
         guard !finished, !board.busy, Date().timeIntervalSince(idle) > 5 else { return }
         hint = SnackMatch.hint(in: cells, width: columns, height: rows)
@@ -1964,6 +2048,7 @@ struct SnackMatchGame: View {
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.snackMatch")
     @State private var closed = false
     @State private var askingLeave = false
+    @State private var finale: GameFinale?
 
     private let goal = 500
 
@@ -2006,7 +2091,7 @@ struct SnackMatchGame: View {
         .background(PocketBackground(theme: "bg_match").ignoresSafeArea())
         .onAppear { table.start() }
         .onChange(of: table.finished) { _, done in
-            if done { close() }
+            if done { presentEnd() }
         }
         .task {
             while !Task.isCancelled {
@@ -2022,13 +2107,22 @@ struct SnackMatchGame: View {
                     table.board.isPaused = false
                 }, onLeave: {
                     table.board.isPaused = true
-                    if table.score > 0 {
-                        close()
-                    } else {
-                        closed = true
-                        dismiss()
-                    }
+                    presentEnd(detail: "You left the board.")
                 })
+            }
+            if let finale {
+                GameEndCard(finale: finale, onAgain: {
+                    self.finale = nil
+                    closed = false
+                    table.restart()
+                }, onNext: {
+                    self.finale = nil
+                    closed = false
+                    table.restart()
+                }, onShop: {
+                    session.openShopAfterGame = true
+                    dismiss()
+                }, onHome: { dismiss() })
             }
             if showHowTo {
                 HowToOverlay(
@@ -2066,11 +2160,11 @@ struct SnackMatchGame: View {
         .accessibilityLabel("\(title), \(session.powerCount(kind)) charges")
     }
 
-    private func close() {
-        guard !closed else { return }
+    private func presentEnd(detail: String = "The board is done.") {
+        guard finale == nil else { return }
         closed = true
-        session.finishGame(points: table.score, gameID: MiniGame.snackMatch.rawValue, title: "Snack Match")
-        dismiss()
+        table.board.isPaused = true
+        finale = bankedFinale(session: session, title: "Snack Match", score: table.score, detail: detail, gameID: MiniGame.snackMatch.rawValue)
     }
 }
 
@@ -2085,10 +2179,11 @@ struct StarDefenseGame: View {
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.starDefense")
     @State private var askingLeave = false
     @State private var closed = false
+    @State private var finale: GameFinale?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            PocketBackground(theme: "bg_merge").ignoresSafeArea()
+            PocketBackground(theme: "bg_hopper").ignoresSafeArea()
             if let map {
                 battlefield(map)
             } else {
@@ -2099,6 +2194,12 @@ struct StarDefenseGame: View {
                     askingLeave = false
                     if field.running { ticking = true }
                 }, onLeave: leave)
+            }
+            if let finale {
+                GameEndCard(finale: finale, onAgain: { replayDefense(next: false) }, onNext: { replayDefense(next: true) }, onShop: {
+                    session.openShopAfterGame = true
+                    dismiss()
+                }, onHome: { dismiss() })
             }
             if showHowTo {
                 HowToOverlay(
@@ -2312,25 +2413,35 @@ struct StarDefenseGame: View {
     }
 
     private func finish(won: Bool) {
-        guard !closed, let map else { return }
+        guard finale == nil, let map else { return }
         closed = true
+        ticking = false
         let stars = StarDefense.stars(lives: field.lives, livesAtStart: field.livesAtStart, won: won)
         session.recordStars(id: "starDefense.level.\(map)", stars: stars)
         let points = won ? stars * 40 + field.lives : max(0, field.round - 1) * 4
-        if points > 0 {
-            session.finishGame(points: points, gameID: MiniGame.starDefense.rawValue, title: "Star Defense")
-        }
-        dismiss()
+        finale = bankedFinale(
+            session: session,
+            title: "Star Defense",
+            score: points,
+            stars: stars,
+            detail: won ? "Map cleared." : "The blobs got through.",
+            gameID: MiniGame.starDefense.rawValue
+        )
+    }
+
+    private func replayDefense(next: Bool) {
+        guard let map else { return }
+        let nextID = next ? min(map + 1, StarDefense.levels.count) : map
+        self.map = nextID
+        field = StarDefense.field(for: nextID)
+        ticking = false
+        closed = false
+        finale = nil
     }
 
     private func leave() {
         ticking = false
-        if field.round > 1 || field.lives < field.livesAtStart {
-            finish(won: false)
-        } else {
-            closed = true
-            dismiss()
-        }
+        finish(won: false)
     }
 }
 
@@ -2345,6 +2456,7 @@ struct CosmicSolitaireGame: View {
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.solitaire")
     @State private var askingLeave = false
     @State private var closed = false
+    @State private var finale: GameFinale?
 
     var body: some View {
         ZStack {
@@ -2356,6 +2468,12 @@ struct CosmicSolitaireGame: View {
             }
             if askingLeave {
                 LeaveGamePrompt(onStay: { askingLeave = false }, onLeave: leave)
+            }
+            if let finale {
+                GameEndCard(finale: finale, onAgain: { replaySolitaire(next: false) }, onNext: { replaySolitaire(next: true) }, onShop: {
+                    session.openShopAfterGame = true
+                    dismiss()
+                }, onHome: { dismiss() })
             }
             if showHowTo {
                 HowToOverlay(
@@ -2552,9 +2670,22 @@ struct CosmicSolitaireGame: View {
         if deal.won, let map {
             let stars = CosmicSolitaire.stars(moves: moves, won: true)
             session.recordStars(id: "solitaire.level.\(map.id)", stars: stars)
-            session.finishGame(points: stars * 35 + max(0, 80 - moves), gameID: MiniGame.cosmicSolitaire.rawValue, title: "Cosmic Solitaire")
-            dismiss()
+            let points = stars * 35 + max(0, 80 - moves)
+            finale = bankedFinale(session: session, title: "Cosmic Solitaire", score: points, stars: stars, detail: "Board cleared in \(moves) moves.", gameID: MiniGame.cosmicSolitaire.rawValue)
         }
+    }
+
+    private func replaySolitaire(next: Bool) {
+        guard let map else { return }
+        let nextID = next ? min(map.id + 1, CosmicSolitaire.levels.count) : map.id
+        let level = CosmicSolitaire.levels.first { $0.id == nextID } ?? map
+        self.map = level
+        deal = SolitaireDeal.deal(seed: level.seed, drawCount: level.drawCount)
+        history = []
+        moves = 0
+        selection = nil
+        closed = false
+        finale = nil
     }
 
     private func undo() {
@@ -2577,11 +2708,10 @@ struct CosmicSolitaireGame: View {
     }
 
     private func leave() {
-        if moves > 0 {
-            session.finishGame(points: min(12, moves / 4), gameID: MiniGame.cosmicSolitaire.rawValue, title: "Cosmic Solitaire")
-        }
+        guard finale == nil else { return }
         closed = true
-        dismiss()
+        let points = moves > 0 ? min(12, moves / 4) : 0
+        finale = bankedFinale(session: session, title: "Cosmic Solitaire", score: points, detail: "You left the table.", gameID: MiniGame.cosmicSolitaire.rawValue)
     }
 }
 
@@ -2601,6 +2731,7 @@ struct StarSudokuGame: View {
     @State private var showHowTo = !UserDefaults.standard.bool(forKey: "howto.sudoku")
     @State private var askingLeave = false
     @State private var closed = false
+    @State private var finale: GameFinale?
 
     var body: some View {
         ZStack {
@@ -2612,6 +2743,12 @@ struct StarSudokuGame: View {
             }
             if askingLeave {
                 LeaveGamePrompt(onStay: { askingLeave = false }, onLeave: leave)
+            }
+            if let finale {
+                GameEndCard(finale: finale, onAgain: { replaySudoku(next: false) }, onNext: { replaySudoku(next: true) }, onShop: {
+                    session.openShopAfterGame = true
+                    dismiss()
+                }, onHome: { dismiss() })
             }
             if showHowTo {
                 HowToOverlay(
@@ -2751,9 +2888,27 @@ struct StarSudokuGame: View {
         if cells == puzzle.solution, let difficulty {
             let stars = StarSudoku.stars(mistakes: mistakes, hints: hints, solved: true)
             session.recordStars(id: "sudoku.\(difficulty.rawValue)", stars: stars)
-            session.finishGame(points: stars * 30 + max(0, 40 - mistakes * 5), gameID: MiniGame.starSudoku.rawValue, title: "Star Sudoku")
-            dismiss()
+            let points = stars * 30 + max(0, 40 - mistakes * 5)
+            finale = bankedFinale(session: session, title: "Star Sudoku", score: points, stars: stars, detail: "\(difficulty.rawValue.capitalized) cleared.", gameID: MiniGame.starSudoku.rawValue)
         }
+    }
+
+    private func replaySudoku(next: Bool) {
+        guard let difficulty else { return }
+        let order = SudokuDifficulty.allCases
+        let index = order.firstIndex(of: difficulty) ?? 0
+        let picked = next ? order[min(index + 1, order.count - 1)] : difficulty
+        let made = SudokuPuzzle.generate(seed: UInt64.random(in: 1...9_000), difficulty: picked)
+        puzzle = made
+        cells = made.given
+        notes = [:]
+        mistakes = 0
+        hints = 0
+        history = []
+        started = Date()
+        self.difficulty = picked
+        closed = false
+        finale = nil
     }
 
     private func undo() {
@@ -2770,11 +2925,10 @@ struct StarSudokuGame: View {
     }
 
     private func leave() {
-        let filled = cells.filter { $0 != 0 }.count - puzzle.given.filter { $0 != 0 }.count
-        if filled > 0 {
-            session.finishGame(points: min(10, filled / 3), gameID: MiniGame.starSudoku.rawValue, title: "Star Sudoku")
-        }
+        guard finale == nil else { return }
         closed = true
-        dismiss()
+        let filled = cells.filter { $0 != 0 }.count - puzzle.given.filter { $0 != 0 }.count
+        let points = filled > 0 ? min(10, filled / 3) : 0
+        finale = bankedFinale(session: session, title: "Star Sudoku", score: points, detail: "You left the grid.", gameID: MiniGame.starSudoku.rawValue)
     }
 }
