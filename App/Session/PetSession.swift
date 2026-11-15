@@ -842,7 +842,9 @@ final class PocketSound {
         DispatchQueue.global(qos: .userInitiated).async {
             let started: Bool
             do {
-                try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+                // Playback so the cute sounds still play when the ringer switch is on silent.
+                // The in-app mute button turns them off.
+                try AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
                 try AVAudioSession.sharedInstance().setActive(true)
                 try audioEngine.start()
                 started = true
@@ -850,7 +852,10 @@ final class PocketSound {
                 started = false
             }
             Task { @MainActor in
-                PocketSound.shared.ready = started
+                let sound = PocketSound.shared
+                sound.ready = started
+                // The home screen asks for the tune before audio is ready, so start it here.
+                if started { sound.startTune() }
             }
         }
     }
