@@ -74,12 +74,17 @@ final class DefenseBattleTests: XCTestCase {
         let lost = DefensePlay.step(leaking, dt: 0.5).0
         XCTAssertLessThan(lost.lives, leaking.lives)
 
-        XCTAssertTrue(DefensePlay.spawns(forRound: 10).contains(.boss))
-        XCTAssertEqual(DefensePlay.spawns(forRound: 1).count, 7)
+        XCTAssertTrue(DefensePlay.spawns(forRound: 40).contains(.boss))
+        XCTAssertTrue(DefensePlay.spawns(forRound: 60).contains(.boss))
+        XCTAssertFalse(DefensePlay.spawns(forRound: 10).contains(.boss))
+        XCTAssertEqual(DefensePlay.spawns(forRound: 1).count, 8)
+        XCTAssertGreaterThan(DefensePlay.spawns(forRound: 61).count, 8)
         XCTAssertEqual(DefensePlay.guns(forPetLevel: 1), [.dart, .farm])
         XCTAssertFalse(DefensePlay.isOpen(map: 2, petLevel: 5, stars: [:]))
         XCTAssertTrue(DefensePlay.isOpen(map: 2, petLevel: 5, stars: [1: 1]))
-        XCTAssertEqual(DefenseBattle.roundCount, 42)
+        XCTAssertEqual(DefenseBattle.roundCount, 60)
+        XCTAssertEqual(DefenseDifficulty.easy.authoredRounds, 40)
+        XCTAssertEqual(DefenseDifficulty.medium.authoredRounds, 60)
     }
 
     func testABlobAtEveryDistanceSitsOnTheDrawnPath() {

@@ -86,7 +86,15 @@ public enum DefenseDifficulty: String, Equatable, CaseIterable, Sendable {
         switch self {
         case .easy: return 0.85
         case .medium: return 1
-        case .hard: return 1.25
+        case .hard: return 1.1
+        }
+    }
+
+    /// Easy stops at 40. Normal and hard run through round 60, then Freeplay.
+    public var authoredRounds: Int {
+        switch self {
+        case .easy: return 40
+        case .medium, .hard: return 60
         }
     }
 }
@@ -226,7 +234,7 @@ public struct DefenseEvent: Equatable, Sendable {
 }
 
 public struct DefenseBattle: Equatable, Sendable {
-    public static let roundCount = 42
+    public static let roundCount = 60
 
     public var map: Int
     public var difficulty: DefenseDifficulty
@@ -244,6 +252,7 @@ public struct DefenseBattle: Equatable, Sendable {
     public var won: Bool
     public var lost: Bool
     public var bossSoon: Bool
+    public var freeplay: Bool
     public var nextID: Int
 
     public init(
@@ -263,6 +272,7 @@ public struct DefenseBattle: Equatable, Sendable {
         won: Bool = false,
         lost: Bool = false,
         bossSoon: Bool = false,
+        freeplay: Bool = false,
         nextID: Int = 1
     ) {
         self.map = map
@@ -281,6 +291,7 @@ public struct DefenseBattle: Equatable, Sendable {
         self.won = won
         self.lost = lost
         self.bossSoon = bossSoon
+        self.freeplay = freeplay
         self.nextID = nextID
     }
 }
@@ -401,12 +412,21 @@ public enum DefensePlay {
     }
 
     public static func beginRound(_ battle: DefenseBattle) -> DefenseBattle {
-        guard !battle.running, !battle.won, !battle.lost, battle.round <= DefenseBattle.roundCount else { return battle }
+        let cap = battle.difficulty.authoredRounds
+        guard !battle.running, !battle.lost, !battle.won else { return battle }
+        guard battle.freeplay || battle.round <= cap else { return battle }
         var battle = battle
         let script = spawns(forRound: battle.round)
         battle.queue = script.enumerated().map { offset, sort in
-            let layers = sort == .boss ? 10 + battle.round / 8 : 1 + battle.round / 7
-            return Blob(id: -(offset + 1), sort: sort, layers: layers)
+            let layers: Int
+            if sort == .boss {
+                layers = battle.round >= 60 ? 24 : 12
+            } else if battle.round >= 50 {
+                layers = 4 + (battle.round - 50) / 4
+            } else {
+                layers = 1 + battle.round / 8
+            }
+            return Blob(id: -(offset + 1), sort: sort, layers: max(1, layers))
         }
         battle.spawnIn = 0.35
         battle.running = true
@@ -414,25 +434,37 @@ public enum DefensePlay {
         return battle
     }
 
+    /// Authored as JSON so a round can be retuned without touching the step loop.
+    public static let roundScript = """
+    [{"from":1,"to":5,"sort":"plain","count":8},{"from":6,"to":10,"sort":"plain","count":6},{"from":6,"to":15,"sort":"fast","count":4},{"from":11,"to":20,"sort":"fast","count":6},{"from":16,"to":24,"sort":"plain","count":8},{"from":20,"to":28,"sort":"plain","count":4},{"from":22,"to":32,"sort":"camo","count":5},{"from":25,"to":39,"sort":"regen","count":4},{"from":27,"to":49,"sort":"armored","count":4},{"from":33,"to":59,"sort":"fast","count":6},{"from":36,"to":59,"sort":"armored","count":3},{"from":40,"to":40,"sort":"boss","count":1},{"from":41,"to":59,"sort":"camo","count":5},{"from":60,"to":60,"sort":"boss","count":1},{"from":60,"to":60,"sort":"armored","count":6}]
+    """
+
     public static func spawns(forRound round: Int) -> [BlobSort] {
+        let bands = scriptBands()
         var list: [BlobSort] = []
-        let count = min(28, 6 + round)
-        for index in 0..<count {
-            if round.isMultiple(of: 10), index == 0 {
-                list.append(.boss)
-            } else if round >= 18, index.isMultiple(of: 7) {
-                list.append(.regen)
-            } else if round >= 12, index.isMultiple(of: 5) {
-                list.append(.armored)
-            } else if round >= 8, index.isMultiple(of: 4) {
-                list.append(.camo)
-            } else if round >= 4, index.isMultiple(of: 3) {
-                list.append(.fast)
-            } else {
-                list.append(.plain)
-            }
+        for band in bands where round >= band.from && round <= band.to {
+            let sort = BlobSort(rawValue: band.sort) ?? .plain
+            list.append(contentsOf: Array(repeating: sort, count: band.count))
         }
+        if round > 60 {
+            let extra = min(24, 10 + (round - 60))
+            list.append(contentsOf: Array(repeating: BlobSort.armored, count: extra / 2))
+            list.append(contentsOf: Array(repeating: BlobSort.fast, count: extra - extra / 2))
+        }
+        if list.isEmpty { list = Array(repeating: .plain, count: 8) }
         return list
+    }
+
+    private struct ScriptBand: Decodable {
+        var from: Int
+        var to: Int
+        var sort: String
+        var count: Int
+    }
+
+    private static func scriptBands() -> [ScriptBand] {
+        let data = Data(roundScript.utf8)
+        return (try? JSONDecoder().decode([ScriptBand].self, from: data)) ?? []
     }
 
     public static func heroBlast(_ battle: DefenseBattle) -> (DefenseBattle, [DefenseEvent])? {
@@ -517,7 +549,7 @@ public enum DefensePlay {
                 events.append(DefenseEvent(kind: .coin, x: battle.guns[index].x, y: battle.guns[index].y, amount: bonus))
             }
             battle.round += 1
-            if battle.round > DefenseBattle.roundCount {
+            if battle.round > battle.difficulty.authoredRounds, !battle.freeplay {
                 battle.won = true
             }
         }

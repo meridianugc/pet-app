@@ -15,6 +15,7 @@ struct StarDefenseGame: View {
     @State private var armed: DefenseGunKind?
     @State private var selected: Int?
     @State private var rate = 1
+    @State private var autoPlay = false
     @State private var playing = false
     @State private var paused = false
     @State private var bossBanner = false
@@ -55,7 +56,9 @@ struct StarDefenseGame: View {
                         session.openShopAfterGame = true
                         dismiss()
                     },
-                    onHome: { dismiss() }
+                    onHome: { dismiss() },
+                    extraTitle: battle.won ? "Freeplay" : nil,
+                    onExtra: battle.won ? { startFreeplay() } : nil
                 )
             }
             if showHowTo {
@@ -97,10 +100,17 @@ struct StarDefenseGame: View {
             }
             scene.allows = { DefensePlay.canPlace($0, in: battle) }
             guard playing, !paused, finale == nil, pickedMap != nil else { return }
+            let wasRunning = battle.running
             let stepped = DefensePlay.step(battle, dt: (1.0 / 60.0) * Double(rate))
             battle = stepped.0
             scene.apply(battle, events: stepped.1, selected: selected)
             react(stepped.1)
+            if wasRunning, !battle.running, !battle.won, !battle.lost {
+                noteBestRound()
+                if autoPlay {
+                    battle = DefensePlay.beginRound(battle)
+                }
+            }
             if battle.won || battle.lost {
                 playing = false
                 finish(won: battle.won)
@@ -170,7 +180,7 @@ struct StarDefenseGame: View {
                 }
                 .font(.system(.caption, design: .rounded).weight(.bold))
                 Spacer()
-                Text("Round \(min(battle.round, DefenseBattle.roundCount))/\(DefenseBattle.roundCount)")
+                Text(battle.freeplay ? "Freeplay \(battle.round)" : "Round \(min(battle.round, battle.difficulty.authoredRounds))/\(battle.difficulty.authoredRounds)")
                     .font(.system(.headline, design: .rounded).weight(.bold))
                 Button {
                     paused = true
@@ -220,6 +230,7 @@ struct StarDefenseGame: View {
                 Button(rate == 1 ? "1x" : "\(rate)x") {
                     rate = rate == 1 ? 2 : (rate == 2 ? 3 : 1)
                 }
+                Button(autoPlay ? "Auto on" : "Auto") { autoPlay.toggle() }
                 Button(battle.heroCooldown <= 0 ? "Pet blast" : "Pet \(Int(battle.heroCooldown.rounded()))") {
                     if let blasted = DefensePlay.heroBlast(battle) {
                         battle = blasted.0
@@ -344,6 +355,7 @@ struct StarDefenseGame: View {
             session.recordStars(id: "starDefense.map.\(pickedMap).\(battle.difficulty.rawValue)", stars: stars)
         }
         let points = won ? stars * 60 + battle.round * 3 : max(0, battle.round - 1) * 5
+        noteBestRound()
         finale = bankedFinale(
             session: session,
             title: "Star Defense",
@@ -352,6 +364,20 @@ struct StarDefenseGame: View {
             detail: won ? "The lane is quiet." : "The blobs got through.",
             gameID: MiniGame.starDefense.rawValue
         )
+    }
+
+    private func noteBestRound() {
+        guard let pickedMap else { return }
+        let reached = battle.won ? max(1, battle.round - 1) : battle.round
+        session.recordStars(id: "starDefense.best.\(pickedMap)", stars: reached)
+    }
+
+    private func startFreeplay() {
+        battle.freeplay = true
+        battle.won = false
+        finale = nil
+        playing = true
+        battle = DefensePlay.beginRound(battle)
     }
 
     private func replay(next: Bool) {

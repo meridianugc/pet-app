@@ -1946,6 +1946,8 @@ struct GameEndCard: View {
     var onNext: () -> Void
     var onShop: () -> Void
     var onHome: () -> Void
+    var extraTitle: String? = nil
+    var onExtra: (() -> Void)? = nil
 
     var body: some View {
         ZStack {
@@ -1992,6 +1994,9 @@ struct GameEndCard: View {
                     HStack(spacing: 8) {
                         endButton("Shop", action: onShop)
                         endButton("Home", action: onHome)
+                    }
+                    if let extraTitle, let onExtra {
+                        endButton(extraTitle, action: onExtra)
                     }
                 }
             }
