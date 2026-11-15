@@ -1459,7 +1459,7 @@ final class DefenseStage: SKScene {
         let node: SKShapeNode
         switch kind {
         case .dart:
-            node = SKShapeNode(rectOf: CGSize(width: 12, height: 4), cornerRadius: 2)
+            node = SKShapeNode(rectOf: CGSize(width: 22, height: 8), cornerRadius: 3)
         case .laser:
             node = SKShapeNode(rectOf: CGSize(width: 22, height: 3), cornerRadius: 1)
         case .bomb:
