@@ -771,9 +771,6 @@ struct DefenseCanvas: UIViewRepresentable {
 
     func updateUIView(_ view: DefenseScreen, context: Context) {
         scene.scaleMode = .aspectFit
-        if scene.size != DefenseStage.boardPixelSize {
-            scene.size = DefenseStage.boardPixelSize
-        }
         scene.noteView(view.bounds.size)
     }
 }
@@ -890,7 +887,7 @@ final class DefenseStage: SKScene {
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
-        fitBoard()
+        boardSize = size.width > 2 ? size : Self.boardPixelSize
     }
 
     func load(_ map: DefenseMap) {
@@ -933,7 +930,6 @@ final class DefenseStage: SKScene {
 
     private func adoptSceneSize() {
         if board.parent == nil { addChild(board) }
-        size = Self.boardPixelSize
         boardSize = Self.boardPixelSize
         board.setScale(1)
         board.position = .zero
