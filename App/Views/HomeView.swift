@@ -113,6 +113,12 @@ struct HomeView: View {
                     AwayView()
                 }
             }
+            .onChange(of: session.openShopAfterGame) { _, open in
+                if open {
+                    session.openShopAfterGame = false
+                    showShop = true
+                }
+            }
             .fullScreenCover(isPresented: $showGames) {
                 GamePicker(best: session.record?.progress.bestScores ?? [:])
             }
@@ -1503,6 +1509,71 @@ struct CloseMark: Shape {
         path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         return path
+    }
+}
+
+struct GameFinale: Equatable {
+    var title: String
+    var score: Int
+    var gems: Int
+    var xp: Int
+    var stars: Int
+    var detail: String
+}
+
+struct GameEndCard: View {
+    var finale: GameFinale
+    var onAgain: () -> Void
+    var onNext: () -> Void
+    var onShop: () -> Void
+    var onHome: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Text(finale.title)
+                    .font(.system(.title, design: .rounded).weight(.bold))
+                Text(finale.detail)
+                    .font(.system(.body, design: .rounded))
+                    .multilineTextAlignment(.center)
+                Text("\(finale.score)")
+                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                    .accessibilityLabel("Score \(finale.score)")
+                if finale.stars > 0 {
+                    Text(String(repeating: "★", count: finale.stars))
+                        .font(.system(.title2, design: .rounded))
+                        .foregroundStyle(Color(red: 1, green: 0.78, blue: 0.3))
+                }
+                HStack(spacing: 10) {
+                    ChipFace(chip: CareChip(stat: .gems, amount: finale.gems), side: 22)
+                    Text("+\(finale.xp) XP")
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                }
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        endButton("Play again", action: onAgain)
+                        endButton("Next level", action: onNext)
+                    }
+                    HStack(spacing: 8) {
+                        endButton("Shop", action: onShop)
+                        endButton("Home", action: onHome)
+                    }
+                }
+            }
+            .padding(22)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(red: 0.97, green: 0.94, blue: 1)))
+            .padding(24)
+        }
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private func endButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .font(.system(.headline, design: .rounded).weight(.bold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Capsule().fill(Color(red: 0.55, green: 0.42, blue: 0.86)))
+            .foregroundStyle(.white)
     }
 }
 

@@ -42,6 +42,7 @@ final class PetSession: ObservableObject {
     @Published var meterPops: [MeterPop] = []
     @Published var careAsk: CareAsk?
     @Published var awayReport: AwayReport?
+    @Published var openShopAfterGame = false
 
     let usesAppGroup: Bool
 
@@ -175,7 +176,7 @@ final class PetSession: ObservableObject {
         playReward = nil
     }
 
-    func finishGame(points: Int, gameID: String? = nil, title: String = "Game") {
+    func finishGame(points: Int, gameID: String? = nil, title: String = "Game", showPopup: Bool = true) {
         guard var record else { return }
         let now = currentDate
         var pet = engine.advance(record.pet, to: now)
@@ -216,7 +217,7 @@ final class PetSession: ObservableObject {
             calendar: calendar
         )
         note = nil
-        if gameID != nil {
+        if gameID != nil, showPopup {
             playReward = PlayReward(
                 title: title,
                 score: points,
