@@ -116,10 +116,12 @@ struct HomeView: View {
             .onAppear {
                 PocketSound.shared.startTune()
                 if ScreenshotDemo.isOn { showGames = true }
-                if ProcessInfo.processInfo.arguments.contains("-roomShot") { inRoom = true }
+                let roomArgs = ProcessInfo.processInfo.arguments
+                if roomArgs.contains("-roomShot") || roomArgs.contains("-roomWalk") { inRoom = true }
             }
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(inRoom ? .hidden : .visible, for: .navigationBar)
             .toolbar { toolbar }
             .sheet(isPresented: $showToday) {
                 NavigationStack {
