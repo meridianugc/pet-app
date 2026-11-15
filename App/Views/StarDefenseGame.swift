@@ -16,6 +16,7 @@ struct StarDefenseGame: View {
     @State private var selected: Int?
     @State private var rate = 1
     @State private var autoPlay = false
+    @State private var fieldFrame = CGRect.zero
     @State private var playing = false
     @State private var paused = false
     @State private var bossBanner = false
@@ -196,6 +197,12 @@ struct StarDefenseGame: View {
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white, lineWidth: 2))
                     .overlay(alignment: .top) { bossBar }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: FieldFrameKey.self, value: geo.frame(in: .named("field")))
+                        }
+                    )
+                    .onPreferenceChange(FieldFrameKey.self) { fieldFrame = $0 }
                 if let selected, let gun = battle.guns.first(where: { $0.id == selected }) {
                     upgradePanel(gun)
                 }
@@ -231,6 +238,7 @@ struct StarDefenseGame: View {
             .padding(10)
             shopRail
         }
+        .coordinateSpace(name: "field")
     }
 
     private var bossBar: some View {
@@ -299,6 +307,20 @@ struct StarDefenseGame: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(!open)
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 8, coordinateSpace: .named("field"))
+                                .onChanged { value in
+                                    guard open else { return }
+                                    let local = CGPoint(x: value.location.x - fieldFrame.minX, y: value.location.y - fieldFrame.minY)
+                                    scene.drag(kind, at: local, in: fieldFrame.size, ended: false)
+                                }
+                                .onEnded { value in
+                                    guard open else { return }
+                                    let local = CGPoint(x: value.location.x - fieldFrame.minX, y: value.location.y - fieldFrame.minY)
+                                    scene.drag(kind, at: local, in: fieldFrame.size, ended: true)
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                }
+                        )
                     }
                 }
             }
@@ -515,6 +537,11 @@ enum DefenseBake {
     }
 }
 
+struct FieldFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+}
+
 struct TowerGlyph: View {
     var kind: DefenseGunKind
 
@@ -619,6 +646,36 @@ final class DefenseStage: SKScene {
         )
     }
 
+    func drag(_ kind: DefenseGunKind, at local: CGPoint, in viewSize: CGSize, ended: Bool) {
+        arm(kind)
+        let lifted = CGPoint(x: local.x, y: local.y - 60)
+        let scenePoint = viewToScene(lifted, viewSize: viewSize)
+        let boardPoint = board.convert(scenePoint, from: self)
+        ghost.position = boardPoint
+        rangeRing.position = boardPoint
+        let spot = DefensePoint(x: Double(boardPoint.x / boardSize.width), y: Double(boardPoint.y / boardSize.height))
+        let ok = allows?(spot) ?? false
+        ghost.fillColor = ok ? UIColor(red: 0.45, green: 0.85, blue: 0.55, alpha: 0.9) : UIColor(red: 1, green: 0.42, blue: 0.42, alpha: 0.9)
+        rangeRing.strokeColor = ghost.fillColor
+        guard ended else { return }
+        if ok {
+            pendingDrop = spot
+        } else {
+            spark(at: boardPoint, color: UIColor(white: 1, alpha: 0.8))
+        }
+        ghost.alpha = 0
+        rangeRing.alpha = 0
+        armedKind = nil
+    }
+
+    private func viewToScene(_ local: CGPoint, viewSize: CGSize) -> CGPoint {
+        let sceneSize = size.width > 2 ? size : CGSize(width: 1000, height: 700)
+        let scale = min(viewSize.width / sceneSize.width, viewSize.height / sceneSize.height)
+        let xOff = (viewSize.width - sceneSize.width * scale) / 2
+        let yOff = (viewSize.height - sceneSize.height * scale) / 2
+        return CGPoint(x: (local.x - xOff) / max(scale, 0.01), y: (viewSize.height - local.y - yOff) / max(scale, 0.01))
+    }
+
     func arm(_ kind: DefenseGunKind?) {
         armedKind = kind
         ghost.alpha = kind == nil ? 0 : 0.9
@@ -674,16 +731,34 @@ final class DefenseStage: SKScene {
             guns[id] = nil
         }
         for gun in battle.guns {
-            let node = guns[gun.id] ?? makeGun(gun)
-            guns[gun.id] = node
+            let stamp = "\(gun.pathA)-\(gun.pathB)"
+            if (guns[gun.id]?.userData?["stamp"] as? String) != stamp {
+                guns[gun.id]?.removeFromParent()
+                let fresh = makeGun(gun)
+                fresh.userData = ["stamp": stamp]
+                guns[gun.id] = fresh
+            }
+            guard let node = guns[gun.id] else { continue }
             node.position = place(DefensePoint(x: gun.x, y: gun.y))
+            node.zPosition = 12 + (boardSize.height - node.position.y) * 0.01
             node.alpha = selected == gun.id ? 1 : 0.95
             if let target = battle.blobs.max(by: { $0.distance < $1.distance }), let aim = node.childNode(withName: "aim") {
                 let spot = place(DefensePlay.point(on: road, distance: target.distance))
-                aim.zRotation = atan2(spot.y - node.position.y, spot.x - node.position.x)
+                let desired = atan2(spot.y - node.position.y, spot.x - node.position.x)
+                aim.zRotation += (desired - aim.zRotation) * 0.35
             }
-            if let badge = node.childNode(withName: "rank") as? SKLabelNode {
-                badge.text = "\(gun.pathA)/\(gun.pathB)"
+            let firing = battle.shots.contains { hypot($0.x - gun.x, $0.y - gun.y) < 0.04 && $0.life > 0.18 }
+            if firing, let aim = node.childNode(withName: "aim"), aim.action(forKey: "recoil") == nil {
+                aim.run(.sequence([
+                    .moveBy(x: -4, y: 0, duration: 0.04),
+                    .moveBy(x: 4, y: 0, duration: 0.1)
+                ]), withKey: "recoil")
+                let flash = SKShapeNode(circleOfRadius: 5)
+                flash.fillColor = .white
+                flash.strokeColor = .clear
+                flash.position = CGPoint(x: 18, y: 0)
+                aim.addChild(flash)
+                flash.run(.sequence([.fadeOut(withDuration: 0.08), .removeFromParent()]))
             }
         }
         let aliveShots = Set(battle.shots.map(\.id))
@@ -924,28 +999,59 @@ final class DefenseStage: SKScene {
             node.addChild(sprite)
         } else {
             let tone = towerColor(gun.kind)
+            let deep = gun.pathA >= 4 || gun.pathB >= 4
             let shadow = SKShapeNode(ellipseOf: CGSize(width: 28, height: 10))
             shadow.fillColor = UIColor(white: 0, alpha: 0.18)
             shadow.strokeColor = .clear
             shadow.position = CGPoint(x: 0, y: -16)
             node.addChild(shadow)
-            let pad = SKShapeNode(circleOfRadius: 16)
+            let pad = SKShapeNode(circleOfRadius: deep ? 20 : 16)
             pad.fillColor = tone.withAlphaComponent(0.45)
             pad.strokeColor = tone
             pad.lineWidth = 2
             node.addChild(pad)
-            let body = SKShapeNode(circleOfRadius: gun.pathA >= 4 || gun.pathB >= 4 ? 16 : 12)
+            if gun.pathA >= 3 || gun.pathB >= 3 {
+                let glow = SKShapeNode(circleOfRadius: deep ? 24 : 20)
+                glow.strokeColor = gun.pathB >= 3 ? UIColor(red: 1, green: 0.44, blue: 0.75, alpha: 0.9) : UIColor(red: 0.35, green: 0.85, blue: 1, alpha: 0.9)
+                glow.fillColor = .clear
+                glow.lineWidth = 3
+                node.addChild(glow)
+            }
+            let body = SKShapeNode(circleOfRadius: deep ? 16 : 12)
             body.fillColor = tone
             body.strokeColor = UIColor(white: 1, alpha: 0.85)
             body.lineWidth = 2
             body.position = CGPoint(x: 0, y: 6)
             node.addChild(body)
+            if gun.pathA >= 1 {
+                let hat = SKShapeNode(circleOfRadius: 5)
+                hat.fillColor = UIColor(red: 0.35, green: 0.85, blue: 1, alpha: 1)
+                hat.strokeColor = .clear
+                hat.position = CGPoint(x: 0, y: deep ? 24 : 18)
+                node.addChild(hat)
+            }
+            if gun.pathB >= 1 {
+                for side in [-1, 1] as [CGFloat] {
+                    let goggle = SKShapeNode(circleOfRadius: 3)
+                    goggle.fillColor = UIColor(red: 1, green: 0.44, blue: 0.75, alpha: 1)
+                    goggle.strokeColor = .white
+                    goggle.position = CGPoint(x: side * 5, y: 9)
+                    node.addChild(goggle)
+                }
+            }
+            if gun.pathB >= 2 {
+                let shoulder = SKShapeNode(circleOfRadius: 5)
+                shoulder.fillColor = tone
+                shoulder.strokeColor = .white
+                shoulder.position = CGPoint(x: -12, y: 4)
+                node.addChild(shoulder)
+            }
             let aim = SKNode()
             aim.name = "aim"
-            let barrel = SKShapeNode(rectOf: CGSize(width: 16 + CGFloat(gun.pathA) * 2, height: 5), cornerRadius: 2)
+            let barrel = SKShapeNode(rectOf: CGSize(width: 16 + CGFloat(gun.pathA) * 3, height: deep ? 7 : 5), cornerRadius: 2)
             barrel.fillColor = gun.pathB > gun.pathA ? UIColor(red: 1, green: 0.45, blue: 0.75, alpha: 1) : UIColor(red: 0.35, green: 0.82, blue: 1, alpha: 1)
             barrel.strokeColor = .clear
-            barrel.position = CGPoint(x: 14, y: 0)
+            barrel.position = CGPoint(x: 16, y: 0)
             aim.addChild(barrel)
             aim.position = CGPoint(x: 0, y: 6)
             node.addChild(aim)
@@ -967,10 +1073,30 @@ final class DefenseStage: SKScene {
     }
 
     private func makeShot(_ kind: DefenseGunKind) -> SKNode {
-        let node = SKShapeNode(circleOfRadius: kind == .bomb ? 7 : 4)
-        node.name = "shot"
-        node.fillColor = kind == .laser ? UIColor(red: 0.6, green: 0.9, blue: 1, alpha: 1) : towerColor(kind)
+        let node: SKShapeNode
+        switch kind {
+        case .dart:
+            node = SKShapeNode(rectOf: CGSize(width: 12, height: 4), cornerRadius: 2)
+        case .laser:
+            node = SKShapeNode(rectOf: CGSize(width: 22, height: 3), cornerRadius: 1)
+        case .bomb:
+            node = SKShapeNode(circleOfRadius: 8)
+        case .frost:
+            node = SKShapeNode(circleOfRadius: 7)
+            node.fillColor = .clear
+            node.lineWidth = 2
+        case .tack:
+            node = SKShapeNode(rectOf: CGSize(width: 10, height: 2), cornerRadius: 1)
+        case .sniper:
+            node = SKShapeNode(rectOf: CGSize(width: 16, height: 1.5), cornerRadius: 0)
+        case .farm:
+            node = SKShapeNode(circleOfRadius: 3)
+        }
+        if kind != .frost {
+            node.fillColor = towerColor(kind)
+        }
         node.strokeColor = .white
+        node.name = "shot"
         node.zPosition = 7
         board.addChild(node)
         return node
