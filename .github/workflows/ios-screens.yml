@@ -74,6 +74,10 @@ jobs:
             xcrun simctl terminate booted com.example.petapp || true
             sleep 1
           done
+          xcrun simctl terminate booted com.example.petapp || true
+          xcrun simctl launch booted com.example.petapp -roomShot || true
+          sleep 8
+          xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/bedroom.png" || true
           python3 -c 'import os,struct,pathlib; root=pathlib.Path(os.environ["RUNNER_TEMP"])/"screens";
           [
             p.rename(p.with_name(p.stem + ".portrait.png"))

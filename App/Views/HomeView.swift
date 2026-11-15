@@ -116,6 +116,7 @@ struct HomeView: View {
             .onAppear {
                 PocketSound.shared.startTune()
                 if ScreenshotDemo.isOn { showGames = true }
+                if ProcessInfo.processInfo.arguments.contains("-roomShot") { inRoom = true }
             }
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
