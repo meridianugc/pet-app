@@ -17,6 +17,7 @@ struct StarDefenseGame: View {
     @State private var rate = 1
     @State private var autoPlay = false
     @State private var fieldFrame = CGRect.zero
+    @State private var cardNudge: CGFloat = 0
     @State private var playing = false
     @State private var paused = false
     @State private var bossBanner = false
@@ -100,7 +101,19 @@ struct StarDefenseGame: View {
                     scene.arm(nil)
                 }
             }
-            scene.allows = { DefensePlay.canPlace($0, in: battle) }
+            scene.allows = { point in
+                guard let armed else { return DefensePlay.canPlace(point, in: battle) }
+                return battle.cash >= armed.cost && DefensePlay.canPlace(point, in: battle)
+            }
+            if scene.takeReject() {
+                armed = nil
+                scene.arm(nil)
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                withAnimation(.easeOut(duration: 0.08)) { cardNudge = 18 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) { cardNudge = 0 }
+                }
+            }
             guard playing, !paused, finale == nil, pickedMap != nil else { return }
             if scene.bossFreeze > 0 {
                 scene.bossFreeze -= 1
@@ -319,7 +332,6 @@ struct StarDefenseGame: View {
                                     guard open else { return }
                                     let local = CGPoint(x: value.location.x - fieldFrame.minX, y: value.location.y - fieldFrame.minY)
                                     scene.drag(kind, at: local, in: fieldFrame.size, ended: true)
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 }
                         )
                     }
@@ -328,6 +340,7 @@ struct StarDefenseGame: View {
         }
         .padding(10)
         .frame(width: 168)
+        .offset(x: cardNudge)
         .background(
             UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 0, topTrailingRadius: 0)
                 .fill(.ultraThinMaterial)
@@ -618,7 +631,10 @@ final class DefenseStage: SKScene {
     private var shots: [Int: SKNode] = [:]
     private var armedKind: DefenseGunKind?
     private let rangeRing = SKShapeNode(circleOfRadius: 40)
-    private let ghost = SKShapeNode(circleOfRadius: 16)
+    private let ghost = SKNode()
+    private let rejectFlash = SKSpriteNode(color: UIColor(red: 1, green: 0.22, blue: 0.28, alpha: 1), size: CGSize(width: 4, height: 4))
+    private var pendingReject = false
+    private var lastPlaceOK: Bool?
     private var shake = 0
     var bossFreeze = 0
 
@@ -653,6 +669,10 @@ final class DefenseStage: SKScene {
         drawGround(map)
         board.addChild(rangeRing)
         board.addChild(ghost)
+        rejectFlash.alpha = 0
+        rejectFlash.zPosition = 60
+        rejectFlash.anchorPoint = CGPoint(x: 0, y: 0)
+        board.addChild(rejectFlash)
         let hero = SKSpriteNode(texture: petTexture, color: UIColor(red: 0.73, green: 0.64, blue: 0.98, alpha: 1), size: CGSize(width: 64, height: 64))
         hero.name = "hero"
         let end = DefensePlay.point(on: map.path, distance: 1)
@@ -679,30 +699,53 @@ final class DefenseStage: SKScene {
         drawGround(shownMap)
     }
 
+    func takeReject() -> Bool {
+        let value = pendingReject
+        pendingReject = false
+        return value
+    }
+
     func drag(_ kind: DefenseGunKind, at local: CGPoint, in viewSize: CGSize, ended: Bool) {
-        arm(kind)
+        if armedKind != kind { arm(kind) }
         let lifted = CGPoint(x: local.x, y: local.y - 60)
         let scenePoint = viewToScene(lifted, viewSize: viewSize)
         let boardPoint = board.convert(scenePoint, from: self)
         ghost.position = boardPoint
+        ghost.alpha = 0.95
         rangeRing.position = boardPoint
+        rangeRing.alpha = 0.95
         let spot = DefensePoint(x: Double(boardPoint.x / boardSize.width), y: Double(boardPoint.y / boardSize.height))
         let ok = allows?(spot) ?? false
-        ghost.fillColor = ok ? UIColor(red: 0.45, green: 0.85, blue: 0.55, alpha: 0.9) : UIColor(red: 1, green: 0.42, blue: 0.42, alpha: 0.9)
-        rangeRing.strokeColor = ghost.fillColor
+        let tint = ok ? UIColor(red: 0.25, green: 0.82, blue: 0.38, alpha: 1) : UIColor(red: 0.95, green: 0.22, blue: 0.28, alpha: 1)
+        rangeRing.strokeColor = tint
+        rangeRing.fillColor = tint.withAlphaComponent(0.18)
+        if lastPlaceOK != ok {
+            lastPlaceOK = ok
+            UIImpactFeedbackGenerator(style: ok ? .soft : .rigid).impactOccurred()
+        }
         guard ended else { return }
         if ok {
             pendingDrop = spot
         } else {
-            spark(at: boardPoint, color: UIColor(white: 1, alpha: 0.8))
+            rejectFlash.size = boardSize
+            rejectFlash.position = .zero
+            rejectFlash.alpha = 0.42
+            rejectFlash.removeAllActions()
+            rejectFlash.run(.fadeOut(withDuration: 0.28))
+            pendingReject = true
         }
         ghost.alpha = 0
         rangeRing.alpha = 0
         armedKind = nil
+        lastPlaceOK = nil
     }
 
     private func viewToScene(_ local: CGPoint, viewSize: CGSize) -> CGPoint {
-        let sceneSize = size.width > 2 ? size : CGSize(width: 1000, height: 700)
+        let sceneSize = size.width > 2 ? size : viewSize
+        let matches = abs(sceneSize.width - viewSize.width) < 3 && abs(sceneSize.height - viewSize.height) < 3
+        if matches {
+            return CGPoint(x: local.x, y: viewSize.height - local.y)
+        }
         let scale = min(viewSize.width / sceneSize.width, viewSize.height / sceneSize.height)
         let xOff = (viewSize.width - sceneSize.width * scale) / 2
         let yOff = (viewSize.height - sceneSize.height * scale) / 2
@@ -711,12 +754,22 @@ final class DefenseStage: SKScene {
 
     func arm(_ kind: DefenseGunKind?) {
         armedKind = kind
-        ghost.alpha = kind == nil ? 0 : 0.9
+        lastPlaceOK = nil
+        ghost.removeAllChildren()
+        ghost.alpha = kind == nil ? 0 : 0.95
         rangeRing.alpha = kind == nil ? 0 : 0.9
+        rangeRing.fillColor = UIColor(red: 0.25, green: 0.82, blue: 0.38, alpha: 0.18)
+        rangeRing.strokeColor = UIColor(red: 0.25, green: 0.82, blue: 0.38, alpha: 1)
+        rangeRing.lineWidth = 3
         if let kind {
-            ghost.fillColor = towerColor(kind)
-            let reach = CGFloat(DefensePlay.range(of: DefenseGun(id: 0, kind: kind, x: 0, y: 0))) * boardSize.width
-            rangeRing.path = CGPath(ellipseIn: CGRect(x: -reach, y: -reach, width: reach * 2, height: reach * 2), transform: nil)
+            let preview = makeGun(DefenseGun(id: -1, kind: kind, x: 0, y: 0))
+            preview.removeFromParent()
+            preview.childNode(withName: "rank")?.removeFromParent()
+            ghost.addChild(preview)
+            let reach = DefensePlay.range(of: DefenseGun(id: 0, kind: kind, x: 0, y: 0))
+            let reachX = CGFloat(reach) * boardSize.width
+            let reachY = CGFloat(reach) * boardSize.height
+            rangeRing.path = CGPath(ellipseIn: CGRect(x: -reachX, y: -reachY, width: reachX * 2, height: reachY * 2), transform: nil)
         }
     }
 
@@ -841,8 +894,9 @@ final class DefenseStage: SKScene {
         rangeRing.position = local
         let spot = normalized(point)
         let ok = allows?(spot) ?? false
-        ghost.fillColor = (ok ? UIColor(red: 0.55, green: 0.9, blue: 0.7, alpha: 0.9) : UIColor(red: 1, green: 0.45, blue: 0.5, alpha: 0.9))
-        rangeRing.strokeColor = ghost.fillColor
+        let tint = ok ? UIColor(red: 0.25, green: 0.82, blue: 0.38, alpha: 1) : UIColor(red: 0.95, green: 0.22, blue: 0.28, alpha: 1)
+        rangeRing.strokeColor = tint
+        rangeRing.fillColor = tint.withAlphaComponent(0.18)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
