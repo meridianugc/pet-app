@@ -837,6 +837,7 @@ final class BedroomWorld: ObservableObject {
             desk.position = SCNVector3(-2.15, 0, 1.2)
             desk.eulerAngles.y = .pi / 2
             desk.scale = SCNVector3(1.15, 1.15, 1.15)
+            dressDesk(desk)
             seat(desk, shadow: 0.7)
         }
         if let chair = furniture("chair") {
@@ -860,8 +861,7 @@ final class BedroomWorld: ObservableObject {
             plant.scale = SCNVector3(4.0, 4.0, 4.0)
             seat(plant, shadow: 0.28)
         }
-        seat(makeBin(), shadow: 0.55)
-        scene.rootNode.addChildNode(makeDoor(side: 2.25))
+        seat(makeBin(), shadow: 0.28)
         scene.rootNode.addChildNode(makeWindow())
         dressBedroom()
         addLights(glowAt: SCNVector3(-0.2, 1.5, -2.4))
@@ -905,33 +905,9 @@ final class BedroomWorld: ObservableObject {
         }
         scene.rootNode.addChildNode(floor)
         addWalls()
-        if let table = furniture("table") {
-            table.position = SCNVector3(0.2, 0, 0.5)
-            table.scale = SCNVector3(1.2, 1.2, 1.2)
-            seat(table, shadow: 0.85)
-        }
-        if let chair = furniture("chair") {
-            chair.position = SCNVector3(-0.55, 0, 0.5)
-            chair.eulerAngles.y = .pi / 2
-            seat(chair, shadow: 0.32)
-        }
-        if let chair = furniture("chair") {
-            chair.position = SCNVector3(0.95, 0, 0.55)
-            chair.eulerAngles.y = -.pi / 2
-            seat(chair, shadow: 0.32)
-        }
-        if let chair = furniture("chair") {
-            chair.position = SCNVector3(0.2, 0, 1.05)
-            chair.eulerAngles.y = .pi
-            seat(chair, shadow: 0.32)
-        }
         dressKitchen()
-        let back = SCNNode()
-        back.position = SCNVector3(-2.35, 0, 0)
-        back.addChildNode(shifted(box(0.12, 1.7, 0.9, 0.02, color(0.93, 0.75, 0.52)), y: 0.85))
-        scene.rootNode.addChildNode(back)
-        scene.rootNode.addChildNode(makeDoor(side: -2.25))
-        addLights(glowAt: SCNVector3(-1.55, 1.55, -2.3))
+        scene.rootNode.addChildNode(makeDoor(side: -2.85))
+        addLights(glowAt: SCNVector3(-1.55, 1.45, -2.55))
         tagHouse()
     }
 
@@ -940,6 +916,7 @@ final class BedroomWorld: ObservableObject {
         var d: Float
     }
 
+    @discardableResult
     private func placeProp(
         _ name: String,
         at spot: SCNVector3,
@@ -948,8 +925,8 @@ final class BedroomWorld: ObservableObject {
         fit: PropFit,
         tint: UIColor? = nil,
         shadow: CGFloat = 0
-    ) {
-        guard let model = furniture(name) else { return }
+    ) -> SCNNode? {
+        guard let model = furniture(name) else { return nil }
         if let tint {
             model.enumerateChildNodes { node, _ in
                 node.geometry?.materials.forEach { material in
@@ -966,55 +943,41 @@ final class BedroomWorld: ObservableObject {
         holder.addChildNode(model)
         if shadow > 0 { holder.addChildNode(contactShadow(shadow)) }
         scene.rootNode.addChildNode(holder)
+        return holder
+    }
+
+    private func dressDesk(_ desk: SCNNode) {
+        let top: Float = 0.38
+        if let lamp = furniture("lampRoundTable") {
+            lamp.position = SCNVector3(0.12, top, 0.06)
+            desk.addChildNode(lamp)
+        }
+        if let laptop = furniture("laptop") {
+            laptop.scale = SCNVector3(0.32, 0.32, 0.32)
+            laptop.position = SCNVector3(0.32, top, 0.04)
+            desk.addChildNode(laptop)
+        }
+        if let plant = furniture("plantSmall3") {
+            plant.scale = SCNVector3(0.7, 0.7, 0.7)
+            plant.position = SCNVector3(0.52, top, 0.18)
+            desk.addChildNode(plant)
+        }
+        let cup = cylinder(0.035, 0.08, color(0.95, 0.55, 0.5))
+        cup.position = SCNVector3(0.16, top + 0.04, 0.26)
+        desk.addChildNode(cup)
+        for (index, hue) in [color(0.95, 0.75, 0.3), color(0.45, 0.7, 0.95), color(0.55, 0.8, 0.5)].enumerated() {
+            let pencil = cylinder(0.006, 0.11, hue)
+            pencil.position = SCNVector3(0.15 + Float(index) * 0.012, top + 0.09, 0.26)
+            desk.addChildNode(pencil)
+        }
     }
 
     private func dressBedroom() {
-        let deskTop: Float = 0.74
-        placeProp("lampRoundTable", at: SCNVector3(-1.95, deskTop, 0.92), yaw: 0.3, scale: 1.3, fit: PropFit(w: 0.16, d: 0.18))
-        placeProp("laptop", at: SCNVector3(-1.92, deskTop, 1.28), yaw: 1.1, scale: 0.4, fit: PropFit(w: 0.6, d: 0.55))
-        placeProp("books", at: SCNVector3(-1.82, deskTop, 1.55), yaw: 0.2, scale: 2.2, fit: PropFit(w: 0.15, d: 0.09), tint: color(0.45, 0.62, 0.95))
-        placeProp("plantSmall3", at: SCNVector3(-2.02, deskTop, 1.58), scale: 1.4, fit: PropFit(w: 0.16, d: 0.2))
-        placeProp("radio", at: SCNVector3(-1.75, deskTop, 1.02), yaw: 0.6, scale: 0.45, fit: PropFit(w: 0.32, d: 0.1))
-        let cup = cylinder(0.045, 0.11, color(0.95, 0.55, 0.5))
-        cup.position = SCNVector3(-1.78, deskTop + 0.055, 1.22)
-        scene.rootNode.addChildNode(cup)
-        for (index, hue) in [color(0.95, 0.75, 0.3), color(0.45, 0.7, 0.95), color(0.55, 0.8, 0.5)].enumerated() {
-            let pencil = cylinder(0.008, 0.15, hue)
-            pencil.position = SCNVector3(-1.79 + Float(index) * 0.016, deskTop + 0.13, 1.22)
-            scene.rootNode.addChildNode(pencil)
+        if let stand = placeProp("sideTableDrawers", at: SCNVector3(-0.55, 0, -1.55), scale: 1.15, fit: PropFit(w: 0.52, d: 0.21), shadow: 0.4) {
+            let alarm = makeClock(radius: 0.06)
+            alarm.position = SCNVector3(0, 0.38 * 1.15 + 0.02, 0)
+            stand.addChildNode(alarm)
         }
-
-        let bookTints = [
-            color(0.9, 0.4, 0.45), color(0.4, 0.62, 0.9), color(0.95, 0.75, 0.35),
-            color(0.45, 0.75, 0.5), color(0.7, 0.5, 0.85)
-        ]
-        for (row, y) in [Float(0.38), 0.82, 1.22].enumerated() {
-            for column in 0..<3 {
-                let tint = bookTints[(row * 3 + column) % bookTints.count]
-                placeProp(
-                    "books",
-                    at: SCNVector3(-2.32, y, -0.58 + Float(column) * 0.16),
-                    yaw: .pi / 2,
-                    scale: 2.3,
-                    fit: PropFit(w: 0.15, d: 0.09),
-                    tint: tint
-                )
-            }
-        }
-        placeProp("bear", at: SCNVector3(-2.28, 0.82, 0.0), yaw: -0.5, scale: 0.42, fit: PropFit(w: 0.39, d: 0.25))
-
-        placeProp("pillow", at: SCNVector3(-1.55, 0.5, -2.22), yaw: 0.15, scale: 1.45, fit: PropFit(w: 0.23, d: 0.09))
-        placeProp("pillow", at: SCNVector3(-0.95, 0.5, -2.18), yaw: -0.2, scale: 1.35, fit: PropFit(w: 0.23, d: 0.09), tint: color(0.78, 0.88, 0.98))
-        let blanket = box(0.72, 0.05, 0.42, 0.02, color(0.98, 0.76, 0.7))
-        blanket.position = SCNVector3(-1.2, 0.5, -1.78)
-        blanket.eulerAngles.y = 0.12
-        scene.rootNode.addChildNode(blanket)
-        placeProp("bear", at: SCNVector3(-0.82, 0.52, -1.95), yaw: -0.7, scale: 0.68, fit: PropFit(w: 0.39, d: 0.25))
-
-        placeProp("sideTableDrawers", at: SCNVector3(-0.35, 0, -1.72), scale: 1.2, fit: PropFit(w: 0.52, d: 0.21), shadow: 0.42)
-        let alarm = makeClock(radius: 0.07)
-        alarm.position = SCNVector3(-0.35, 0.5, -1.72)
-        scene.rootNode.addChildNode(alarm)
 
         scene.rootNode.addChildNode(makeFrame(at: SCNVector3(-1.05, 1.72, -2.9), wide: 0.4, tall: 0.28, fill: color(0.98, 0.82, 0.55)))
         scene.rootNode.addChildNode(makeFrame(at: SCNVector3(0.95, 1.82, -2.9), wide: 0.28, tall: 0.36, fill: color(0.62, 0.82, 0.72)))
@@ -1027,88 +990,129 @@ final class BedroomWorld: ObservableObject {
         ledge.position = SCNVector3(1.5, 1.32, -2.86)
         scene.rootNode.addChildNode(ledge)
         placeProp("plantSmall3", at: SCNVector3(1.5, 1.36, -2.84), scale: 1.5, fit: PropFit(w: 0.16, d: 0.2))
-
-        placeProp("benchCushion", at: SCNVector3(1.02, 0.02, 0.92), yaw: 0.35, scale: 1.35, fit: PropFit(w: 0.4, d: 0.2), shadow: 0.38)
-        let slipper = capsule(0.055, 0.16, color(0.98, 0.72, 0.78))
-        slipper.eulerAngles.z = .pi / 2
-        slipper.position = SCNVector3(-0.72, 0.05, -1.38)
-        scene.rootNode.addChildNode(slipper)
-        let slipper2 = slipper.clone()
-        slipper2.position = SCNVector3(-0.52, 0.05, -1.36)
-        scene.rootNode.addChildNode(slipper2)
-        placeProp("cardboardBoxClosed", at: SCNVector3(1.2, 1.96, -2.4), yaw: 0.25, scale: 1.15, fit: PropFit(w: 0.21, d: 0.21))
-        hangPlant(at: SCNVector3(-2.45, 2.05, -1.2))
+        placeProp("cardboardBoxClosed", at: SCNVector3(0.85, 1.98, -2.45), yaw: 0.2, scale: 0.9, fit: PropFit(w: 0.21, d: 0.21))
         stringLights()
     }
 
     private func dressKitchen() {
-        let run: Float = 1.65
-        let top = 0.45 * run + 0.02
-        placeProp("kitchenCabinet", at: SCNVector3(-0.35, 0, -2.15), scale: run, fit: PropFit(w: 0.43, d: 0.45), shadow: 0.48)
-        placeProp("kitchenSink", at: SCNVector3(0.45, 0, -2.15), scale: run, fit: PropFit(w: 0.43, d: 0.45), shadow: 0.48)
-        placeProp("kitchenStove", at: SCNVector3(1.2, 0, -2.15), scale: run, fit: PropFit(w: 0.43, d: 0.45), shadow: 0.48)
-        placeProp("kitchenFridge", at: SCNVector3(1.9, 0, -2.22), scale: 1.55, fit: PropFit(w: 0.43, d: 0.26), shadow: 0.4)
-        placeProp("kitchenCabinetUpper", at: SCNVector3(-0.35, 1.12, -2.38), scale: run, fit: PropFit(w: 0.43, d: 0.21))
-        placeProp("kitchenCabinetUpper", at: SCNVector3(0.45, 1.12, -2.38), scale: run, fit: PropFit(w: 0.43, d: 0.21))
-        placeProp("kitchenCoffeeMachine", at: SCNVector3(-0.15, top, -2.12), yaw: 0.15, scale: 0.65, fit: PropFit(w: 0.24, d: 0.3))
-        placeProp("toaster", at: SCNVector3(-0.55, top, -2.08), scale: 1.25, fit: PropFit(w: 0.18, d: 0.1))
-
-        let pot = cylinder(0.1, 0.09, color(0.78, 0.8, 0.84))
-        pot.position = SCNVector3(1.12, top + 0.05, -2.12)
-        scene.rootNode.addChildNode(pot)
-        let lid = sphere(0.07, color(0.9, 0.91, 0.93))
-        lid.scale = SCNVector3(1, 0.35, 1)
-        lid.position = SCNVector3(1.12, top + 0.11, -2.12)
-        scene.rootNode.addChildNode(lid)
-        let kettle = sphere(0.07, color(0.95, 0.5, 0.42))
-        kettle.position = SCNVector3(1.35, top + 0.07, -2.02)
-        scene.rootNode.addChildNode(kettle)
-        for (index, hue) in [color(0.95, 0.7, 0.75), color(0.68, 0.84, 0.95)].enumerated() {
-            let mug = cylinder(0.04, 0.07, hue)
-            mug.position = SCNVector3(0.15 + Float(index) * 0.12, top + 0.035, -1.95)
-            scene.rootNode.addChildNode(mug)
+        let cabinetScale: Float = 1.45
+        let counterTop = 0.45 * cabinetScale
+        let runZ: Float = -2.28
+        if let counter = placeProp("kitchenCabinet", at: SCNVector3(-0.15, 0, runZ), scale: cabinetScale, fit: PropFit(w: 0.43, d: 0.45), shadow: 0.45) {
+            if let toaster = furniture("toaster") {
+                toaster.scale = SCNVector3(1.1, 1.1, 1.1)
+                toaster.position = SCNVector3(-0.1, counterTop, 0)
+                counter.addChildNode(toaster)
+            }
+            let mug = cylinder(0.04, 0.06, color(0.95, 0.7, 0.75))
+            mug.position = SCNVector3(0.12, counterTop + 0.03, 0.05)
+            counter.addChildNode(mug)
         }
+        placeProp("kitchenSink", at: SCNVector3(0.55, 0, runZ), scale: cabinetScale, fit: PropFit(w: 0.43, d: 0.45), shadow: 0.45)
+        if let stove = placeProp("kitchenStove", at: SCNVector3(1.25, 0, runZ), scale: cabinetScale, fit: PropFit(w: 0.43, d: 0.45), shadow: 0.45) {
+            let pot = cylinder(0.09, 0.08, color(0.78, 0.8, 0.84))
+            pot.position = SCNVector3(0, counterTop + 0.04, 0)
+            stove.addChildNode(pot)
+            let lid = cylinder(0.08, 0.015, color(0.92, 0.92, 0.94))
+            lid.position = SCNVector3(0, counterTop + 0.09, 0)
+            stove.addChildNode(lid)
+        }
+        placeProp("kitchenCabinetUpper", at: SCNVector3(-0.15, 1.05, -2.48), scale: cabinetScale, fit: PropFit(w: 0.43, d: 0.21))
+        placeProp("kitchenCabinetUpper", at: SCNVector3(0.55, 1.05, -2.48), scale: cabinetScale, fit: PropFit(w: 0.43, d: 0.21))
+        scene.rootNode.addChildNode(makeFridge(at: SCNVector3(-2.42, 0, -1.15)))
 
         let window = makeWindow()
-        window.position = SCNVector3(-1.55, 1.28, -2.94)
-        window.scale = SCNVector3(0.8, 0.8, 0.8)
+        window.position = SCNVector3(-1.15, 1.45, -2.94)
+        window.scale = SCNVector3(0.75, 0.75, 0.75)
         scene.rootNode.addChildNode(window)
-        let sill = box(0.85, 0.05, 0.18, 0.01, color(0.98, 0.94, 0.9))
-        sill.position = SCNVector3(-1.55, 0.78, -2.72)
+        let sill = box(0.7, 0.05, 0.16, 0.01, color(0.98, 0.94, 0.9))
+        sill.position = SCNVector3(-1.15, 0.95, -2.78)
         scene.rootNode.addChildNode(sill)
-        placeProp("plantSmall3", at: SCNVector3(-1.75, 0.81, -2.68), scale: 1.5, fit: PropFit(w: 0.16, d: 0.2))
-        placeProp("plantSmall3", at: SCNVector3(-1.35, 0.81, -2.68), scale: 1.3, fit: PropFit(w: 0.16, d: 0.2))
-        let clock = makeClock(radius: 0.14)
-        clock.position = SCNVector3(-1.55, 2.12, -2.88)
+        placeProp("plantSmall3", at: SCNVector3(-1.28, 0.98, -2.74), scale: 1.2, fit: PropFit(w: 0.16, d: 0.2))
+        placeProp("plantSmall3", at: SCNVector3(-1.02, 0.98, -2.74), scale: 1.05, fit: PropFit(w: 0.16, d: 0.2))
+        let clock = makeClock(radius: 0.13)
+        clock.position = SCNVector3(-1.15, 2.15, -2.88)
         scene.rootNode.addChildNode(clock)
 
-        placeProp("rugRound", at: SCNVector3(0.2, 0.02, 0.5), scale: 1.5, fit: PropFit(w: 0.92, d: 0.92))
-        fruitBowl(at: SCNVector3(0.2, 0.64, 0.48))
-        let plate = cylinder(0.11, 0.015, color(0.98, 0.96, 0.93))
-        plate.position = SCNVector3(-0.08, 0.64, 0.62)
-        scene.rootNode.addChildNode(plate)
-        let plate2 = plate.clone()
-        plate2.position = SCNVector3(0.46, 0.64, 0.58)
-        scene.rootNode.addChildNode(plate2)
-
-        placeProp("lampSquareCeiling", at: SCNVector3(0.2, 1.42, 0.5), scale: 2.3, fit: PropFit(w: 0.12, d: 0.12))
-        let cord = cylinder(0.012, 0.5, color(0.4, 0.32, 0.28))
-        cord.position = SCNVector3(0.2, 1.85, 0.5)
-        scene.rootNode.addChildNode(cord)
-
-        let bowl = sphere(0.11, color(0.95, 0.55, 0.4))
-        bowl.scale = SCNVector3(1.15, 0.42, 1.15)
-        bowl.position = SCNVector3(1.22, 0.05, 1.15)
-        bowl.addChildNode(contactShadow(0.26))
-        for spot in [SCNVector3(0, 0.05, 0), SCNVector3(0.04, 0.045, 0.02), SCNVector3(-0.03, 0.04, -0.02)] {
-            let bit = sphere(0.022, color(0.55, 0.36, 0.24))
-            bit.position = spot
-            bowl.addChildNode(bit)
+        let dining = SCNVector3(0.75, 0.02, 0.95)
+        placeProp("rugRound", at: dining, scale: 1.65, fit: PropFit(w: 0.92, d: 0.92))
+        let tableScale: Float = 1.15
+        if let table = placeProp("table", at: SCNVector3(dining.x, 0, dining.z), scale: tableScale, fit: PropFit(w: 0.84, d: 0.45), shadow: 0.7) {
+            let top = 0.33 * tableScale + 0.015
+            table.addChildNode(fruitBowl(at: SCNVector3(0, top, 0.02)))
+            let plate = cylinder(0.1, 0.012, color(0.98, 0.96, 0.93))
+            plate.position = SCNVector3(-0.22, top, -0.06)
+            table.addChildNode(plate)
+            let plate2 = plate.clone()
+            plate2.position = SCNVector3(0.22, top, -0.04)
+            table.addChildNode(plate2)
+            let mug = cylinder(0.035, 0.055, color(0.7, 0.85, 0.95))
+            mug.position = SCNVector3(0.18, top + 0.03, 0.1)
+            table.addChildNode(mug)
         }
-        scene.rootNode.addChildNode(bowl)
+        let chairScale: Float = 1.2
+        placeProp("chair", at: SCNVector3(0.75, 0, 1.38), yaw: 0, scale: chairScale, fit: PropFit(w: 0.2, d: 0.2), shadow: 0.28)
+        placeProp("chair", at: SCNVector3(1.38, 0, 0.95), yaw: .pi / 2, scale: chairScale, fit: PropFit(w: 0.2, d: 0.2), shadow: 0.28)
+        placeProp("chair", at: SCNVector3(0.12, 0, 0.95), yaw: -.pi / 2, scale: chairScale, fit: PropFit(w: 0.2, d: 0.2), shadow: 0.28)
+
+        if let plant = furniture("plantSmall1") {
+            plant.position = SCNVector3(1.55, 0, 1.55)
+            plant.scale = SCNVector3(3.2, 3.2, 3.2)
+            seat(plant, shadow: 0.28)
+        }
+        scene.rootNode.addChildNode(makeStool(at: SCNVector3(1.15, 0, 1.55)))
+        scene.rootNode.addChildNode(foodBowl(at: SCNVector3(1.75, 0, 1.35)))
     }
 
-    private func fruitBowl(at spot: SCNVector3) {
+    private func makeFridge(at spot: SCNVector3) -> SCNNode {
+        let fridge = SCNNode()
+        fridge.position = spot
+        fridge.eulerAngles.y = .pi / 2
+        let body = box(0.58, 1.58, 0.52, 0.03, color(0.94, 0.96, 0.98))
+        body.position.y = 0.79
+        for material in body.geometry?.materials ?? [] {
+            material.lightingModel = .lambert
+        }
+        fridge.addChildNode(body)
+        let seam = box(0.46, 0.012, 0.02, 0, color(0.72, 0.76, 0.8))
+        seam.position = SCNVector3(0, 1.12, 0.27)
+        fridge.addChildNode(seam)
+        let handle = box(0.025, 0.32, 0.03, 0.01, color(0.62, 0.66, 0.7))
+        handle.position = SCNVector3(0.16, 0.72, 0.28)
+        fridge.addChildNode(handle)
+        fridge.addChildNode(contactShadow(0.5))
+        return fridge
+    }
+
+    private func makeStool(at spot: SCNVector3) -> SCNNode {
+        let stool = SCNNode()
+        stool.position = spot
+        let seat = cylinder(0.16, 0.06, color(0.93, 0.75, 0.52))
+        seat.position.y = 0.32
+        stool.addChildNode(seat)
+        for (x, z) in [(Float(-0.1), Float(-0.1)), (0.1, -0.1), (-0.1, 0.1), (0.1, 0.1)] {
+            let leg = cylinder(0.02, 0.3, color(0.62, 0.46, 0.32))
+            leg.position = SCNVector3(x, 0.15, z)
+            stool.addChildNode(leg)
+        }
+        stool.addChildNode(contactShadow(0.32))
+        return stool
+    }
+
+    private func foodBowl(at spot: SCNVector3) -> SCNNode {
+        let bowl = sphere(0.09, color(0.95, 0.58, 0.38))
+        bowl.scale = SCNVector3(1.15, 0.38, 1.15)
+        bowl.position = SCNVector3(spot.x, 0.04, spot.z)
+        for crumb in [SCNVector3(0, 0.04, 0), SCNVector3(0.03, 0.035, 0.02)] {
+            let bit = sphere(0.018, color(0.55, 0.36, 0.24))
+            bit.position = crumb
+            bowl.addChildNode(bit)
+        }
+        bowl.addChildNode(contactShadow(0.22))
+        return bowl
+    }
+
+    private func fruitBowl(at spot: SCNVector3) -> SCNNode {
         let bowl = SCNNode()
         bowl.position = spot
         let base = sphere(0.11, color(0.98, 0.88, 0.68))
@@ -1123,7 +1127,7 @@ final class BedroomWorld: ObservableObject {
         let pear = sphere(0.038, color(0.62, 0.8, 0.38))
         pear.position = SCNVector3(0, 0.07, -0.04)
         bowl.addChildNode(pear)
-        scene.rootNode.addChildNode(bowl)
+        return bowl
     }
 
     private func makeFrame(at spot: SCNVector3, wide: CGFloat, tall: CGFloat, fill: UIColor, facing: Float = 0) -> SCNNode {
@@ -1174,11 +1178,14 @@ final class BedroomWorld: ObservableObject {
 
     private func stringLights() {
         let lights = SCNNode()
-        for index in 0..<16 {
-            let t = Float(index) / 15
-            let bulb = sphere(0.032, color(1, 0.94, 0.7))
-            bulb.geometry?.firstMaterial?.emission.contents = color(1, 0.86, 0.48)
-            bulb.position = SCNVector3(-2.15 + t * 3.6, 2.12 + sin(t * 8) * 0.04, -2.86)
+        let wire = box(3.5, 0.012, 0.012, 0, color(0.22, 0.16, 0.14))
+        wire.position = SCNVector3(-0.35, 2.32, -2.9)
+        lights.addChildNode(wire)
+        for index in 0..<14 {
+            let t = Float(index) / 13
+            let bulb = sphere(0.045, color(1, 0.95, 0.72))
+            bulb.geometry?.firstMaterial?.emission.contents = color(1, 0.84, 0.4)
+            bulb.position = SCNVector3(-2.05 + t * 3.4, 2.26, -2.88)
             lights.addChildNode(bulb)
         }
         scene.rootNode.addChildNode(lights)
@@ -1187,8 +1194,13 @@ final class BedroomWorld: ObservableObject {
     private func makeDoor(side: Float) -> SCNNode {
         let door = SCNNode()
         door.position = SCNVector3(side, 0, 0.15)
-        let slab = box(0.16, 1.85, 0.95, 0.02, color(0.93, 0.72, 0.48))
+        let frame = box(0.22, 2.05, 1.15, 0.02, color(0.86, 0.7, 0.5))
+        frame.position.y = 1.02
+        for material in frame.geometry?.materials ?? [] { material.lightingModel = .lambert }
+        door.addChildNode(frame)
+        let slab = box(0.12, 1.85, 0.9, 0.02, color(0.76, 0.55, 0.34))
         slab.position.y = 0.95
+        for material in slab.geometry?.materials ?? [] { material.lightingModel = .lambert }
         door.addChildNode(slab)
         let knob = SCNSphere(radius: 0.05)
         knob.firstMaterial?.diffuse.contents = color(0.98, 0.9, 0.55)
@@ -1248,6 +1260,25 @@ final class BedroomWorld: ObservableObject {
             bed.position = SCNVector3(-1.25, 0, -2.05)
             bed.eulerAngles.y = .pi
             bed.scale = SCNVector3(1.35, 1.35, 1.35)
+            let blanket = box(0.48, 0.035, 0.32, 0.008, color(0.96, 0.74, 0.7))
+            blanket.position = SCNVector3(0.62, 0.36, 0.5)
+            bed.addChildNode(blanket)
+            let extra = sphere(0.09, color(0.78, 0.88, 0.98))
+            extra.scale = SCNVector3(1.35, 0.5, 1)
+            extra.position = SCNVector3(0.3, 0.38, 0.95)
+            bed.addChildNode(extra)
+            if let bear = furniture("bear") {
+                bear.scale = SCNVector3(0.5, 0.5, 0.5)
+                bear.position = SCNVector3(0.7, 0.34, 0.58)
+                bed.addChildNode(bear)
+            }
+            let slipper = capsule(0.035, 0.11, color(0.98, 0.75, 0.82))
+            slipper.eulerAngles.z = .pi / 2
+            slipper.position = SCNVector3(0.02, 0.035, 0.18)
+            bed.addChildNode(slipper)
+            let slipper2 = slipper.clone()
+            slipper2.position = SCNVector3(0.02, 0.035, 0.34)
+            bed.addChildNode(slipper2)
             return bed
         }
         let bed = SCNNode()
@@ -1299,8 +1330,23 @@ final class BedroomWorld: ObservableObject {
 
     private func makeShelf() -> SCNNode {
         if let shelf = furniture("bookcaseOpen") {
-            shelf.position = SCNVector3(-2.5, 0, -0.35)
+            shelf.position = SCNVector3(-2.35, 0, -0.2)
             shelf.eulerAngles.y = .pi / 2
+            shelf.scale = SCNVector3(1.75, 1.75, 1.75)
+            let hues = [
+                color(0.9, 0.38, 0.42), color(0.38, 0.58, 0.9), color(0.95, 0.75, 0.32),
+                color(0.42, 0.74, 0.48), color(0.7, 0.48, 0.82), color(0.95, 0.6, 0.4)
+            ]
+            for (row, shelfTop) in [Float(0.14), 0.38, 0.62].enumerated() {
+                for column in 0..<2 {
+                    let book = box(0.12, 0.16, 0.07, 0.004, hues[(row * 2 + column) % hues.count])
+                    book.position = SCNVector3(0.08 + Float(column) * 0.14, shelfTop + 0.08, 0.09)
+                    shelf.addChildNode(book)
+                }
+            }
+            let figure = sphere(0.045, color(0.95, 0.78, 0.42))
+            figure.position = SCNVector3(0.32, 0.45, 0.1)
+            shelf.addChildNode(figure)
             return shelf
         }
         let shelf = SCNNode()
@@ -1323,32 +1369,14 @@ final class BedroomWorld: ObservableObject {
 
     private func makeBin() -> SCNNode {
         let bin = SCNNode()
-        bin.position = SCNVector3(1.72, 0, 1.48)
-        let body = cylinder(0.34, 0.42, color(0.58, 0.46, 0.9))
-        body.position = SCNVector3(0, 0.24, 0)
-        bin.addChildNode(body)
-        let rim = cylinder(0.36, 0.06, color(0.75, 0.65, 1))
-        rim.position = SCNVector3(0, 0.46, 0)
-        bin.addChildNode(rim)
-        let lid = cylinder(0.32, 0.05, color(0.86, 0.78, 1))
-        lid.position = SCNVector3(0.08, 0.52, -0.02)
-        lid.eulerAngles.z = 0.5
-        bin.addChildNode(lid)
-        let knob = sphere(0.05, color(1, 0.82, 0.45))
-        knob.position = SCNVector3(0.08, 0.58, -0.02)
-        bin.addChildNode(knob)
-        let ball = sphere(0.08, color(0.98, 0.55, 0.45))
-        ball.position = SCNVector3(-0.08, 0.48, 0.04)
-        bin.addChildNode(ball)
-        let block = box(0.1, 0.1, 0.1, 0.01, color(0.45, 0.72, 0.95))
-        block.position = SCNVector3(0.08, 0.5, 0.02)
-        block.eulerAngles.y = 0.4
-        bin.addChildNode(block)
-        let cone = SCNCone(topRadius: 0, bottomRadius: 0.05, height: 0.12)
-        cone.materials = [paint(color(1, 0.82, 0.4))]
-        let top = SCNNode(geometry: cone)
-        top.position = SCNVector3(0, 0.54, -0.06)
-        bin.addChildNode(top)
+        bin.position = SCNVector3(1.85, 0, 1.7)
+        let bowl = sphere(0.1, color(0.62, 0.48, 0.88))
+        bowl.scale = SCNVector3(1.2, 0.42, 1.2)
+        bowl.position = SCNVector3(0, 0.05, 0)
+        bin.addChildNode(bowl)
+        let bit = sphere(0.03, color(0.95, 0.55, 0.4))
+        bit.position = SCNVector3(0.02, 0.08, 0.01)
+        bin.addChildNode(bit)
         return bin
     }
 
@@ -1402,7 +1430,7 @@ final class BedroomWorld: ObservableObject {
         let windowGlow = SCNNode()
         windowGlow.light = SCNLight()
         windowGlow.light?.type = .omni
-        windowGlow.light?.intensity = 320
+        windowGlow.light?.intensity = 140
         windowGlow.light?.color = color(1, 0.93, 0.72)
         windowGlow.light?.attenuationStartDistance = 0.4
         windowGlow.light?.attenuationEndDistance = 5.5
