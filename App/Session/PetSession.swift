@@ -90,6 +90,30 @@ final class PetSession: ObservableObject {
         persist(record, includeAlreadyLow: includeAlreadyLow)
     }
 
+    /// Screenshot helper: a hatched baby so Home opens in the bedroom.
+    func previewBaby(named name: String) {
+        let now = Date()
+        let pet = Pet(
+            id: UUID(),
+            name: name,
+            stage: .baby,
+            stageStartedAt: now,
+            createdAt: now,
+            bornAt: now,
+            hunger: 72,
+            happiness: 84,
+            energy: 78,
+            isSleeping: false,
+            sleepStartedAt: nil,
+            passedOut: false,
+            criticalSince: nil,
+            wentHomeAt: nil,
+            homeReason: nil,
+            lastSimulatedAt: now
+        )
+        persist(PetRecord(pet: pet), includeAlreadyLow: false)
+    }
+
     func createPet(named name: String) {
         quarantineUnreadableFile()
         loadError = nil
@@ -830,6 +854,7 @@ final class PocketSound {
     private let format = AVAudioFormat(standardFormatWithSampleRate: 22_050, channels: 1)
     private var ready = false
     private var tuneOn = false
+    private let speaker = AVSpeechSynthesizer()
 
     private init() {
         guard let format else { return }
@@ -872,6 +897,15 @@ final class PocketSound {
         tone(frequency: 784, seconds: 0.1)
     }
     func voice() { tone(frequency: 700, seconds: 0.04) }
+
+    func speak(_ line: String) {
+        guard !muted, !line.isEmpty else { return }
+        let utterance = AVSpeechUtterance(string: line)
+        utterance.pitchMultiplier = 1.7
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.18
+        utterance.volume = 1
+        speaker.speak(utterance)
+    }
 
     func startTune() {
         guard ready, !muted, !tuneOn, let format else { return }
