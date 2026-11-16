@@ -6,6 +6,6 @@ Furniture models in `App/Resources/Furniture/` are from Kenney's Furniture Kit (
 - Author: Kenney (www.kenney.nl)
 - License: CC0 1.0 Universal — https://creativecommons.org/publicdomain/zero/1.0/
 - Source: https://kenney.nl/assets/furniture-kit
-- Files: `bedSingle.dae`, `desk.dae`, `chair.dae`, `table.dae`, `rugRectangle.dae`, `bookcaseOpen.dae`, `lampRoundFloor.dae`, `plantSmall1.dae`, `plantSmall2.dae` from `Models/DAE format/`
+- Files from `Models/DAE format/`: `bedSingle.dae`, `desk.dae`, `chair.dae`, `table.dae`, `rugRectangle.dae`, `rugRound.dae`, `bookcaseOpen.dae`, `books.dae`, `lampRoundFloor.dae`, `lampRoundTable.dae`, `lampSquareCeiling.dae`, `plantSmall1.dae`, `plantSmall2.dae`, `plantSmall3.dae`, `laptop.dae`, `pillow.dae`, `pillowLong.dae`, `bear.dae`, `radio.dae`, `benchCushion.dae`, `cardboardBoxClosed.dae`, `sideTableDrawers.dae`, `kitchenCabinet.dae`, `kitchenCabinetUpper.dae`, `kitchenFridge.dae`, `kitchenSink.dae`, `kitchenStove.dae`, `kitchenCoffeeMachine.dae`, `toaster.dae`
 
 The app tints those materials in code. No other changes were made to the meshes.
