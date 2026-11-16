@@ -264,13 +264,16 @@ struct HomeView: View {
                 }
                 Spacer()
                     .allowsHitTesting(false)
-                VStack(spacing: 8) {
-                    StatMeterView(stat: .fed, value: pet.hunger, tint: StatTint.fed, pop: pop(for: .fed))
-                    StatMeterView(stat: .happy, value: pet.happiness, tint: StatTint.happy, pop: pop(for: .happy))
-                    StatMeterView(stat: .energy, value: pet.energy, tint: StatTint.energy, pop: pop(for: .energy))
+                VStack(spacing: 6) {
+                    HStack(spacing: 8) {
+                        slimMeter(icon: "star.fill", value: pet.hunger, tint: StatTint.fed)
+                        slimMeter(icon: "heart.fill", value: pet.happiness, tint: StatTint.happy)
+                        slimMeter(icon: "moon.fill", value: pet.energy, tint: StatTint.energy)
+                    }
+                    .frame(height: 22)
                     itemTray
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             roomChip("Feed", "fork.knife") { session.feed() }
                             roomChip("Play", "gamecontroller.fill") { showGames = true }
                             roomChip(pet.isSleeping ? "Wake" : "Sleep", pet.isSleeping ? "sun.max.fill" : "moon.fill") { session.toggleSleep() }
@@ -279,10 +282,12 @@ struct HomeView: View {
                             roomChip("Today", "sun.max") { showToday = true }
                         }
                     }
+                    .frame(height: 32)
                 }
-                .padding(10)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.horizontal, 8)
             }
             .safeAreaPadding(.top, 6)
             .safeAreaPadding(.bottom, 6)
@@ -290,13 +295,35 @@ struct HomeView: View {
         .onAppear { bootHome() }
     }
 
+    private func slimMeter(icon: String, value: Double, tint: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(tint)
+            Capsule()
+                .fill(tint.opacity(0.22))
+                .frame(height: 8)
+                .overlay(alignment: .leading) {
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(tint)
+                            .frame(width: max(8, geo.size.width * CGFloat(min(1, value / 100))))
+                    }
+                }
+            Text("\(Int(value.rounded()))")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
+                .frame(width: 22, alignment: .trailing)
+        }
+    }
+
     private func roomChip(_ title: String, _ system: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: system)
-                .font(.system(.caption, design: .rounded).weight(.bold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(Color.white.opacity(0.9)))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.white.opacity(0.92)))
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
