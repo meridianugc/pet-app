@@ -305,6 +305,7 @@ struct HomeView: View {
     private func greetHome(_ kind: String) {
         let name = session.record?.pet.name ?? "friend"
         homeWorld.notice(kind, name: name)
+        PocketSound.shared.speak(homeWorld.hello)
         switch kind {
         case "giggle":
             session.react(to: .tickle)

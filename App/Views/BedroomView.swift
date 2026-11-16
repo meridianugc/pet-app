@@ -165,6 +165,7 @@ struct BedroomView: View {
     private func greet(_ kind: String) {
         let name = session.record?.pet.name ?? "friend"
         world.notice(kind, name: name)
+        PocketSound.shared.speak(world.hello)
         switch kind {
         case "giggle":
             session.react(to: .tickle)
@@ -577,7 +578,6 @@ final class BedroomWorld: ObservableObject {
         helloUntil = CACurrentMediaTime() + 2.8
         pose = "wave"
         wanderSpeed = 0
-        PocketSound.shared.speak(line)
     }
 
     func showBedroom() {
