@@ -40,7 +40,7 @@ public enum RoomSpace {
     public static let body = 0.28
     public static let reach = 0.85
 
-    public static let bin = FloorPoint(x: 1.7, z: 1.45)
+    public static let bin = FloorPoint(x: 1.85, z: 1.7)
     public static let shelf = FloorPoint(x: -1.85, z: 0.15)
     public static let closet = FloorPoint(x: 0, z: -1.85)
     public static let bed = FloorPoint(x: -1.1, z: -0.75)
@@ -49,16 +49,16 @@ public enum RoomSpace {
         FloorBox(minX: -2.05, maxX: -0.15, minZ: -2.15, maxZ: -1.05),
         FloorBox(minX: -0.75, maxX: 0.75, minZ: -2.2, maxZ: -1.72),
         FloorBox(minX: -2.2, maxX: -1.72, minZ: -0.7, maxZ: 0.85),
-        FloorBox(minX: 1.35, maxX: 2.15, minZ: 1.05, maxZ: 1.9),
+        FloorBox(minX: 1.65, maxX: 2.1, minZ: 1.45, maxZ: 1.95),
         FloorBox(minX: -2.2, maxX: -1.15, minZ: 0.75, maxZ: 1.7),
-        FloorBox(minX: 0.7, maxX: 1.35, minZ: 0.6, maxZ: 1.25),
         FloorBox(minX: 1.05, maxX: 1.5, minZ: 0.3, maxZ: 0.8)
     ]
 
     public static let kitchenSolids: [FloorBox] = [
-        FloorBox(minX: -0.7, maxX: 2.05, minZ: -2.2, maxZ: -1.45),
-        FloorBox(minX: -0.75, maxX: 1.15, minZ: 0.0, maxZ: 1.25),
-        FloorBox(minX: 0.95, maxX: 1.5, minZ: 0.9, maxZ: 1.45)
+        FloorBox(minX: -0.55, maxX: 1.7, minZ: -2.2, maxZ: -1.7),
+        FloorBox(minX: -2.2, maxX: -1.85, minZ: -1.55, maxZ: -0.75),
+        FloorBox(minX: 0.0, maxX: 1.55, minZ: 0.55, maxZ: 1.55),
+        FloorBox(minX: 1.45, maxX: 1.95, minZ: 1.15, maxZ: 1.75)
     ]
 
     public static func floor(from spot: RoomSpot) -> FloorPoint {
