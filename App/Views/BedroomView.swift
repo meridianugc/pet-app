@@ -455,6 +455,8 @@ final class BedroomWorld: ObservableObject {
     private var pose = "walk"
     private var puffWait = 0.0
     @Published var wing = "bedroom"
+    /// Yaw that points the eyes (local +Z) at the diorama camera.
+    private var towardLens: Double { 0.65 + orbit }
     var closetOpen = false
     var onSave: ((PlayRoom, Int) -> Void)?
     private var touchUntil = 0.0
@@ -518,7 +520,7 @@ final class BedroomWorld: ObservableObject {
         let showing = ProcessInfo.processInfo.arguments.contains("-roomShot") || walkingShot
         var moving = false
         if time < helloUntil {
-            yaw = .pi
+            yaw = towardLens
             moving = false
             pose = "wave"
         } else if autonomous {
@@ -547,7 +549,7 @@ final class BedroomWorld: ObservableObject {
             floor = FloorPoint(x: -0.35, z: -1.35)
             moving = true
         }
-        if showing { yaw = .pi }
+        if showing { yaw = towardLens }
         if moving { puff(at: floor, time: time, hop: pose == "hop") }
         placePet(at: floor, yaw: yaw, moving: moving || walkingShot, time: time)
         followCamera(pet: floor, dt: dt)
@@ -621,7 +623,7 @@ final class BedroomWorld: ObservableObject {
             floor = FloorPoint(x: -0.45, z: -0.5)
             pose = "look"
         }
-        yaw = .pi
+        yaw = towardLens
         placePet(at: floor, yaw: yaw, moving: moving, time: time)
         followCamera(pet: floor, dt: max(dt, 1))
     }
@@ -629,7 +631,7 @@ final class BedroomWorld: ObservableObject {
     private func wander(from floor: FloorPoint, time: Double, dt: Double) -> (FloorPoint, yaw: Double, moving: Bool) {
         if time < nextBeat, pose != "walk", pose != "hop", pose != "skip" {
             var facing = yaw
-            if pose == "look" { facing = .pi }
+            if pose == "look" || pose == "sit" || pose == "stretch" { facing = towardLens }
             return (floor, facing, false)
         }
         if wanderTarget == nil || floor.distance(to: wanderTarget!) < 0.12 {
@@ -638,7 +640,8 @@ final class BedroomWorld: ObservableObject {
                 nextBeat = time + Double.random(in: 1.1...2.2)
                 wanderTarget = nil
                 wanderSpeed = 0
-                return (floor, pose == "look" ? .pi : yaw, false)
+                let resting = pose == "look" || pose == "sit" || pose == "stretch"
+                return (floor, resting ? towardLens : yaw, false)
             }
             pose = ["walk", "walk", "skip", "hop"].randomElement() ?? "walk"
             for _ in 0..<16 {
@@ -772,7 +775,7 @@ final class BedroomWorld: ObservableObject {
         pet.childNode(withName: "handL", recursively: false)?.eulerAngles.x = arm
         if let hand = pet.childNode(withName: "handR", recursively: false) {
             hand.eulerAngles.x = pose == "wave" ? Float(-0.4) : swing
-            hand.position = pose == "wave" ? SCNVector3(0.46, 0.98, 0.22) : SCNVector3(0.38, 0.42, 0.12)
+            hand.position = pose == "wave" ? SCNVector3(0.34, 1.05, 0.42) : SCNVector3(0.38, 0.42, 0.12)
         }
         if let antenna = pet.childNode(withName: "antenna", recursively: true) {
             antenna.eulerAngles.z = swing * 0.25
