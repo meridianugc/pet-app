@@ -1,0 +1,275 @@
+import Foundation
+
+public struct StarSeed: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var plantedAt: Date
+
+    public init(id: UUID = UUID(), plantedAt: Date) {
+        self.id = id
+        self.plantedAt = plantedAt
+    }
+
+    /// 0 seed, 1 sprout, 2 bud, 3 ready to pick.
+    public func stage(at now: Date) -> Int {
+        let hours = now.timeIntervalSince(plantedAt) / 3600
+        if hours >= 6 { return 3 }
+        if hours >= 3 { return 2 }
+        if hours >= 1 { return 1 }
+        return 0
+    }
+}
+
+public struct SpaceTrip: Codable, Equatable, Sendable {
+    public var startedAt: Date
+    public var hours: Int
+
+    public init(startedAt: Date, hours: Int) {
+        self.startedAt = startedAt
+        self.hours = hours
+    }
+
+    public var returnsAt: Date {
+        startedAt.addingTimeInterval(Double(hours) * 3600)
+    }
+
+    public func isBack(at now: Date) -> Bool {
+        now >= returnsAt
+    }
+}
+
+public struct Postcard: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var title: String
+    public var message: String
+    public var at: Date
+    public var souvenir: String
+
+    public init(id: UUID = UUID(), title: String, message: String, at: Date, souvenir: String) {
+        self.id = id
+        self.title = title
+        self.message = message
+        self.at = at
+        self.souvenir = souvenir
+    }
+}
+
+public struct AwayWorld: Codable, Equatable, Sendable {
+    public static let seedCap = 3
+    public static let gemPerHour = 2
+    public static let gemCap = 24
+
+    public var seeds: [StarSeed]
+    public var trip: SpaceTrip?
+    public var treeAt: Date
+    public var seenAt: Date
+    public var postcards: [Postcard]
+    public var doodle: String
+    /// A toy id sitting outside the bin, or empty when the floor is clear.
+    public var looseToy: String
+    public var diary: [String]
+    public var requestText: String
+    public var requestItem: String
+    public var requestStamp: String
+
+    public init(
+        seeds: [StarSeed] = [],
+        trip: SpaceTrip? = nil,
+        treeAt: Date,
+        seenAt: Date,
+        postcards: [Postcard] = [],
+        doodle: String = "",
+        looseToy: String = "",
+        diary: [String] = [],
+        requestText: String = "",
+        requestItem: String = "",
+        requestStamp: String = ""
+    ) {
+        self.seeds = seeds
+        self.trip = trip
+        self.treeAt = treeAt
+        self.seenAt = seenAt
+        self.postcards = postcards
+        self.doodle = doodle
+        self.looseToy = looseToy
+        self.diary = diary
+        self.requestText = requestText
+        self.requestItem = requestItem
+        self.requestStamp = requestStamp
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case seeds, trip, treeAt, seenAt, postcards, doodle, looseToy
+        case diary, requestText, requestItem, requestStamp
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        seeds = try c.decode([StarSeed].self, forKey: .seeds)
+        trip = try c.decodeIfPresent(SpaceTrip.self, forKey: .trip)
+        treeAt = try c.decode(Date.self, forKey: .treeAt)
+        seenAt = try c.decode(Date.self, forKey: .seenAt)
+        postcards = try c.decode([Postcard].self, forKey: .postcards)
+        doodle = try c.decode(String.self, forKey: .doodle)
+        looseToy = try c.decodeIfPresent(String.self, forKey: .looseToy) ?? ""
+        diary = try c.decodeIfPresent([String].self, forKey: .diary) ?? []
+        requestText = try c.decodeIfPresent(String.self, forKey: .requestText) ?? ""
+        requestItem = try c.decodeIfPresent(String.self, forKey: .requestItem) ?? ""
+        requestStamp = try c.decodeIfPresent(String.self, forKey: .requestStamp) ?? ""
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(seeds, forKey: .seeds)
+        try c.encodeIfPresent(trip, forKey: .trip)
+        try c.encode(treeAt, forKey: .treeAt)
+        try c.encode(seenAt, forKey: .seenAt)
+        try c.encode(postcards, forKey: .postcards)
+        try c.encode(doodle, forKey: .doodle)
+        try c.encode(looseToy, forKey: .looseToy)
+        try c.encode(diary, forKey: .diary)
+        try c.encode(requestText, forKey: .requestText)
+        try c.encode(requestItem, forKey: .requestItem)
+        try c.encode(requestStamp, forKey: .requestStamp)
+    }
+
+    public static func fresh(at date: Date) -> AwayWorld {
+        AwayWorld(treeAt: date, seenAt: date)
+    }
+
+    public func traveling(at now: Date) -> Bool {
+        guard let trip else { return false }
+        return !trip.isBack(at: now)
+    }
+}
+
+public struct AwayReport: Equatable, Sendable {
+    public var lines: [String]
+    public var gift: Int
+
+    public init(lines: [String], gift: Int) {
+        self.lines = lines
+        self.gift = gift
+    }
+}
+
+public enum AwayLife {
+    public static func plant(_ world: AwayWorld, at now: Date) -> AwayWorld? {
+        guard world.seeds.count < AwayWorld.seedCap else { return nil }
+        var world = world
+        world.seeds.append(StarSeed(plantedAt: now))
+        return world
+    }
+
+    public static func harvest(_ world: AwayWorld, at now: Date) -> (AwayWorld, Int)? {
+        let ready = world.seeds.filter { $0.stage(at: now) >= 3 }
+        guard !ready.isEmpty else { return nil }
+        var world = world
+        world.seeds.removeAll { $0.stage(at: now) >= 3 }
+        return (world, ready.count * 12)
+    }
+
+    public static func launch(_ world: AwayWorld, hours: Int, at now: Date) -> AwayWorld? {
+        guard [1, 4, 8].contains(hours), !world.traveling(at: now) else { return nil }
+        var world = world
+        world.trip = SpaceTrip(startedAt: now, hours: hours)
+        return world
+    }
+
+    public static func collectTrip(_ world: AwayWorld, at now: Date) -> (AwayWorld, Postcard)? {
+        guard let trip = world.trip, trip.isBack(at: now) else { return nil }
+        var world = world
+        world.trip = nil
+        let card = Postcard(
+            title: trip.hours >= 8 ? "The far moon" : (trip.hours >= 4 ? "A quiet ring" : "A short hop"),
+            message: "I brought something shiny home.",
+            at: now,
+            souvenir: trip.hours >= 8 ? "a tiny helmet charm" : "a pocket of gems"
+        )
+        world.postcards.insert(card, at: 0)
+        return (world, card)
+    }
+
+    public static func pendingGems(_ world: AwayWorld, at now: Date) -> Int {
+        let hours = max(0, now.timeIntervalSince(world.treeAt) / 3600)
+        return min(AwayWorld.gemCap, Int(hours * Double(AwayWorld.gemPerHour)))
+    }
+
+    public static func collectTree(_ world: AwayWorld, at now: Date) -> (AwayWorld, Int) {
+        let gems = pendingGems(world, at: now)
+        guard gems > 0 else { return (world, 0) }
+        var world = world
+        world.treeAt = now
+        return (world, gems)
+    }
+
+    /// What changed since the player last opened the room. Safe to call often.
+    public static func catchUp(_ world: AwayWorld, at now: Date) -> (AwayWorld, AwayReport) {
+        var world = world
+        let away = now.timeIntervalSince(world.seenAt)
+        var lines: [String] = []
+        var gift = 0
+        let stamp = Self.dayStamp(now)
+        if world.requestStamp != stamp {
+            let day = Int(now.timeIntervalSince1970 / 86_400)
+            let ask = PetVoice.request(forDay: day)
+            world.requestText = ask.text
+            world.requestItem = ask.itemID
+            world.requestStamp = stamp
+        }
+        if away >= 30 * 60 {
+            let roll = Int(world.seenAt.timeIntervalSince1970) % 3
+            switch roll {
+            case 0:
+                world.doodle = "doodle"
+                lines.append("They doodled on the wall.")
+                gift = 4
+                lines.append("A visitor left a gift.")
+            case 1:
+                world.doodle = "toys"
+                if world.looseToy.isEmpty { world.looseToy = "toy_comet" }
+                lines.append("They knocked a toy around.")
+            default:
+                world.doodle = "nap"
+                lines.append("They took an extra nap.")
+            }
+            if world.seeds.contains(where: { $0.stage(at: now) >= 3 }) {
+                lines.append("Your star seeds are ready.")
+            }
+            if world.trip?.isBack(at: now) == true {
+                lines.append("Back from the stars with a gift.")
+            }
+            if pendingGems(world, at: now) > 0 {
+                lines.append("The gem tree has fruit.")
+            }
+            let note = PetVoice.diaryLine(seed: Int(world.seenAt.timeIntervalSince1970))
+            world.diary.insert(note, at: 0)
+            if world.diary.count > 6 { world.diary = Array(world.diary.prefix(6)) }
+            lines.append(note)
+        }
+        world.seenAt = now
+        return (world, AwayReport(lines: lines, gift: gift))
+    }
+
+    public static func dayStamp(_ date: Date) -> String {
+        let parts = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+    }
+
+    /// Extra happiness when the snack they asked for is the one they get.
+    public static func claimRequest(_ world: AwayWorld, itemID: String) -> (AwayWorld, Int)? {
+        guard world.requestItem == itemID, !itemID.isEmpty else { return nil }
+        var world = world
+        world.requestItem = ""
+        world.requestText = "You brought it!"
+        return (world, 8)
+    }
+
+    /// Tuck a loose toy back in the bin. Pays a few gems.
+    public static func putAway(_ world: AwayWorld) -> (AwayWorld, Int)? {
+        guard !world.looseToy.isEmpty else { return nil }
+        var world = world
+        world.looseToy = ""
+        if world.doodle == "toys" { world.doodle = "" }
+        return (world, 3)
+    }
+}

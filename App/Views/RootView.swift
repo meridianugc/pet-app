@@ -1,0 +1,42 @@
+import PetCore
+import SwiftUI
+
+struct RootView: View {
+    @EnvironmentObject private var session: PetSession
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let saveError = session.saveError {
+                Text(saveError)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.orange.opacity(0.28))
+                    .accessibilityLabel(saveError)
+            }
+            screen
+        }
+        .onAppear {
+            if !HomeFrame.current.isEmpty {
+                session.previewBaby(named: "Pip")
+            } else if ScreenshotDemo.isOn, session.record?.pet == nil {
+                session.createPet(named: "Pip")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var screen: some View {
+        if session.loadError != nil, session.record == nil {
+            RecoveryView()
+        } else if session.record?.farewell != nil {
+            FarewellView()
+        } else if session.record?.pet != nil {
+            HomeView()
+        } else {
+            NamingView()
+        }
+    }
+}

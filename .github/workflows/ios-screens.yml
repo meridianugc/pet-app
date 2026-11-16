@@ -1,0 +1,116 @@
+name: iOS screens
+
+on:
+  push:
+    branches:
+      - cursor/pocket-pet-v1-5302
+
+jobs:
+  screens:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+          elif [ -d /Applications/Xcode_16.2.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          else
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the project
+        run: xcodegen generate
+
+      - name: Boot an iPhone 16 simulator
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available
+          LINE=$(xcrun simctl list devices available | grep -E "iPhone 16 \(" | head -1 || true)
+          if [ -z "$LINE" ]; then
+            LINE=$(xcrun simctl list devices available | grep -E "iPhone" | head -1)
+          fi
+          UDID=$(echo "$LINE" | sed -E 's/.*\(([A-F0-9-]+)\).*/\1/')
+          echo "Using $LINE"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          echo "$UDID" > /tmp/sim-udid
+
+      - name: Build Pocket Pet
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project PocketPet.xcodeproj \
+            -scheme PocketPet \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$(cat /tmp/sim-udid)" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Launch Star Defense and screenshot
+        run: |
+          set -euo pipefail
+          APP=$(find build/Build/Products -name 'PocketPet.app' -type d | head -1)
+          echo "App $APP"
+          xcrun simctl install booted "$APP"
+          mkdir -p "$RUNNER_TEMP/screens"
+          for name in map green red upgrade; do
+            xcrun simctl terminate booted com.example.petapp || true
+            xcrun simctl launch --console booted com.example.petapp -starDefenseShot "$name" > "$RUNNER_TEMP/screens/console-$name.txt" 2>&1 &
+            sleep 8
+            xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/star-defense-$name.png" || true
+            xcrun simctl terminate booted com.example.petapp || true
+            sleep 1
+          done
+          xcrun simctl terminate booted com.example.petapp || true
+          xcrun simctl launch booted com.example.petapp -roomShot || true
+          sleep 8
+          xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/bedroom.png" || true
+          xcrun simctl terminate booted com.example.petapp || true
+          xcrun simctl launch booted com.example.petapp -roomWalk || true
+          sleep 6
+          xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/bedroom-walk.png" || true
+          xcrun simctl terminate booted com.example.petapp || true
+          shot_home() {
+            local arg="$1"
+            local file="$2"
+            xcrun simctl terminate booted com.example.petapp || true
+            xcrun simctl launch booted com.example.petapp -homeFrame "$arg" || true
+            sleep 8
+            xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/$file" || true
+          }
+          shot_home wander1 home_room_wander_1.png
+          shot_home wander2 home_room_wander_2.png
+          shot_home hi home_room_hi.png
+          shot_home kitchen room2.png
+          shot_home floor room_floor.png
+          python3 -c 'import os,struct,pathlib; root=pathlib.Path(os.environ["RUNNER_TEMP"])/"screens";
+          [
+            p.rename(p.with_name(p.stem + ".portrait.png"))
+            for p in root.glob("star-defense-*.png")
+            if struct.unpack(">II", p.read_bytes()[16:24])[1] > struct.unpack(">II", p.read_bytes()[16:24])[0]
+          ]'
+          for shot in "$RUNNER_TEMP/screens"/star-defense-*.portrait.png; do
+            [ -e "$shot" ] || continue
+            base="${shot%.portrait.png}"
+            sips -r 270 "$shot" --out "${base}.png" || true
+          done
+          mkdir -p "$RUNNER_TEMP/screens/reports"
+          cp "$HOME/Library/Logs/DiagnosticReports/"*Pocket* "$RUNNER_TEMP/screens/reports/" 2>/dev/null || true
+          cp "$HOME/Library/Logs/DiagnosticReports/"*petapp* "$RUNNER_TEMP/screens/reports/" 2>/dev/null || true
+          ls -l "$RUNNER_TEMP/screens" "$RUNNER_TEMP/screens/reports" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-screens
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: warn
