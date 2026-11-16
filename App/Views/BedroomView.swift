@@ -17,12 +17,13 @@ struct BedroomView: View {
 
     var body: some View {
         ZStack {
-                BedroomCanvas(world: world)
+                BedroomCanvas(world: world) { kind in
+                    greet(kind)
+                }
                     .ignoresSafeArea()
                 HStack(spacing: 0) {
                     Color.clear
-                        .contentShape(Rectangle())
-                        .gesture(petGesture())
+                        .allowsHitTesting(false)
                     Color.clear
                         .contentShape(Rectangle())
                         .gesture(lookGesture())
@@ -48,8 +49,8 @@ struct BedroomView: View {
                 if closet {
                     hangerBar
                 }
-                if !session.speech.isEmpty {
-                    Text(session.speech)
+                if !world.hello.isEmpty || !session.speech.isEmpty {
+                    Text(world.hello.isEmpty ? session.speech : world.hello)
                         .font(.system(.title3, design: .rounded).weight(.bold))
                         .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
                         .padding(.horizontal, 16)
@@ -161,21 +162,18 @@ struct BedroomView: View {
         )
     }
 
-    private func petGesture() -> some Gesture {
-        DragGesture(minimumDistance: 18)
-            .onEnded { value in
-                guard abs(value.translation.width) > 24 else { return }
-                session.react(to: .pet)
-                world.nudge()
-            }
-            .exclusively(before: TapGesture(count: 2).onEnded {
-                session.react(to: .tickle)
-                world.nudge()
-            })
-            .exclusively(before: TapGesture(count: 1).onEnded {
-                session.react(to: .poke)
-                world.nudge()
-            })
+    private func greet(_ kind: String) {
+        let name = session.record?.pet.name ?? "friend"
+        world.notice(kind, name: name)
+        switch kind {
+        case "giggle":
+            session.react(to: .tickle)
+        case "purr":
+            session.react(to: .pet)
+        default:
+            session.react(to: .poke)
+        }
+        world.nudge()
     }
 
     private func lookGesture() -> some Gesture {
@@ -351,22 +349,86 @@ struct RoomHintCard: View {
     }
 }
 
+enum HomeFrame {
+    static var current: String {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-homeFrame"), args.indices.contains(index + 1), !args[index + 1].hasPrefix("-") else { return "" }
+        return args[index + 1]
+    }
+}
+
 struct BedroomCanvas: UIViewRepresentable {
     var world: BedroomWorld
+    var onPet: ((String) -> Void)? = nil
 
-    func makeUIView(context: Context) -> SCNView {
-        let view = SCNView()
+    func makeUIView(context: Context) -> RoomTouchView {
+        let view = RoomTouchView()
         view.scene = world.scene
         view.pointOfView = world.camera
         view.rendersContinuously = true
         view.antialiasingMode = .multisampling4X
-        view.backgroundColor = UIColor(red: 0.16, green: 0.12, blue: 0.28, alpha: 1)
+        view.preferredFramesPerSecond = 60
+        view.backgroundColor = UIColor(red: 0.98, green: 0.93, blue: 0.86, alpha: 1)
         view.autoenablesDefaultLighting = false
-        view.isUserInteractionEnabled = false
+        view.world = world
+        view.onPet = onPet
         return view
     }
 
-    func updateUIView(_ uiView: SCNView, context: Context) {}
+    func updateUIView(_ uiView: RoomTouchView, context: Context) {
+        uiView.world = world
+        uiView.onPet = onPet
+        if uiView.scene !== world.scene {
+            uiView.scene = world.scene
+            uiView.pointOfView = world.camera
+        }
+    }
+}
+
+final class RoomTouchView: SCNView {
+    var world: BedroomWorld?
+    var onPet: ((String) -> Void)?
+    private var taps = 0
+    private var dragged = false
+    private var spokeDrag = false
+    private var start = CGPoint.zero
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        dragged = false
+        spokeDrag = false
+        guard let touch = touches.first, hitPet(touch) else { return }
+        start = touch.location(in: self)
+        taps += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self] in
+            guard let self, self.taps > 0, self.dragged == false else { return }
+            let kind = self.taps >= 2 ? "giggle" : "hi"
+            self.taps = 0
+            self.onPet?(kind)
+        }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let now = touch.location(in: self)
+        if hypot(now.x - start.x, now.y - start.y) > 28 { dragged = true }
+        if dragged, spokeDrag == false, hitPet(touch) {
+            spokeDrag = true
+            taps = 0
+            onPet?("purr")
+        }
+    }
+
+    private func hitPet(_ touch: UITouch) -> Bool {
+        let hits = hitTest(touch.location(in: self), options: nil)
+        return hits.contains { node in
+            var current: SCNNode? = node.node
+            while let step = current {
+                if step.name == "petRoot" || step.name == "body" { return true }
+                current = step.parent
+            }
+            return false
+        }
+    }
 }
 
 final class BedroomWorld: ObservableObject {
@@ -382,6 +444,16 @@ final class BedroomWorld: ObservableObject {
     var pitch = 0.42
     /// Extra yaw for the diorama camera, clamped to about ±25 degrees.
     var orbit = 0.0
+    var autonomous = false
+    @Published var hello = ""
+    private var helloUntil = 0.0
+    private var wanderTarget: FloorPoint?
+    private var wanderSpeed = 0.0
+    private var glide = 0.0
+    private var nextBeat = 0.0
+    private var pose = "walk"
+    private var puffWait = 0.0
+    @Published var wing = "bedroom"
     var closetOpen = false
     var onSave: ((PlayRoom, Int) -> Void)?
     private var touchUntil = 0.0
@@ -436,21 +508,49 @@ final class BedroomWorld: ObservableObject {
         } else {
             setDoors(open: false)
         }
+        let frame = HomeFrame.current
+        if !frame.isEmpty {
+            holdFrame(frame, time: time, dt: dt)
+            return
+        }
         let walkingShot = ProcessInfo.processInfo.arguments.contains("-roomWalk")
-        let walked = RoomSpace.walk(from: floor, yaw: yaw, stickX: stickX, stickY: stickY, dt: dt)
         let showing = ProcessInfo.processInfo.arguments.contains("-roomShot") || walkingShot
-        if !walkingShot {
-            floor = walked.0
-            yaw = walked.yaw
+        var moving = false
+        if time < helloUntil {
+            yaw = .pi
+            moving = false
+            pose = "wave"
+        } else if autonomous {
+            let wandered = wander(from: floor, time: time, dt: dt)
+            floor = wandered.0
+            yaw = wandered.yaw
+            moving = wandered.moving
             room.pet = RoomSpace.spot(from: floor)
             room.yaw = yaw
+        } else if !walkingShot {
+            let mag = min(1, hypot(stickX, stickY))
+            glide += (mag - glide) * min(1, dt * 5)
+            let scale = mag > 0.05 ? glide / mag : 0
+            let walked = RoomSpace.walk(from: floor, yaw: yaw, stickX: stickX * scale, stickY: stickY * scale, dt: dt)
+            floor = walked.0
+            yaw = walked.yaw
+            moving = walked.moving
+            room.pet = RoomSpace.spot(from: floor)
+            room.yaw = yaw
+            if floor.x > 1.72, abs(floor.z) < 0.5, wing == "bedroom" {
+                showKitchen()
+            } else if floor.x < -1.72, abs(floor.z) < 0.5, wing == "kitchen" {
+                showBedroom()
+            }
         } else {
             floor = FloorPoint(x: -0.35, z: -1.35)
+            moving = true
         }
         if showing { yaw = .pi }
-        placePet(at: floor, yaw: yaw, moving: walked.moving || walkingShot, time: time)
+        if moving { puff(at: floor, time: time, hop: pose == "hop") }
+        placePet(at: floor, yaw: yaw, moving: moving || walkingShot, time: time)
         followCamera(pet: floor, dt: dt)
-        if walked.moving {
+        if moving {
             moved = true
             saveWait += dt
             if saveWait > 0.7 {
@@ -460,6 +560,132 @@ final class BedroomWorld: ObservableObject {
             }
         }
         refreshPrompt(at: floor)
+    }
+
+    func notice(_ kind: String, name: String) {
+        let line: String
+        switch kind {
+        case "giggle":
+            line = "hehe!"
+        case "purr":
+            line = Bool.random() ? "mmm" : "that tickles!"
+        default:
+            let choices = ["Hi!", "Hey you!", "Hiii!", name]
+            line = choices.randomElement() ?? "Hi!"
+        }
+        hello = line
+        helloUntil = CACurrentMediaTime() + 2.8
+        pose = "wave"
+        wanderSpeed = 0
+        PocketSound.shared.speak(line)
+    }
+
+    func showBedroom() {
+        wing = "bedroom"
+        clearHouse()
+        buildRoom()
+    }
+
+    func showKitchen() {
+        wing = "kitchen"
+        clearHouse()
+        buildKitchen()
+        let door = FloorPoint(x: -1.2, z: 0)
+        if RoomSpace.blocked(door) == false {
+            room.pet = RoomSpace.spot(from: door)
+        }
+    }
+
+    private func holdFrame(_ frame: String, time: Double, dt: Double) {
+        var floor = FloorPoint(x: 0.2, z: 0.2)
+        var moving = false
+        pose = "look"
+        hello = ""
+        switch frame {
+        case "wander2":
+            floor = FloorPoint(x: 0.75, z: -0.85)
+            moving = true
+            pose = "hop"
+        case "hi":
+            floor = FloorPoint(x: 0.05, z: -0.35)
+            hello = "Hi!"
+            pose = "wave"
+        case "kitchen":
+            if wing != "kitchen" { showKitchen() }
+            floor = FloorPoint(x: 0.05, z: -0.25)
+            pose = "look"
+        case "floor":
+            floor = FloorPoint(x: -1.15, z: -1.45)
+            pose = "sit"
+        default:
+            floor = FloorPoint(x: -0.45, z: -0.5)
+            pose = "look"
+        }
+        yaw = .pi
+        placePet(at: floor, yaw: yaw, moving: moving, time: time)
+        followCamera(pet: floor, dt: max(dt, 1))
+    }
+
+    private func wander(from floor: FloorPoint, time: Double, dt: Double) -> (FloorPoint, yaw: Double, moving: Bool) {
+        if time < nextBeat, pose != "walk", pose != "hop", pose != "skip" {
+            var facing = yaw
+            if pose == "look" { facing = .pi }
+            return (floor, facing, false)
+        }
+        if wanderTarget == nil || floor.distance(to: wanderTarget!) < 0.12 {
+            if Double.random(in: 0...1) < 0.45 {
+                pose = ["look", "sit", "stretch", "dance"].randomElement() ?? "look"
+                nextBeat = time + Double.random(in: 1.1...2.2)
+                wanderTarget = nil
+                wanderSpeed = 0
+                return (floor, pose == "look" ? .pi : yaw, false)
+            }
+            pose = ["walk", "walk", "skip", "hop"].randomElement() ?? "walk"
+            for _ in 0..<16 {
+                let guess = FloorPoint(x: Double.random(in: -1.5...1.5), z: Double.random(in: -1.5...1.5))
+                if !RoomSpace.blocked(guess) {
+                    wanderTarget = guess
+                    break
+                }
+            }
+        }
+        guard let target = wanderTarget else { return (floor, yaw, false) }
+        let dx = target.x - floor.x
+        let dz = target.z - floor.z
+        let dist = max(0.001, hypot(dx, dz))
+        let cap = pose == "skip" ? 1.7 : 1.15
+        let desired = min(cap, dist * 2.4)
+        wanderSpeed += (desired - wanderSpeed) * min(1, dt * 3.5)
+        let step = wanderSpeed * dt
+        let moved = RoomSpace.slide(floor, dx: dx / dist * step, dz: dz / dist * step)
+        let facing = atan2(dx, -dz)
+        let turned = turnYaw(yaw, toward: facing, dt: dt)
+        return (moved, turned, wanderSpeed > 0.08)
+    }
+
+    private func turnYaw(_ yaw: Double, toward target: Double, dt: Double) -> Double {
+        var gap = target - yaw
+        while gap > .pi { gap -= .pi * 2 }
+        while gap < -.pi { gap += .pi * 2 }
+        let step = min(abs(gap), 6 * dt)
+        return yaw + (gap >= 0 ? step : -step)
+    }
+
+    private func puff(at floor: FloorPoint, time: Double, hop: Bool) {
+        guard time > puffWait else { return }
+        puffWait = time + (hop ? 0.12 : 0.22)
+        let puff = sphere(hop ? 0.09 : 0.06, color(0.96, 0.93, 0.88))
+        puff.position = SCNVector3(Float(floor.x) + Float.random(in: -0.08...0.08), 0.04, Float(floor.z))
+        puff.opacity = 0.75
+        scene.rootNode.addChildNode(puff)
+        puff.runAction(.sequence([
+            .group([
+                .moveBy(x: 0, y: 0.18, z: 0, duration: 0.32),
+                .fadeOut(duration: 0.32),
+                .scale(to: 1.7, duration: 0.32)
+            ]),
+            .removeFromParentNode()
+        ]))
     }
 
     func refreshItems() {
@@ -532,17 +758,22 @@ final class BedroomWorld: ObservableObject {
         pet.eulerAngles.y = Float(yaw)
         let touched = time < touchUntil
         let swing = moving ? Float(sin(time * 10)) : (touched ? Float(sin(time * 18)) : Float(sin(time * 2) * 0.2))
+        let hop = pose == "hop" ? abs(sin(time * 8)) * 0.16 : 0
         let bob = moving ? abs(sin(time * 10)) * 0.06 : sin(time * 2) * 0.012
-        let squash: Float = touched ? 0.82 : (moving ? Float(1 - sin(time * 10) * 0.06) : Float(1 + sin(time * 2) * 0.02))
+        let squash: Float = pose == "sit" ? 0.78 : (touched ? 0.82 : (moving ? Float(1 - sin(time * 10) * 0.06) : Float(1 + sin(time * 2) * 0.02)))
         if let body = pet.childNode(withName: "body", recursively: false) {
-            body.position.y = 0.46 + Float(bob)
+            body.position.y = (pose == "sit" ? 0.42 : 0.62) + Float(bob) + Float(hop)
             body.scale = SCNVector3(touched ? 1.12 : 1, squash, touched ? 1.12 : 1)
-            body.eulerAngles.z = moving ? Float(sin(time * 10) * 0.08) : (touched ? swing * 0.2 : 0)
+            body.eulerAngles.z = pose == "dance" ? Float(sin(time * 8) * 0.25) : (moving ? Float(sin(time * 10) * 0.08) : (touched ? swing * 0.2 : 0))
         }
+        let arm = pose == "wave" ? Float(-1.15) : -swing
         pet.childNode(withName: "footL", recursively: false)?.eulerAngles.x = swing * 0.9
         pet.childNode(withName: "footR", recursively: false)?.eulerAngles.x = -swing * 0.9
-        pet.childNode(withName: "handL", recursively: false)?.eulerAngles.x = -swing
-        pet.childNode(withName: "handR", recursively: false)?.eulerAngles.x = swing
+        pet.childNode(withName: "handL", recursively: false)?.eulerAngles.x = arm
+        if let hand = pet.childNode(withName: "handR", recursively: false) {
+            hand.eulerAngles.x = pose == "wave" ? Float(-0.4) : swing
+            hand.position = pose == "wave" ? SCNVector3(0.46, 0.98, 0.22) : SCNVector3(0.38, 0.42, 0.12)
+        }
         if let antenna = pet.childNode(withName: "antenna", recursively: true) {
             antenna.eulerAngles.z = swing * 0.25
         }
@@ -616,16 +847,17 @@ final class BedroomWorld: ObservableObject {
             seat(lamp, shadow: 0.28)
         }
         if let plant = furniture("plantSmall1") {
-            plant.position = SCNVector3(-2.25, 0, 2.15)
-            plant.scale = SCNVector3(4.8, 4.8, 4.8)
-            seat(plant, shadow: 0.28)
-        }
-        if let plant = furniture("plantSmall2") {
-            plant.position = SCNVector3(2.2, 0, 2.05)
+            plant.position = SCNVector3(-1.85, 0, 0.35)
             plant.scale = SCNVector3(4.2, 4.2, 4.2)
             seat(plant, shadow: 0.28)
         }
+        if let plant = furniture("plantSmall2") {
+            plant.position = SCNVector3(1.65, 0, 0.45)
+            plant.scale = SCNVector3(4.0, 4.0, 4.0)
+            seat(plant, shadow: 0.28)
+        }
         seat(makeBin(), shadow: 0.55)
+        scene.rootNode.addChildNode(makeDoor(side: 2.25))
         scene.rootNode.addChildNode(makeWindow())
         addLights()
         let lens = SCNCamera()
@@ -639,7 +871,86 @@ final class BedroomWorld: ObservableObject {
         lens.bloomThreshold = 1.15
         lens.bloomBlurRadius = 4
         camera.camera = lens
-        scene.rootNode.addChildNode(camera)
+        if camera.parent == nil {
+            scene.rootNode.addChildNode(camera)
+        }
+        tagHouse()
+    }
+
+    private func tagHouse() {
+        for child in scene.rootNode.childNodes where child !== camera && child !== pet {
+            if child.name != "items" { child.name = "house" }
+        }
+    }
+
+    private func clearHouse() {
+        scene.rootNode.childNodes.filter { $0.name == "house" }.forEach { $0.removeFromParentNode() }
+    }
+
+    private func buildKitchen() {
+        scene.background.contents = skyImage()
+        let floor = box(6.4, 0.12, 6.4, 0.01, color(0.93, 0.74, 0.46))
+        floor.position = SCNVector3(0, -0.06, 0)
+        if let material = floor.geometry?.firstMaterial {
+            material.lightingModel = .lambert
+            material.diffuse.contents = woodImage()
+            material.diffuse.wrapS = .repeat
+            material.diffuse.wrapT = .repeat
+            material.diffuse.contentsTransform = SCNMatrix4MakeScale(8, 8, 1)
+        }
+        scene.rootNode.addChildNode(floor)
+        addWalls()
+        if let table = furniture("table") {
+            table.position = SCNVector3(0.2, 0, -0.4)
+            table.scale = SCNVector3(1.3, 1.3, 1.3)
+            seat(table, shadow: 0.9)
+        }
+        if let chair = furniture("chair") {
+            chair.position = SCNVector3(-0.7, 0, 0.35)
+            chair.eulerAngles.y = 0.4
+            seat(chair, shadow: 0.35)
+        }
+        if let chair = furniture("chair") {
+            chair.position = SCNVector3(1.05, 0, -0.15)
+            chair.eulerAngles.y = -.pi
+            seat(chair, shadow: 0.35)
+        }
+        if let lamp = furniture("lampRoundFloor") {
+            lamp.position = SCNVector3(-2.1, 0, -1.6)
+            seat(lamp, shadow: 0.28)
+        }
+        if let plant = furniture("plantSmall1") {
+            plant.position = SCNVector3(1.55, 0, 0.7)
+            plant.scale = SCNVector3(4.0, 4.0, 4.0)
+            seat(plant, shadow: 0.28)
+        }
+        let counter = box(2.4, 0.85, 0.5, 0.02, color(0.98, 0.95, 0.9))
+        counter.position = SCNVector3(0.15, 0.42, -2.15)
+        scene.rootNode.addChildNode(counter)
+        let fruit = sphere(0.1, color(0.95, 0.45, 0.38))
+        fruit.position = SCNVector3(0.15, 0.95, -2.05)
+        scene.rootNode.addChildNode(fruit)
+        let back = SCNNode()
+        back.position = SCNVector3(-2.35, 0, 0)
+        back.addChildNode(shifted(box(0.12, 1.7, 0.9, 0.02, color(0.93, 0.75, 0.52)), y: 0.85))
+        scene.rootNode.addChildNode(back)
+        scene.rootNode.addChildNode(makeDoor(side: -2.25))
+        addLights()
+        tagHouse()
+    }
+
+    private func makeDoor(side: Float) -> SCNNode {
+        let door = SCNNode()
+        door.position = SCNVector3(side, 0, 0.15)
+        let slab = box(0.16, 1.85, 0.95, 0.02, color(0.93, 0.72, 0.48))
+        slab.position.y = 0.95
+        door.addChildNode(slab)
+        let knob = SCNSphere(radius: 0.05)
+        knob.firstMaterial?.diffuse.contents = color(0.98, 0.9, 0.55)
+        let knobNode = SCNNode(geometry: knob)
+        knobNode.position = SCNVector3(side > 0 ? -0.12 : 0.12, 0.95, 0.35)
+        door.addChildNode(knobNode)
+        return door
     }
 
     private func addWalls() {
@@ -831,6 +1142,7 @@ final class BedroomWorld: ObservableObject {
     }
 
     private func buildPet() {
+        pet.name = "petRoot"
         pet.childNodes.forEach { $0.removeFromParentNode() }
         let colors = petColors(form)
         let scale: Float = stage == .egg ? 0.72 : (stage == .baby ? 0.9 : 1)
@@ -1111,13 +1423,13 @@ final class BedroomWorld: ObservableObject {
     private func woodImage() -> UIImage {
         let side = CGSize(width: 128, height: 256)
         return UIGraphicsImageRenderer(size: side).image { ctx in
-            UIColor(red: 0.93, green: 0.78, blue: 0.55, alpha: 1).setFill()
+            UIColor(red: 0.95, green: 0.72, blue: 0.40, alpha: 1).setFill()
             ctx.fill(CGRect(origin: .zero, size: side))
             for row in 0..<4 {
                 let y = CGFloat(row) * 64
-                UIColor(red: 0.86, green: 0.68, blue: 0.44, alpha: 0.55).setFill()
+                UIColor(red: 0.91, green: 0.66, blue: 0.34, alpha: 0.7).setFill()
                 ctx.fill(CGRect(x: 0, y: y, width: 128, height: 60))
-                UIColor(red: 0.72, green: 0.54, blue: 0.34, alpha: 0.45).setFill()
+                UIColor(red: 0.78, green: 0.52, blue: 0.28, alpha: 0.35).setFill()
                 ctx.fill(CGRect(x: 0, y: y + 60, width: 128, height: 4))
             }
         }
