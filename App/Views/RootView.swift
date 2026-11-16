@@ -19,7 +19,9 @@ struct RootView: View {
             screen
         }
         .onAppear {
-            if ScreenshotDemo.isOn, session.record?.pet == nil {
+            if !HomeFrame.current.isEmpty {
+                session.previewBaby(named: "Pip")
+            } else if ScreenshotDemo.isOn, session.record?.pet == nil {
                 session.createPet(named: "Pip")
             }
         }

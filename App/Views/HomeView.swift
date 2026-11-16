@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var showToday = false
     @State private var showDressing = false
     @State private var inRoom = false
+    @StateObject private var homeWorld = BedroomWorld()
     @State private var showVisit = false
     @AppStorage("visit.card") private var visitCard = ""
     @AppStorage("sound.muted") private var soundMuted = false
@@ -22,6 +23,10 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
+            Group {
+            if let pet = session.record?.pet, pet.stage != .egg {
+                livingRoom(pet)
+            } else {
             ScrollView {
                 if let pet = session.record?.pet {
                     VStack(alignment: .leading, spacing: 20) {
@@ -90,6 +95,8 @@ struct HomeView: View {
                     .padding(20)
                 }
             }
+            }
+            }
             .background(PocketBackground(theme: session.record?.progress.backgroundID).ignoresSafeArea())
             .overlay {
                 if let reward = session.playReward {
@@ -118,10 +125,18 @@ struct HomeView: View {
                 if ScreenshotDemo.isOn { showGames = true }
                 let roomArgs = ProcessInfo.processInfo.arguments
                 if roomArgs.contains("-roomShot") || roomArgs.contains("-roomWalk") { inRoom = true }
+                bootHome()
+            }
+            .onChange(of: session.record?.pet.stage) { _, _ in
+                bootHome()
+            }
+            .onReceive(Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()) { _ in
+                guard !inRoom else { return }
+                homeWorld.tick(dt: 1.0 / 60.0, closet: false)
             }
             .navigationTitle("Pocket Pet")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(inRoom ? .hidden : .visible, for: .navigationBar)
+            .toolbar(inRoom || !HomeFrame.current.isEmpty ? .hidden : .visible, for: .navigationBar)
             .toolbar { toolbar }
             .sheet(isPresented: $showToday) {
                 NavigationStack {
@@ -205,6 +220,113 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private func livingRoom(_ pet: Pet) -> some View {
+        ZStack(alignment: .top) {
+            BedroomCanvas(world: homeWorld) { kind in
+                greetHome(kind)
+            }
+            .ignoresSafeArea()
+            VStack(spacing: 8) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pet.name)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
+                        Text(PetCopy.stageLine(pet, now: session.currentDate, level: session.level))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(homeWorld.wing == "kitchen" ? "Bedroom" : "Kitchen") {
+                        if homeWorld.wing == "kitchen" {
+                            homeWorld.showBedroom()
+                        } else {
+                            homeWorld.showKitchen()
+                        }
+                    }
+                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.white.opacity(0.92)))
+                    .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
+                }
+                .padding(.horizontal, 16)
+                if !homeWorld.hello.isEmpty {
+                    Text(homeWorld.hello)
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.white.opacity(0.95)))
+                        .accessibilityLabel(homeWorld.hello)
+                }
+                Spacer()
+                    .allowsHitTesting(false)
+                VStack(spacing: 8) {
+                    StatMeterView(stat: .fed, value: pet.hunger, tint: StatTint.fed, pop: pop(for: .fed))
+                    StatMeterView(stat: .happy, value: pet.happiness, tint: StatTint.happy, pop: pop(for: .happy))
+                    StatMeterView(stat: .energy, value: pet.energy, tint: StatTint.energy, pop: pop(for: .energy))
+                    itemTray
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            roomChip("Feed", "fork.knife") { session.feed() }
+                            roomChip("Play", "gamecontroller.fill") { showGames = true }
+                            roomChip(pet.isSleeping ? "Wake" : "Sleep", pet.isSleeping ? "sun.max.fill" : "moon.fill") { session.toggleSleep() }
+                            roomChip("Room", "house.fill") { withAnimation(.spring(duration: 0.45)) { inRoom = true } }
+                            roomChip("Shop", "bag") { showShop = true }
+                            roomChip("Today", "sun.max") { showToday = true }
+                        }
+                    }
+                }
+                .padding(10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.horizontal, 10)
+            }
+            .safeAreaPadding(.top, 6)
+            .safeAreaPadding(.bottom, 6)
+        }
+        .onAppear { bootHome() }
+    }
+
+    private func roomChip(_ title: String, _ system: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: system)
+                .font(.system(.caption, design: .rounded).weight(.bold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color.white.opacity(0.9)))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color(red: 0.28, green: 0.16, blue: 0.42))
+    }
+
+    private func greetHome(_ kind: String) {
+        let name = session.record?.pet.name ?? "friend"
+        homeWorld.notice(kind, name: name)
+        switch kind {
+        case "giggle":
+            session.react(to: .tickle)
+        case "purr":
+            session.react(to: .pet)
+        default:
+            session.react(to: .poke)
+        }
+        homeWorld.nudge()
+    }
+
+    private func bootHome() {
+        guard let pet = session.record?.pet, pet.stage != .egg else { return }
+        homeWorld.autonomous = HomeFrame.current.isEmpty
+        homeWorld.boot(
+            room: session.currentRoom(),
+            stage: pet.stage,
+            form: pet.displayForm,
+            outfit: session.record?.progress.outfitID,
+            guestName: "",
+            guestForm: ""
+        )
     }
 
     private func creature(_ pet: Pet) -> some View {

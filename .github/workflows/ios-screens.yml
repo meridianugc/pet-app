@@ -78,6 +78,20 @@ jobs:
           xcrun simctl launch booted com.example.petapp -roomWalk || true
           sleep 6
           xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/bedroom-walk.png" || true
+          xcrun simctl terminate booted com.example.petapp || true
+          shot_home() {
+            local arg="$1"
+            local file="$2"
+            xcrun simctl terminate booted com.example.petapp || true
+            xcrun simctl launch booted com.example.petapp -homeFrame "$arg" || true
+            sleep 8
+            xcrun simctl io booted screenshot "$RUNNER_TEMP/screens/$file" || true
+          }
+          shot_home wander1 home_room_wander_1.png
+          shot_home wander2 home_room_wander_2.png
+          shot_home hi home_room_hi.png
+          shot_home kitchen room2.png
+          shot_home floor room_floor.png
           python3 -c 'import os,struct,pathlib; root=pathlib.Path(os.environ["RUNNER_TEMP"])/"screens";
           [
             p.rename(p.with_name(p.stem + ".portrait.png"))
