@@ -15,6 +15,11 @@ public struct FloorPoint: Equatable, Sendable {
     }
 }
 
+public enum RoomWing: Equatable, Sendable {
+    case bedroom
+    case kitchen
+}
+
 public struct FloorBox: Equatable, Sendable {
     public var minX: Double
     public var maxX: Double
@@ -44,7 +49,16 @@ public enum RoomSpace {
         FloorBox(minX: -2.05, maxX: -0.15, minZ: -2.15, maxZ: -1.05),
         FloorBox(minX: -0.75, maxX: 0.75, minZ: -2.2, maxZ: -1.72),
         FloorBox(minX: -2.2, maxX: -1.72, minZ: -0.7, maxZ: 0.85),
-        FloorBox(minX: 1.35, maxX: 2.15, minZ: 1.05, maxZ: 1.9)
+        FloorBox(minX: 1.35, maxX: 2.15, minZ: 1.05, maxZ: 1.9),
+        FloorBox(minX: -2.2, maxX: -1.15, minZ: 0.75, maxZ: 1.7),
+        FloorBox(minX: 0.7, maxX: 1.35, minZ: 0.6, maxZ: 1.25),
+        FloorBox(minX: 1.05, maxX: 1.5, minZ: 0.3, maxZ: 0.8)
+    ]
+
+    public static let kitchenSolids: [FloorBox] = [
+        FloorBox(minX: -0.7, maxX: 2.05, minZ: -2.2, maxZ: -1.45),
+        FloorBox(minX: -0.75, maxX: 1.15, minZ: 0.0, maxZ: 1.25),
+        FloorBox(minX: 0.95, maxX: 1.5, minZ: 0.9, maxZ: 1.45)
     ]
 
     public static func floor(from spot: RoomSpot) -> FloorPoint {
@@ -58,9 +72,10 @@ public enum RoomSpace {
         )
     }
 
-    public static func blocked(_ point: FloorPoint, radius: Double = body) -> Bool {
+    public static func blocked(_ point: FloorPoint, radius: Double = body, wing: RoomWing = .bedroom) -> Bool {
         if abs(point.x) + radius > limit || abs(point.z) + radius > limit { return true }
-        for box in solids {
+        let boxes = wing == .kitchen ? kitchenSolids : solids
+        for box in boxes {
             let hitsX = point.x + radius > box.minX && point.x - radius < box.maxX
             let hitsZ = point.z + radius > box.minZ && point.z - radius < box.maxZ
             if hitsX && hitsZ { return true }
@@ -74,7 +89,8 @@ public enum RoomSpace {
         yaw: Double,
         stickX: Double,
         stickY: Double,
-        dt: Double
+        dt: Double,
+        wing: RoomWing = .bedroom
     ) -> (FloorPoint, yaw: Double, moving: Bool) {
         let input = min(1, hypot(stickX, stickY))
         guard input > 0.08, dt > 0 else { return (point, yaw, false) }
@@ -83,18 +99,18 @@ public enum RoomSpace {
         let worldX = sin(yaw) * ny + cos(yaw) * nx
         let worldZ = -cos(yaw) * ny + sin(yaw) * nx
         let step = 1.7 * input * dt
-        let moved = slide(point, dx: worldX * step, dz: worldZ * step)
+        let moved = slide(point, dx: worldX * step, dz: worldZ * step, wing: wing)
         let facing = atan2(worldX, -worldZ)
         return (moved, turn(from: yaw, toward: facing, dt: dt), true)
     }
 
-    public static func slide(_ point: FloorPoint, dx: Double, dz: Double) -> FloorPoint {
+    public static func slide(_ point: FloorPoint, dx: Double, dz: Double, wing: RoomWing = .bedroom) -> FloorPoint {
         let both = FloorPoint(x: point.x + dx, z: point.z + dz)
-        if !blocked(both) { return both }
+        if !blocked(both, wing: wing) { return both }
         let alongX = FloorPoint(x: point.x + dx, z: point.z)
-        if !blocked(alongX) { return alongX }
+        if !blocked(alongX, wing: wing) { return alongX }
         let alongZ = FloorPoint(x: point.x, z: point.z + dz)
-        if !blocked(alongZ) { return alongZ }
+        if !blocked(alongZ, wing: wing) { return alongZ }
         return point
     }
 
